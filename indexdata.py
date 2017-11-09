@@ -57,24 +57,28 @@ def main(argv):
     # Must be fixed when supporting multiple levels
     mySolRl1 = SolrServer + myCore + "-l1" 
     mySolRtn = SolrServer + myCore + "-thumbnail" 
-    print mySolRl1 + "\n" + mySolRtn
-    sys.exit(2)
+    #print mySolRl1 + "\n" + mySolRtn
+    #sys.exit(2)
 
     if (iflg):
         # Index one file
+        print "Indexing a single file..."
         if not os.path.isfile(infile):
             print infile+" does not exist"
             sys.exit(1)
-        subprocess.call(['java',
+        myproc = subprocess.call(['/usr/bin/java',
             '-jar','metsis-metadata-jar-with-dependencies.jar',
             'index-single-metadata',
-            '--level l1', '--metadataFile', infile, '--server', mySolRl1])
+            '--level', 'l1', '--metadataFile', infile, '--server', mySolRl1])
+        #print "Level 1 indexing: " + mySolRl1
         if tflg:
-            subprocess.call(['java',
+            print "Indexing a thumbnail..."
+            myproc = subprocess.call(['/usr/bin/java',
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
                 'index-single-thumbnail',
                 '--metadataFile', infile, '--server', mySolRtn, 
-                '--wmsVersion 1.3.0'])
+                '--wmsVersion', '1.3.0'])
+            #print "Thumbnail indexing: " + mySolRtn
 
 
 if __name__ == "__main__":
