@@ -24,13 +24,14 @@ def usage():
     print '\t-d: index a directory with multiple datasets (not implemented)'
     print '\t-c: core name (e.g. normap, sios, nbs)'
     print '\t-t: index a single thumbnail (no argument, require -i)'
+    print '\t-f: index a single feature type (no argument, require -i)'
     print ''
     sys.exit(2)
 
 def main(argv):
-    cflg = iflg = dflg = tflg = False
+    cflg = iflg = dflg = tflg = fflg = False
     try:
-        opts, args = getopt.getopt(argv,"hi:d:c:t",["ifile=", "ddir=", "core="])
+        opts, args = getopt.getopt(argv,"hi:d:c:tf",["ifile=", "ddir=", "core="])
     except getopt.GetoptError:
         print sys.argv[0]+' -i <inputfile>'
         sys.exit(2)
@@ -49,6 +50,8 @@ def main(argv):
             cflg = True
         elif opt in ("-t"):
             tflg = True
+        elif opt in ("-f"):
+            fflg = True
 
     if not cflg or (not iflg and not dflg):
         usage()
@@ -62,7 +65,7 @@ def main(argv):
 
     if (iflg):
         # Index one file
-        print "Indexing a single file..."
+        print "Indexing a single file in "+mySolRl1
         if not os.path.isfile(infile):
             print infile+" does not exist"
             sys.exit(1)
@@ -72,13 +75,19 @@ def main(argv):
             '--level', 'l1', '--metadataFile', infile, '--server', mySolRl1])
         #print "Level 1 indexing: " + mySolRl1
         if tflg:
-            print "Indexing a thumbnail..."
+            print "Indexing a single thumbnail in "+mySolRtn
             myproc = subprocess.call(['/usr/bin/java',
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
                 'index-single-thumbnail',
                 '--metadataFile', infile, '--server', mySolRtn, 
                 '--wmsVersion', '1.3.0'])
             #print "Thumbnail indexing: " + mySolRtn
+        if fflg:
+            print "Indexing a single feature type in "+mySolRtn
+            myproc = subprocess.call(['/usr/bin/java',
+                '-jar','metsis-metadata-jar-with-dependencies.jar',
+                'index-single-feature',
+                '--metadataFile', infile, '--server', mySolRtn])
 
 
 if __name__ == "__main__":
