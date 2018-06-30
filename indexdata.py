@@ -11,11 +11,11 @@ AUTHOR:
     Øystein Godøy, METNO/FOU, 2017-11-09 
 
 UPDATES:
-
+    Øystein Godøy, METNO/FOU, 2018-04-19
+        Added support for level 2
 
 NOTES:
     - Should support ingestion of directories as well...
-    - Should support ingestion of two level dataset as well...
 """
 
 import sys
@@ -30,15 +30,23 @@ def usage():
     print '\t-i: index an individual dataset'
     print '\t-d: index a directory with multiple datasets'
     print '\t-c: core name (e.g. normap, sios, nbs)'
+    print '\t-l: index level 2 dataset'
     print '\t-t: index a single thumbnail (no argument, require -i or -d)'
     print '\t-f: index a single feature type (no argument, require -i or -d)'
     print ''
     sys.exit(2)
 
 def main(argv):
-    cflg = iflg = dflg = tflg = fflg = False
+
+    mylog = "mylogfile.txt"
     try:
-        opts, args = getopt.getopt(argv,"hi:d:c:tf",["ifile=", "ddir=", "core="])
+        f = open(mylog,"w")
+    except OSError as e:
+        print e
+
+    cflg = iflg = dflg = tflg = fflg = lflg = False
+    try:
+        opts, args = getopt.getopt(argv,"hi:d:c:ltf",["ifile=", "ddir=", "core="])
     except getopt.GetoptError:
         print sys.argv[0]+' -i <inputfile>'
         sys.exit(2)
@@ -55,6 +63,8 @@ def main(argv):
         elif opt in ("-c", "--core"):
             myCore = arg
             cflg = True
+        elif opt in ("-l"):
+            lflg = True
         elif opt in ("-t"):
             tflg = True
         elif opt in ("-f"):
@@ -63,11 +73,19 @@ def main(argv):
     if not cflg or (not iflg and not dflg):
         usage()
 
+    if lflg:
+        myLevel = "l2"
+    else:
+        myLevel = "l1"
+
     SolrServer = 'http://157.249.176.182:8080/solr/'
     # Must be fixed when supporting multiple levels
-    mySolRl1 = SolrServer + myCore + "-l1" 
+    if lflg:
+        mySolRc = SolrServer + myCore + "-l2" 
+    else:
+        mySolRc = SolrServer + myCore + "-l1" 
     mySolRtn = SolrServer + myCore + "-thumbnail" 
-    #print mySolRl1 + "\n" + mySolRtn
+    #print mySolRc + "\n" + mySolRtn
     #sys.exit(2)
 
     # Find files to process
@@ -80,34 +98,68 @@ def main(argv):
             print os.error
             sys.exit(1)
 
-    for myfile in myfiles:
-        myfile = os.path.join(ddir,myfile)
-        # Index files
-        print "Indexing a single file in "+mySolRl1
-        if not os.path.isfile(myfile):
-            print myfile+" does not exist"
-            sys.exit(1)
-        myproc = subprocess.call(['/usr/bin/java',
+    if dflg and lflg:
+        # Until the indexing utility actually works as expected...
+        print "Indexing a Level 2 directory in "+mySolRc
+        myproc = subprocess.check_output(['/usr/bin/java',
             '-jar','metsis-metadata-jar-with-dependencies.jar',
-            'index-single-metadata',
-            '--level', 'l1', '--metadataFile', myfile, '--server', mySolRl1])
-        print "Return value: " + str(myproc)
+            'index-metadata',
+            '--sourceDirectory', ddir, 
+            '--server', mySolRc,
+            '--level', myLevel,
+            '--includeRelatedDataset', 'true'])
+        sys.exit() # while testing
         if tflg:
             print "Indexing a single thumbnail in "+mySolRtn
-            myproc = subprocess.call(['/usr/bin/java',
+            myproc = subprocess.check_output(['/usr/bin/java',
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
-                'index-single-thumbnail',
-                '--metadataFile', myfile, '--server', mySolRtn, 
+                'index-thumbnail',
+                '--sourceDirectory', ddir, '--server', mySolRtn, 
                 '--wmsVersion', '1.3.0'])
-            #print "Thumbnail indexing: " + mySolRtn
             print "Return value: " + str(myproc)
         if fflg:
             print "Indexing a single feature type in "+mySolRtn
-            myproc = subprocess.call(['/usr/bin/java',
+            myproc = subprocess.check_output(['/usr/bin/java',
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
-                'index-single-feature',
-                '--metadataFile', myfile, '--server', mySolRtn])
+                'index-feature',
+                '--sourceDirectory', ddir, '--server', mySolRtn])
             print "Return value: " + str(myproc)
+    else:
+        for myfile in myfiles:
+            if dflg:
+                myfile = os.path.join(ddir,myfile)
+            # Index files
+            print "Indexing a single file in "+mySolRc
+            f.write("\n======\nIndexing "+ myfile)
+            if not os.path.isfile(myfile):
+                print myfile+" does not exist"
+                sys.exit(1)
+            myproc = subprocess.check_output(['/usr/bin/java',
+                '-jar','metsis-metadata-jar-with-dependencies.jar',
+                'index-single-metadata',
+                '--level', myLevel, '--metadataFile', myfile, '--server', mySolRc])
+            #print "Return value: " + str(myproc)
+            if tflg:
+                print "Indexing a single thumbnail in "+mySolRtn
+                myproc = subprocess.check_output(['/usr/bin/java',
+                    '-jar','metsis-metadata-jar-with-dependencies.jar',
+                    'index-single-thumbnail',
+                    '--metadataFile', myfile, '--server', mySolRtn, 
+                    '--wmsVersion', '1.3.0'])
+                #print "Thumbnail indexing: " + mySolRtn
+                #print "Return value: " + str(myproc)
+            if fflg:
+                print "Indexing a single feature type in "+mySolRtn
+                myproc = subprocess.check_output(['/usr/bin/java',
+                    '-jar','metsis-metadata-jar-with-dependencies.jar',
+                    'index-single-feature',
+                    '--metadataFile', myfile, '--server', mySolRtn])
+                #print "Return value: " + str(myproc)
+            f.write(myproc)
+
+    # Report status
+    f.write("Number of files processed were:" + str(len(myfiles)))
+    f.close()
 
 
 if __name__ == "__main__":
