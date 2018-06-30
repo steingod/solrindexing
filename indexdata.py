@@ -28,9 +28,10 @@ def usage():
     print 'Usage: '+sys.argv[0]+' -i <dataset_name> -c <core_name> [-h]' 
     print '\t-h: dump this text'
     print '\t-i: index an individual dataset'
+    print '\t-l: index individual datasetis from list file'
     print '\t-d: index a directory with multiple datasets'
     print '\t-c: core name (e.g. normap, sios, nbs)'
-    print '\t-l: index level 2 dataset'
+    print '\t-2: index level 2 dataset'
     print '\t-t: index a single thumbnail (no argument, require -i or -d)'
     print '\t-f: index a single feature type (no argument, require -i or -d)'
     print ''
@@ -44,9 +45,10 @@ def main(argv):
     except OSError as e:
         print e
 
-    cflg = iflg = dflg = tflg = fflg = lflg = False
+    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = False
     try:
-        opts, args = getopt.getopt(argv,"hi:d:c:ltf",["ifile=", "ddir=", "core="])
+        opts, args = getopt.getopt(argv,"hi:d:c:l:tf2",["ifile=", "ddir=",
+            "core=", "list="])
     except getopt.GetoptError:
         print sys.argv[0]+' -i <inputfile>'
         sys.exit(2)
@@ -64,23 +66,26 @@ def main(argv):
             myCore = arg
             cflg = True
         elif opt in ("-l"):
+            infile = arg
             lflg = True
+        elif opt in ("-2"):
+            l2flg = True
         elif opt in ("-t"):
             tflg = True
         elif opt in ("-f"):
             fflg = True
 
-    if not cflg or (not iflg and not dflg):
+    if not cflg or (not iflg and not dflg and not lflg):
         usage()
 
-    if lflg:
+    if l2flg:
         myLevel = "l2"
     else:
         myLevel = "l1"
 
     SolrServer = 'http://157.249.176.182:8080/solr/'
     # Must be fixed when supporting multiple levels
-    if lflg:
+    if l2flg:
         mySolRc = SolrServer + myCore + "-l2" 
     else:
         mySolRc = SolrServer + myCore + "-l1" 
@@ -91,6 +96,10 @@ def main(argv):
     # Find files to process
     if (iflg):
         myfiles = [infile]
+    elif (lflg):
+        f2 = open(infile,"r")
+        myfiles = f2.readlines()
+        f2.close()
     else:
         try:
             myfiles = os.listdir(ddir)
@@ -98,7 +107,7 @@ def main(argv):
             print os.error
             sys.exit(1)
 
-    if dflg and lflg:
+    if dflg and l2flg:
         # Until the indexing utility actually works as expected...
         print "Indexing a Level 2 directory in "+mySolRc
         myproc = subprocess.check_output(['/usr/bin/java',
@@ -126,6 +135,8 @@ def main(argv):
             print "Return value: " + str(myproc)
     else:
         for myfile in myfiles:
+            if lflg:
+                myfile = myfile.rstrip()
             if dflg:
                 myfile = os.path.join(ddir,myfile)
             # Index files
