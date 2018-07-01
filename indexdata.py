@@ -110,6 +110,7 @@ def main(argv):
     if dflg and l2flg:
         # Until the indexing utility actually works as expected...
         print "Indexing a Level 2 directory in "+mySolRc
+        f.write("\n======\nIndexing "+ ddir)
         myproc = subprocess.check_output(['/usr/bin/java',
             '-jar','metsis-metadata-jar-with-dependencies.jar',
             'index-metadata',
@@ -117,7 +118,7 @@ def main(argv):
             '--server', mySolRc,
             '--level', myLevel,
             '--includeRelatedDataset', 'true'])
-        sys.exit() # while testing
+        f.write(myproc)
         if tflg:
             print "Indexing a single thumbnail in "+mySolRtn
             myproc = subprocess.check_output(['/usr/bin/java',
@@ -126,6 +127,7 @@ def main(argv):
                 '--sourceDirectory', ddir, '--server', mySolRtn, 
                 '--wmsVersion', '1.3.0'])
             print "Return value: " + str(myproc)
+            f.write(myproc)
         if fflg:
             print "Indexing a single feature type in "+mySolRtn
             myproc = subprocess.check_output(['/usr/bin/java',
@@ -133,6 +135,7 @@ def main(argv):
                 'index-feature',
                 '--sourceDirectory', ddir, '--server', mySolRtn])
             print "Return value: " + str(myproc)
+            f.write(myproc)
     else:
         for myfile in myfiles:
             if lflg:
@@ -149,6 +152,7 @@ def main(argv):
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
                 'index-single-metadata',
                 '--level', myLevel, '--metadataFile', myfile, '--server', mySolRc])
+            f.write(myproc)
             #print "Return value: " + str(myproc)
             if tflg:
                 print "Indexing a single thumbnail in "+mySolRtn
@@ -159,6 +163,7 @@ def main(argv):
                     '--wmsVersion', '1.3.0'])
                 #print "Thumbnail indexing: " + mySolRtn
                 #print "Return value: " + str(myproc)
+                f.write(myproc)
             if fflg:
                 print "Indexing a single feature type in "+mySolRtn
                 myproc = subprocess.check_output(['/usr/bin/java',
@@ -166,6 +171,7 @@ def main(argv):
                     'index-single-feature',
                     '--metadataFile', myfile, '--server', mySolRtn])
                 #print "Return value: " + str(myproc)
+                f.write(myproc)
             f.write(myproc)
 
     # Report status
