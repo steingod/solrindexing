@@ -15,13 +15,20 @@ UPDATES:
         Added support for level 2
 
 NOTES:
+    - under rewrite...
     - Should support ingestion of directories as well...
+
 """
 
 import sys
 import os.path
 import getopt
 import subprocess
+import pysolr
+import xmltodict
+import dateutil.parser
+#from checkMMD_v5 import CheckMMD
+import warnings
 
 def usage():
     print ''
@@ -36,6 +43,231 @@ def usage():
     print '\t-f: index a single feature type (no argument, require -i or -d)'
     print ''
     sys.exit(2)
+
+class MMD4SolR():
+    """ Read and check MMD files, convert to dictionary """
+    def __init__(self, filename): 
+        """ set variables in class """
+        self.filename = filename
+        with open(self.filename) as fd:
+            self.mydoc = xmltodict.parse(fd.read())
+
+    def check_mmd(self):
+        """ Check and correct MMD if needed """
+
+        """ 
+        Check for presence of required elements
+        Temporal and spatial extent are not required as of now.
+        """
+        mmd_requirements = {
+                'mmd:metadata_version': False,
+                'mmd:metadata_identifier': False,
+                'mmd:title': False,
+                'mmd:abstract': False,
+                'mmd:metadata_status': False, 
+                'mmd:dataset_production_status': False,
+                'mmd:collection': False,
+                'mmd:last_metadata_update': False, 
+                'mmd:iso_topic_category': False, 
+                'mmd:keywords': False,
+                }
+        """ 
+        Check for presence and non empty elements 
+        This must be further developed...
+        """
+        print(self.mydoc)
+        print('\n')
+        for requirement in mmd_requirements.iterkeys():
+            if requirement in self.mydoc['mmd:mmd']:
+                if len(self.mydoc['mmd:mmd'][requirement]) > 1:
+                    print(self.mydoc['mmd:mmd'][requirement])
+                    print('\t'+requirement+' is present and non empty')
+                    mmd_requirements[requirement] = True
+
+
+        """ 
+        Check for correct vocabularies where necessary 
+        Change to external files (SKOS), using embedded files for now
+        """
+        mmd_controlled_elements = {
+                'mmd:iso_topic_category':
+                    ['farming','biota','boundaries',
+                    'climatologyMeteorologyAtmosphere', 'economy','elevation',
+                    'environment','geoscientificinformation','health',
+                    'imageryBaseMapsEarthCover','inlandWaters','location',
+                    'oceans','planningCadastre','society','structure',
+                    'transportation','utilitiesCommunication'],
+                'mmd:collection':
+                    ['ACCESS','ADC','APPL','CC','DAM','DOKI','GCW',
+                    'NBS','NMAP','NMDC','NSDN','SIOS','YOPP'],
+                'mmd:dataset_production_status':
+                    ['Planned', 'In Work', 'Complete', 'Obsolete'],
+                }
+        for element in mmd_controlled_elements.iterkeys():
+            print('Checking '+element)
+            if element in self.mydoc['mmd:mmd']:
+                if type(self.mydoc['mmd:mmd'][element]) is list:
+                    if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
+                            print('\t'+element+' is all good...')
+                    else:
+                        print('\t'+element+' contains non valid content')
+                        print('('+self.mydoc['mmd:mmd'][element]+')')
+                else:
+                    if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
+                            print('\t'+element+' is all good...')
+                    else:
+                        print('\t'+element+' contains non valid content')
+                        print('('+self.mydoc['mmd:mmd'][element]+')')
+
+
+
+        """
+        Check that keywords also contain GCMD keywords
+        Need to check contents more specifically...
+        """
+        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'],list):
+            i = 0
+            gcmd = False
+            for e in self.mydoc['mmd:mmd']['mmd:keywords']:
+                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
+                    gcmd = True
+                    break;
+                i += 1
+            if not gcmd:
+                print('Keywords in GCMD are not available')
+        else:
+            if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
+                #warnings.warn('Keywords in GCMD are not available')
+                print('Keywords in GCMD are not available')
+        
+        """ Modify dates if necessary """
+        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
+            for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
+                self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+    def tosolr(self):
+        """ Collect required elements """
+        mydict = {
+                "id":
+                    str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
+                "mmd_metadata_identifier":
+                    str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
+                "mmd_metadata_status":
+                    str(self.mydoc['mmd:mmd']['mmd:metadata_status']),
+                }
+
+        if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
+            i=0
+            for e in self.mydoc['mmd:mmd']['mmd:title']:
+                if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
+                    mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
+                i+=1
+        else:
+            mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
+
+        if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],list):
+            i=0
+            for e in self.mydoc['mmd:mmd']['mmd:abstract']:
+                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
+                    mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
+                i+=1
+        else:
+            mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract']['#text'])
+
+        """ Add optional elements """
+
+        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
+            mydict["mmd_temporal_extent_start_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
+            if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                mydict["mmd_temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+        
+        if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
+                mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+
+                mydict['mmd_geographic_extent_rectangle_east'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), 
+                mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+        
+        """ Data access """
+        if 'mmd:data_access' in self.mydoc['mmd:mmd']:
+            #print(self.mydoc['mmd:mmd']['mmd:data_access'])
+            #print(len(self.mydoc['mmd:mmd']['mmd:data_access']))
+            #print(type(self.mydoc['mmd:mmd']['mmd:data_access']))
+            mydict['mmd_data_access_resource'] = []
+            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'],list):
+                i = 0
+                for e in self.mydoc['mmd:mmd']['mmd:data_access']:
+                    print(self.mydoc['mmd:mmd']['mmd:data_access'][i])
+                    mydict['mmd_data_access_resource'].append(
+                            self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')+':'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8')+',description:'
+                            )
+                    i += 1
+            else:
+                mydict['mmd_data_access_resource'] = [
+                        self.mydoc['mmd:mmd']['mmd:data_access']
+                        ]
+            print(mydict['mmd_data_access_resource'])
+
+        """ Related information """
+        mydict['mmd_related_information_resource'] =  []
+        if 'mmd:related_information' in self.mydoc['mmd:mmd']:
+            #print(type(self.mydoc['mmd:mmd']['mmd:related_information']))
+            #print(self.mydoc['mmd:mmd']['mmd:related_information'])
+            mydict['mmd_related_information_resource'].append(
+                    self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+':'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+',description:'
+                    )
+            print(mydict['mmd_data_access_resource'])
+
+        """ Project """
+
+        """ Constraints """
+
+        """ Data center and personnel """
+
+        """ Activity type """
+
+        sys.exit()
+
+        return(mydict)
+
+class IndexMMD():
+    """ requires a list of dictionaries representing MMD as input """
+    def __init__(self,mysolrserver,mmd4solr):
+        self.mmd4solr = list()
+        self.mmd4solr.append(mmd4solr)
+        print()
+        print(self.mmd4solr)
+        self.solr = pysolr.Solr(mysolrserver)
+
+    def add():
+        """ Add a level 1 dataset """
+
+    def add_level2():
+        """ Add a level 2 dataset, i.e. update level 1 as well """
+
+    def create_wms_thumbnail():
+        """ Create a base64 encoded thumbnail """
+        """ Use cartopy, bit basemap """
+
+    def create_ts_thumbnail():
+        """ Create a base64 encoded thumbnail """
+
+    def set_feature_type():
+        """ Set feature type from OPeNDAP """
+
+    def delete():
+        """ Require ID as input """
+
+    def search():
+        """ Require Id as input """
+        try:
+            results = solr.search('mmd_title:Sea Ice Extent', df='text_en',rows=100)
+        except Exception as e:
+            print("Something failed: ", str(e))
+
+        return(results)
 
 def main(argv):
 
@@ -107,9 +339,11 @@ def main(argv):
             print os.error
             sys.exit(1)
 
+    # mysolrlist = list() # might be used later...
     if dflg and l2flg:
         # Until the indexing utility actually works as expected...
         print "Indexing a Level 2 directory in "+mySolRc
+        f.write("Indexing a Level 2 directory in "+mySolRc)
         f.write("\n======\nIndexing "+ ddir)
         myproc = subprocess.check_output(['/usr/bin/java',
             '-jar','metsis-metadata-jar-with-dependencies.jar',
@@ -143,6 +377,13 @@ def main(argv):
             if dflg:
                 myfile = os.path.join(ddir,myfile)
             # Index files
+
+
+            mydoc = MMD4SolR(myfile) # while testing
+            mydoc.check_mmd()
+            print(mydoc.tosolr())
+            IndexMMD(mydoc.tosolr())
+            sys.exit() # while testing
             print "Indexing a single file in "+mySolRc
             f.write("\n======\nIndexing "+ myfile)
             if not os.path.isfile(myfile):
@@ -151,7 +392,9 @@ def main(argv):
             myproc = subprocess.check_output(['/usr/bin/java',
                 '-jar','metsis-metadata-jar-with-dependencies.jar',
                 'index-single-metadata',
-                '--level', myLevel, '--metadataFile', myfile, '--server', mySolRc])
+                '--level', myLevel, 
+                '--metadataFile', myfile, 
+                '--server', mySolRc])
             f.write(myproc)
             #print "Return value: " + str(myproc)
             if tflg:
@@ -159,7 +402,8 @@ def main(argv):
                 myproc = subprocess.check_output(['/usr/bin/java',
                     '-jar','metsis-metadata-jar-with-dependencies.jar',
                     'index-single-thumbnail',
-                    '--metadataFile', myfile, '--server', mySolRtn, 
+                    '--metadataFile', myfile, 
+                    '--server', mySolRtn, 
                     '--wmsVersion', '1.3.0'])
                 #print "Thumbnail indexing: " + mySolRtn
                 #print "Return value: " + str(myproc)
@@ -169,7 +413,8 @@ def main(argv):
                 myproc = subprocess.check_output(['/usr/bin/java',
                     '-jar','metsis-metadata-jar-with-dependencies.jar',
                     'index-single-feature',
-                    '--metadataFile', myfile, '--server', mySolRtn])
+                    '--metadataFile', myfile, 
+                    '--server', mySolRtn])
                 #print "Return value: " + str(myproc)
                 f.write(myproc)
             f.write(myproc)
