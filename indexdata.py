@@ -315,7 +315,7 @@ def main(argv):
     else:
         myLevel = "l1"
 
-    SolrServer = 'http://157.249.176.182:8080/solr/'
+    SolrServer = 'http://yourserver.com/solr/'
     # Must be fixed when supporting multiple levels
     if l2flg:
         mySolRc = SolrServer + myCore + "-l2" 
