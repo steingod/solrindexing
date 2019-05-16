@@ -29,6 +29,8 @@ import xmltodict
 import dateutil.parser
 #from checkMMD_v5 import CheckMMD
 import warnings
+import json
+from collections import OrderedDict
 
 def usage():
     print ''
@@ -54,6 +56,8 @@ class MMD4SolR():
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
+        """ Remember to check that multiple fields of abstract and title
+        have set xml:lang= attributes... """
 
         """ 
         Check for presence of required elements
@@ -75,8 +79,8 @@ class MMD4SolR():
         Check for presence and non empty elements 
         This must be further developed...
         """
-        print(self.mydoc)
-        print('\n')
+        #print(self.mydoc)
+        #print('\n')
         for requirement in mmd_requirements.iterkeys():
             if requirement in self.mydoc['mmd:mmd']:
                 if len(self.mydoc['mmd:mmd'][requirement]) > 1:
@@ -149,15 +153,16 @@ class MMD4SolR():
 
     def tosolr(self):
         """ Collect required elements """
-        mydict = {
+        mydict = OrderedDict({
                 "id":
                     str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
                 "mmd_metadata_identifier":
                     str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
                 "mmd_metadata_status":
                     str(self.mydoc['mmd:mmd']['mmd:metadata_status']),
-                }
+                })
 
+        """ title """
         if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
             i=0
             for e in self.mydoc['mmd:mmd']['mmd:title']:
@@ -167,22 +172,54 @@ class MMD4SolR():
         else:
             mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
 
+        """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],list):
             i=0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
-                i+=1
+                i += 1
         else:
             mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract']['#text'])
 
-        """ Add optional elements """
+        """ Last metadata update """
+        if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
+            mydict['mmd_last_metadata_update'] = str(self.mydoc['mmd:mmd']['mmd:last_metadata_update'])
 
+        """ Dataset production status """
+        if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
+            mydict['mmd_dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
+
+        """ Dataset status """
+        if 'mmd:metadata_status' in self.mydoc['mmd:mmd']:
+            mydict['mmd_metadata_status'] = str(self.mydoc['mmd:mmd']['mmd:metadata_status'])
+
+        """ Collection """
+        if 'mmd:collection' in self.mydoc['mmd:mmd']:
+            mydict['mmd_collection'] = []
+            mydict['mmd_collection'].append(
+                    self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8'))
+
+        """ ISO TopicCategory """
+        if 'mmd:iso_topic_category' in self.mydoc['mmd:mmd']:
+            mydict['mmd_iso_topic_category'] = []
+            mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
+
+        """ Keywords """
+        """ Should structure this on GCMD only at some point """
+        if 'mmd:keywords' in self.mydoc['mmd:mmd']:
+            mydict['mmd_keywords_keyword'] = []
+            if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
+                mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+
+
+        """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             mydict["mmd_temporal_extent_start_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
             if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
                 mydict["mmd_temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
         
+        """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
                 mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
                 mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
@@ -218,17 +255,44 @@ class MMD4SolR():
             mydict['mmd_related_information_resource'].append(
                     self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+':'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+',description:'
                     )
-            print(mydict['mmd_data_access_resource'])
+
+        """ Related dataset """
+        """ Remember to add type of relation in the future ØG """
+        if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
+            mydict['mmd_related_dataset'] = str(self.mydoc['mmd:mmd']['mmd:related_dataset'])
 
         """ Project """
+        if 'mmd:project' in self.mydoc['mmd:mmd']:
+            mydict['mmd_project_short_name'].append(
+                    self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
+            mydict['mmd_project_long_name'].append(
+                    self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
 
-        """ Constraints """
+        """ Access constraints """
+        if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
+            mydict['mmd_access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
 
-        """ Data center and personnel """
+        """ Use constraint """
+        if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
+            mydict['mmd_use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
+
+        """ Data center """
+        """ This may be missing curently, not easy to find out """
+        if 'mmd:data_center' in self.mydoc['mmd:mmd']:
+            if 'mmd:long_name' in self.mydoc['mmd:mmd']['mmd:data_center']:
+                mydict['mmd_data_center'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:long_name'])
+
+        """ Personnel """
+        """ Need to check this again, should restructure cores ØG """
+        #if 
+        #    mydict['mmd_personnel_name'] =
+        #    mydict['mmd_personnel_email'] =
+        #    mydict['mmd_personnel_organisation'] =
+        #    mydict['mmd_personnel_role'] =
 
         """ Activity type """
-
-        sys.exit()
+        if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
+            mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
         return(mydict)
 
@@ -237,30 +301,41 @@ class IndexMMD():
     def __init__(self,mysolrserver,mmd4solr):
         self.mmd4solr = list()
         self.mmd4solr.append(mmd4solr)
-        print()
-        print(self.mmd4solr)
-        self.solr = pysolr.Solr(mysolrserver)
+        #print()
+        print(mysolrserver)
+        #print(self.mmd4solr)
+        try:
+            self.solr = pysolr.Solr(mysolrserver)
+        except Exception as e:
+            print("Something failed ", str(e))
+        print("Connected to SolR server...")
 
-    def add():
+    def add(self):
         """ Add a level 1 dataset """
+        print("Adding records...")
+        print(json.dumps(self.mmd4solr, indent=4))
+        try:
+            self.solr.add(self.mmd4solr)
+        except Exception as e:
+            print("Something failed ", str(e))
 
-    def add_level2():
+    def add_level2(self):
         """ Add a level 2 dataset, i.e. update level 1 as well """
 
-    def create_wms_thumbnail():
+    def create_wms_thumbnail(self):
         """ Create a base64 encoded thumbnail """
         """ Use cartopy, bit basemap """
 
-    def create_ts_thumbnail():
+    def create_ts_thumbnail(self):
         """ Create a base64 encoded thumbnail """
 
-    def set_feature_type():
+    def set_feature_type(self):
         """ Set feature type from OPeNDAP """
 
-    def delete():
+    def delete(self):
         """ Require ID as input """
 
-    def search():
+    def search(self):
         """ Require Id as input """
         try:
             results = solr.search('mmd_title:Sea Ice Extent', df='text_en',rows=100)
@@ -316,6 +391,7 @@ def main(argv):
         myLevel = "l1"
 
     SolrServer = 'http://yourserver/solr/'
+    SolrServer = 'http://157.249.176.182:8080/solr/'
     # Must be fixed when supporting multiple levels
     if l2flg:
         mySolRc = SolrServer + myCore + "-l2" 
@@ -381,9 +457,11 @@ def main(argv):
 
             mydoc = MMD4SolR(myfile) # while testing
             mydoc.check_mmd()
-            print(mydoc.tosolr())
-            IndexMMD(mydoc.tosolr())
+            #print(mydoc.tosolr())
+            mysolr = IndexMMD(mySolRc,mydoc.tosolr())
+            mysolr.add()
             sys.exit() # while testing
+
             print "Indexing a single file in "+mySolRc
             f.write("\n======\nIndexing "+ myfile)
             if not os.path.isfile(myfile):
