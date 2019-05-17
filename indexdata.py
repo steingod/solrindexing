@@ -196,9 +196,15 @@ class MMD4SolR():
 
         """ Collection """
         if 'mmd:collection' in self.mydoc['mmd:mmd']:
-            mydict['mmd_collection'] = []
-            mydict['mmd_collection'].append(
-                    self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8'))
+            mydict['mmd_collection'] = [] 
+            if len(self.mydoc['mmd:mmd']['mmd:collection']) > 1:
+                i = 0
+                for e in self.mydoc['mmd:mmd']['mmd:collection']:
+                    mydict['mmd_collection'].append(
+                        self.mydoc['mmd:mmd']['mmd:collection'][i].encode('utf-8'))
+                    i += 1
+            else:
+                mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
 
         """ ISO TopicCategory """
         if 'mmd:iso_topic_category' in self.mydoc['mmd:mmd']:
@@ -228,32 +234,28 @@ class MMD4SolR():
                 mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
         
         """ Data access """
+        """ Double check this ØG """
+        """ Especially description """
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
-            #print(self.mydoc['mmd:mmd']['mmd:data_access'])
-            #print(len(self.mydoc['mmd:mmd']['mmd:data_access']))
-            #print(type(self.mydoc['mmd:mmd']['mmd:data_access']))
             mydict['mmd_data_access_resource'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'],list):
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
-                    print(self.mydoc['mmd:mmd']['mmd:data_access'][i])
                     mydict['mmd_data_access_resource'].append(
-                            self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')+':'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8')+',description:'
+                            '\"'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')+'\":\"'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8')+'\",description\":'
                             )
                     i += 1
             else:
                 mydict['mmd_data_access_resource'] = [
-                        self.mydoc['mmd:mmd']['mmd:data_access']
+                        '\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type']+'\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource']+'\"'
                         ]
-            print(mydict['mmd_data_access_resource'])
 
         """ Related information """
+        """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] =  []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
-            #print(type(self.mydoc['mmd:mmd']['mmd:related_information']))
-            #print(self.mydoc['mmd:mmd']['mmd:related_information'])
             mydict['mmd_related_information_resource'].append(
-                    self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+':'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+',description:'
+                    '\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+'\":\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+'\",\"description\":'#+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
                     )
 
         """ Related dataset """
@@ -398,8 +400,6 @@ def main(argv):
     else:
         mySolRc = SolrServer + myCore + "-l1" 
     mySolRtn = SolrServer + myCore + "-thumbnail" 
-    #print mySolRc + "\n" + mySolRtn
-    #sys.exit(2)
 
     # Find files to process
     if (iflg):
