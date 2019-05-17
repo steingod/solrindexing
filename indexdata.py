@@ -215,9 +215,8 @@ class MMD4SolR():
         """ Should structure this on GCMD only at some point """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
-            if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
-                mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-
+            for e in (self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']):
+                mydict['mmd_keywords_keyword'].append(e)
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
