@@ -299,26 +299,26 @@ class MMD4SolR():
 
 class IndexMMD():
     """ requires a list of dictionaries representing MMD as input """
-    def __init__(self,mysolrserver,mmd4solr):
-        self.mmd4solr = list()
-        self.mmd4solr.append(mmd4solr)
-        #print()
-        print(mysolrserver)
-        #print(self.mmd4solr)
+    def __init__(self,mysolrserver):
+        #self.mmd4solr = list()
+        #self.mmd4solr.append(mmd4solr)
         try:
             self.solr = pysolr.Solr(mysolrserver)
         except Exception as e:
-            print("Something failed ", str(e))
+            print("Something failed in SolR init", str(e))
         print("Connected to SolR server...")
 
-    def add(self):
+    def add_level1(self,myrecord):
         """ Add a level 1 dataset """
         print("Adding records...")
-        print(json.dumps(self.mmd4solr, indent=4))
+        mylist = list()
+        print(json.dumps(myrecord, indent=4))
+        mylist.append(myrecord)
         try:
-            self.solr.add(self.mmd4solr)
+            self.solr.add(mylist)
         except Exception as e:
-            print("Something failed ", str(e))
+            print("Something failed in SolR add", str(e))
+        print("Record successfully added.")
 
     def add_level2(self):
         """ Add a level 2 dataset, i.e. update level 1 as well """
@@ -457,8 +457,8 @@ def main(argv):
             mydoc = MMD4SolR(myfile) # while testing
             mydoc.check_mmd()
             #print(mydoc.tosolr())
-            mysolr = IndexMMD(mySolRc,mydoc.tosolr())
-            mysolr.add()
+            mysolr = IndexMMD(mySolRc)
+            mysolr.add_level1(mydoc.tosolr())
             sys.exit() # while testing
 
             print "Indexing a single file in "+mySolRc
