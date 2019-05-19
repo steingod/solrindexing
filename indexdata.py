@@ -300,6 +300,8 @@ class MMD4SolR():
 class IndexMMD():
     """ requires a list of dictionaries representing MMD as input """
     def __init__(self,mysolrserver):
+        """ Is it just as wise to just attach all 3 cores used? ØG """
+        """ Then we can deceide on where to put records afterwards """
         #self.mmd4solr = list()
         #self.mmd4solr.append(mmd4solr)
         try:
@@ -320,8 +322,18 @@ class IndexMMD():
             print("Something failed in SolR add", str(e))
         print("Record successfully added.")
 
-    def add_level2(self):
+    def add_level2(self,myl2record):
         """ Add a level 2 dataset, i.e. update level 1 as well """
+        """ Retrieve level 1 record """
+        try:
+            myresults =
+            self.solr.search('mmd_metadata_identifier:'+myl2record['mmd_metadata_identifier'], df='', rows=100)
+        except Exception as e:
+            print("Something failed in searching for parent dataset", str(e)))
+
+        """ Update level 1 record with id of this dataset """
+
+        """ Index level 2 dataset """
 
     def create_wms_thumbnail(self):
         """ Create a base64 encoded thumbnail """
@@ -335,6 +347,12 @@ class IndexMMD():
 
     def delete(self):
         """ Require ID as input """
+        try:
+            self.solr.delete(id=['doc_1', 'doc_2'])
+        except Exception as e:
+            print("Something failed in SolR delete", str(e))
+
+        print("Records successfully deleted")
 
     def search(self):
         """ Require Id as input """
@@ -392,7 +410,6 @@ def main(argv):
         myLevel = "l1"
 
     SolrServer = 'http://yourserver/solr/'
-    SolrServer = 'http://157.249.176.182:8080/solr/'
     # Must be fixed when supporting multiple levels
     if l2flg:
         mySolRc = SolrServer + myCore + "-l2" 
