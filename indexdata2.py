@@ -33,20 +33,20 @@ import json
 from collections import OrderedDict
 
 def usage():
-    print('')
-    print('Usage: '+sys.argv[0]+' -i <dataset_name> -c <core_name> [-h]')
-    print('\t-h: dump this text')
-    print('\t-i: index an individual dataset')
-    print('\t-l: index individual datasetis from list file')
-    print('\t-d: index a directory with multiple datasets')
-    print('\t-c: core name (e.g. normap, sios, nbs)')
-    print('\t-2: index level 2 dataset')
-    print('\t-t: index a single thumbnail (no argument, require -i or -d)')
-    print('\t-f: index a single feature type (no argument, require -i or -d)')
-    print('')
+    print ''
+    print 'Usage: '+sys.argv[0]+' -i <dataset_name> -c <core_name> [-h]' 
+    print '\t-h: dump this text'
+    print '\t-i: index an individual dataset'
+    print '\t-l: index individual datasetis from list file'
+    print '\t-d: index a directory with multiple datasets'
+    print '\t-c: core name (e.g. normap, sios, nbs)'
+    print '\t-2: index level 2 dataset'
+    print '\t-t: index a single thumbnail (no argument, require -i or -d)'
+    print '\t-f: index a single feature type (no argument, require -i or -d)'
+    print ''
     sys.exit(2)
 
-class MMD4SolR:
+class MMD4SolR():
     """ Read and check MMD files, convert to dictionary """
     def __init__(self, filename): 
         """ set variables in class """
@@ -82,7 +82,7 @@ class MMD4SolR:
         """
         #print(self.mydoc)
         #print('\n')
-        for requirement in mmd_requirements:
+        for requirement in mmd_requirements.iterkeys():
             if requirement in self.mydoc['mmd:mmd']:
                 if len(self.mydoc['mmd:mmd'][requirement]) > 1:
                     print(self.mydoc['mmd:mmd'][requirement])
@@ -96,48 +96,22 @@ class MMD4SolR:
         """
         mmd_controlled_elements = {
                 'mmd:iso_topic_category':
-                    ['farming',
-                     'biota',
-                     'boundaries',
-                     'climatologyMeteorologyAtmosphere',
-                     'economy',
-                     'elevation',
-                     'environment',
-                     'geoscientificinformation',
-                     'health',
-                     'imageryBaseMapsEarthCover',
-                     'inlandWaters',
-                     'location',
-                     'oceans',
-                     'planningCadastre',
-                     'society',
-                     'structure',
-                     'transportation',
-                     'utilitiesCommunication'],
+                    ['farming','biota','boundaries',
+                    'climatologyMeteorologyAtmosphere', 'economy','elevation',
+                    'environment','geoscientificinformation','health',
+                    'imageryBaseMapsEarthCover','inlandWaters','location',
+                    'oceans','planningCadastre','society','structure',
+                    'transportation','utilitiesCommunication'],
                 'mmd:collection':
-                    ['ACCESS',
-                     'ADC',
-                     'APPL',
-                     'CC',
-                     'DAM',
-                     'DOKI',
-                     'GCW',
-                     'NBS',
-                     'NMAP',
-                     'NMDC',
-                     'NSDN',
-                     'SIOS',
-                     'YOPP'],
+                    ['ACCESS','ADC','APPL','CC','DAM','DOKI','GCW',
+                    'NBS','NMAP','NMDC','NSDN','SIOS','YOPP'],
                 'mmd:dataset_production_status':
-                    ['Planned',
-                     'In Work',
-                     'Complete',
-                     'Obsolete'],
+                    ['Planned', 'In Work', 'Complete', 'Obsolete'],
                 }
-        for element in mmd_controlled_elements:
+        for element in mmd_controlled_elements.iterkeys():
             print('Checking '+element)
             if element in self.mydoc['mmd:mmd']:
-                if isinstance(self.mydoc['mmd:mmd'][element], list):
+                if type(self.mydoc['mmd:mmd'][element]) is list:
                     if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
                             print('\t'+element+' is all good...')
                     else:
@@ -156,19 +130,19 @@ class MMD4SolR:
         Check that keywords also contain GCMD keywords
         Need to check contents more specifically...
         """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'],list):
             i = 0
             gcmd = False
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
                 if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
                     gcmd = True
-                    break
+                    break;
                 i += 1
             if not gcmd:
                 print('Keywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
-                # warnings.warn('Keywords in GCMD are not available')
+                #warnings.warn('Keywords in GCMD are not available')
                 print('Keywords in GCMD are not available')
         
         """ Modify dates if necessary """
@@ -200,7 +174,7 @@ class MMD4SolR:
             mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
 
         """ abstract """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
+        if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],list):
             i=0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
@@ -247,24 +221,24 @@ class MMD4SolR:
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
-            mydict["mmd_temporal_extent_start_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date'])
+            mydict["mmd_temporal_extent_start_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
             if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                mydict["mmd_temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'])
+                mydict["mmd_temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
         
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-                mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north'])
-                mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south'])
+                mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
 
-                mydict['mmd_geographic_extent_rectangle_east'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east'])
-                mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west'])
+                mydict['mmd_geographic_extent_rectangle_east'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), 
+                mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
         
         """ Data access """
         """ Double check this ØG """
         """ Especially description """
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
+            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'],list):
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
                     mydict['mmd_data_access_resource'].append(
@@ -337,7 +311,7 @@ class IndexMMD():
             print("Something failed in SolR init", str(e))
         print("Connected to SolR server...")
 
-    def add_level1(self, myrecord):
+    def add_level1(self,myrecord):
         """ Add a level 1 dataset """
         print("Adding records...")
         mylist = list()
@@ -349,7 +323,7 @@ class IndexMMD():
             print("Something failed in SolR add", str(e))
         print("Record successfully added.")
 
-    def add_level2(self, myl2record):
+    def add_level2(self,myl2record):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         """ Retrieve level 1 record """
         try:
@@ -394,16 +368,16 @@ def main(argv):
 
     mylog = "mylogfile.txt"
     try:
-        f = open(mylog, "w")
+        f = open(mylog,"w")
     except OSError as e:
-        print(e)
+        print e
 
     cflg = iflg = dflg = tflg = fflg = lflg = l2flg = False
     try:
-        opts, args = getopt.getopt(argv, "hi:d:c:l:tf2", ["ifile=", "ddir=",
+        opts, args = getopt.getopt(argv,"hi:d:c:l:tf2",["ifile=", "ddir=",
             "core=", "list="])
     except getopt.GetoptError:
-        print(sys.argv[0]+' -i <inputfile>')
+        print sys.argv[0]+' -i <inputfile>'
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
@@ -448,96 +422,94 @@ def main(argv):
     if (iflg):
         myfiles = [infile]
     elif (lflg):
-        f2 = open(infile, "r")
+        f2 = open(infile,"r")
         myfiles = f2.readlines()
         f2.close()
     else:
         try:
             myfiles = os.listdir(ddir)
         except os.error:
-            print(os.error)
+            print os.error
             sys.exit(1)
 
     # mysolrlist = list() # might be used later...
     if dflg and l2flg:
         # Until the indexing utility actually works as expected...
-        print("Indexing a Level 2 directory in "+mySolRc)
+        print "Indexing a Level 2 directory in "+mySolRc
         f.write("Indexing a Level 2 directory in "+mySolRc)
         f.write("\n======\nIndexing "+ ddir)
         myproc = subprocess.check_output(['/usr/bin/java',
-                                          '-jar', 'metsis-metadata-jar-with-dependencies.jar',
-                                          'index-metadata',
-                                          '--sourceDirectory', ddir,
-                                          '--server', mySolRc,
-                                          '--level', myLevel,
-                                          '--includeRelatedDataset', 'true'])
+            '-jar','metsis-metadata-jar-with-dependencies.jar',
+            'index-metadata',
+            '--sourceDirectory', ddir, 
+            '--server', mySolRc,
+            '--level', myLevel,
+            '--includeRelatedDataset', 'true'])
         f.write(myproc)
         if tflg:
-            print("Indexing a single thumbnail in "+mySolRtn)
+            print "Indexing a single thumbnail in "+mySolRtn
             myproc = subprocess.check_output(['/usr/bin/java',
-                                              '-jar', 'metsis-metadata-jar-with-dependencies.jar',
-                                              'index-thumbnail',
-                                              '--sourceDirectory', ddir,
-                                              '--server', mySolRtn,
-                                              '--wmsVersion', '1.3.0'])
-            print("Return value: " + str(myproc))
+                '-jar','metsis-metadata-jar-with-dependencies.jar',
+                'index-thumbnail',
+                '--sourceDirectory', ddir, '--server', mySolRtn, 
+                '--wmsVersion', '1.3.0'])
+            print "Return value: " + str(myproc)
             f.write(myproc)
         if fflg:
-            print("Indexing a single feature type in "+mySolRtn)
+            print "Indexing a single feature type in "+mySolRtn
             myproc = subprocess.check_output(['/usr/bin/java',
-                                              '-jar', 'metsis-metadata-jar-with-dependencies.jar',
-                                              'index-feature',
-                                              '--sourceDirectory', ddir,
-                                              '--server', mySolRtn])
-            print("Return value: " + str(myproc))
+                '-jar','metsis-metadata-jar-with-dependencies.jar',
+                'index-feature',
+                '--sourceDirectory', ddir, '--server', mySolRtn])
+            print "Return value: " + str(myproc)
             f.write(myproc)
     else:
         for myfile in myfiles:
             if lflg:
                 myfile = myfile.rstrip()
             if dflg:
-                myfile = os.path.join(ddir, myfile)
+                myfile = os.path.join(ddir,myfile)
             # Index files
+
 
             mydoc = MMD4SolR(myfile) # while testing
             mydoc.check_mmd()
-            # print(mydoc.tosolr())
+            #print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
             mysolr.add_level1(mydoc.tosolr())
             sys.exit() # while testing
 
-            print("Indexing a single file in "+mySolRc)
+            print "Indexing a single file in "+mySolRc
             f.write("\n======\nIndexing "+ myfile)
             if not os.path.isfile(myfile):
-                print(myfile+" does not exist")
+                print myfile+" does not exist"
                 sys.exit(1)
             myproc = subprocess.check_output(['/usr/bin/java',
-                                              '-jar', 'metsis-metadata-jar-with-dependencies.jar',
-                                              'index-single-metadata',
-                                              '--level', myLevel,
-                                              '--metadataFile', myfile,
-                                              '--server', mySolRc])
+                '-jar','metsis-metadata-jar-with-dependencies.jar',
+                'index-single-metadata',
+                '--level', myLevel, 
+                '--metadataFile', myfile, 
+                '--server', mySolRc])
             f.write(myproc)
-            # print "Return value: " + str(myproc)
+            #print "Return value: " + str(myproc)
             if tflg:
-                print("Indexing a single thumbnail in "+mySolRtn)
+                print "Indexing a single thumbnail in "+mySolRtn
                 myproc = subprocess.check_output(['/usr/bin/java',
-                                                  '-jar',
-                                                  'metsis-metadata-jar-with-dependencies.jar',
-                                                  'index-single-thumbnail',
-                                                  '--metadataFile', myfile,
-                                                  '--server', mySolRtn,
-                                                  '--wmsVersion', '1.3.0'])
-                # print "Thumbnail indexing: " + mySolRtn
-                # print "Return value: " + str(myproc)
+                    '-jar','metsis-metadata-jar-with-dependencies.jar',
+                    'index-single-thumbnail',
+                    '--metadataFile', myfile, 
+                    '--server', mySolRtn, 
+                    '--wmsVersion', '1.3.0'])
+                #print "Thumbnail indexing: " + mySolRtn
+                #print "Return value: " + str(myproc)
                 f.write(myproc)
             if fflg:
-                print("Indexing a single feature type in "+mySolRtn)
+                print "Indexing a single feature type in "+mySolRtn
                 myproc = subprocess.check_output(['/usr/bin/java',
-                                                  '-jar', 'metsis-metadata-jar-with-dependencies.jar',
-                                                  'index-single-feature',
-                                                  '--metadataFile', myfile,
-                                                  '--server', mySolRtn])
+                    '-jar','metsis-metadata-jar-with-dependencies.jar',
+                    'index-single-feature',
+                    '--metadataFile', myfile, 
+                    '--server', mySolRtn])
                 #print "Return value: " + str(myproc)
                 f.write(myproc)
             f.write(myproc)
