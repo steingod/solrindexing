@@ -80,15 +80,14 @@ class MMD4SolR:
         Check for presence and non empty elements 
         This must be further developed...
         """
-        #print(self.mydoc)
-        #print('\n')
+        # print(self.mydoc)
+        # print('\n')
         for requirement in mmd_requirements:
             if requirement in self.mydoc['mmd:mmd']:
                 if len(self.mydoc['mmd:mmd'][requirement]) > 1:
                     print(self.mydoc['mmd:mmd'][requirement])
                     print('\t'+requirement+' is present and non empty')
                     mmd_requirements[requirement] = True
-
 
         """ 
         Check for correct vocabularies where necessary 
@@ -150,8 +149,6 @@ class MMD4SolR:
                         print('\t'+element+' contains non valid content')
                         print('('+self.mydoc['mmd:mmd'][element]+')')
 
-
-
         """
         Check that keywords also contain GCMD keywords
         Need to check contents more specifically...
@@ -176,7 +173,6 @@ class MMD4SolR:
             for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
                 mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                 self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
-
 
     def tosolr(self):
         """ Collect required elements """
@@ -253,35 +249,58 @@ class MMD4SolR:
         
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-                mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north'])
-                mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south'])
+                mydict['mmd_geographic_extent_rectangle_north'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']
+                )
+                mydict['mmd_geographic_extent_rectangle_south'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']
+                )
 
-                mydict['mmd_geographic_extent_rectangle_east'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east'])
-                mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west'])
+                mydict['mmd_geographic_extent_rectangle_east'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']
+                )
+                mydict['mmd_geographic_extent_rectangle_west'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']
+                )
         
         """ Data access """
         """ Double check this ØG """
         """ Especially description """
+        # TODO fix the long string composition using bracher
+        #  see :
+        #  https://stackoverflow.com/questions/1874592/how-to-write-very-long-string-that-conforms-with-pep8-and-prevent-e501
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
+                    data_access = ('\"'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8'),
+                                   '\":\"',
+                                   self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8'),
+                                   '\",description\":')
                     mydict['mmd_data_access_resource'].append(
-                            '\"'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')+'\":\"'+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8')+'\",description\":'
+                        data_access
                             )
                     i += 1
             else:
+                mmd_data_access_resource = ('\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'],
+                                            '\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'],
+                                            '\"')
                 mydict['mmd_data_access_resource'] = [
-                        '\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type']+'\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource']+'\"'
+                        mmd_data_access_resource
                         ]
 
         """ Related information """
         """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] =  []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
+            mmd_related_information_resource = ('\"',
+                                                self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8'),
+                                                '\":\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8'),
+                                                '\",\"description\":')
+            # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
             mydict['mmd_related_information_resource'].append(
-                    '\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+'\":\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+'\",\"description\":'#+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
+                    mmd_related_information_resource
                     )
 
         """ Related dataset """
@@ -312,6 +331,7 @@ class MMD4SolR:
 
         """ Personnel """
         """ Need to check this again, should restructure cores ØG """
+        #
         #if 
         #    mydict['mmd_personnel_name'] =
         #    mydict['mmd_personnel_email'] =
@@ -322,15 +342,16 @@ class MMD4SolR:
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
             mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
-        return(mydict)
+        return mydict
+
 
 class IndexMMD():
     """ requires a list of dictionaries representing MMD as input """
     def __init__(self, mysolrserver):
         """ Is it just as wise to just attach all 3 cores used? ØG """
         """ Then we can deceide on where to put records afterwards """
-        #self.mmd4solr = list()
-        #self.mmd4solr.append(mmd4solr)
+        # self.mmd4solr = list()
+        # self.mmd4solr.append(mmd4solr)
         try:
             self.solr = pysolr.Solr(mysolrserver)
         except Exception as e:
@@ -388,7 +409,8 @@ class IndexMMD():
         except Exception as e:
             print("Something failed: ", str(e))
 
-        return(results)
+        return results
+
 
 def main(argv):
 
@@ -400,8 +422,7 @@ def main(argv):
 
     cflg = iflg = dflg = tflg = fflg = lflg = l2flg = False
     try:
-        opts, args = getopt.getopt(argv, "hi:d:c:l:tf2", ["ifile=", "ddir=",
-            "core=", "list="])
+        opts, args = getopt.getopt(argv, "hi:d:c:l:tf2", ["ifile=", "ddir=", "core=", "list="])
     except getopt.GetoptError:
         print(sys.argv[0]+' -i <inputfile>')
         sys.exit(2)
@@ -504,7 +525,7 @@ def main(argv):
             # print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
             mysolr.add_level1(mydoc.tosolr())
-            sys.exit() # while testing
+            sys.exit()  # while testing
 
             print("Indexing a single file in "+mySolRc)
             f.write("\n======\nIndexing "+ myfile)
