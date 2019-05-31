@@ -11,6 +11,8 @@ AUTHOR:
     Øystein Godøy, METNO/FOU, 2017-11-09
 
 UPDATES:
+    Øystein Godøy, METNO/FOU, 2019-05-31
+        Integrated modifications from Trygve Halsne and Massimo Di Stefano
     Øystein Godøy, METNO/FOU, 2018-04-19
         Added support for level 2
 
@@ -31,13 +33,14 @@ import dateutil.parser
 import warnings
 import json
 from collections import OrderedDict
-
 #Packages for generating thumbnails
 import cartopy.crs as ccrs
 import cartopy
 import matplotlib.pyplot as plt
 from owslib.wms import WebMapService
 import base64
+import netCDF4
+#from netCDF4 import Dataset
 
 def usage():
     print('')
@@ -138,6 +141,8 @@ class MMD4SolR():
         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'],list):
             i = 0
             gcmd = False
+            print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
+            print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
                 if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
                     gcmd = True
@@ -222,8 +227,13 @@ class MMD4SolR():
         """ Should structure this on GCMD only at some point """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
-            for e in (self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']):
-                mydict['mmd_keywords_keyword'].append(e)
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
+                    for e in (self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']):
+                        mydict['mmd_keywords_keyword'].append(e)
+            else:
+                for e in (self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']):
+                    mydict['mmd_keywords_keyword'].append(e)
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
@@ -262,9 +272,10 @@ class MMD4SolR():
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
-                        #'\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'].encode('utf-8')+'\":\"'+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'].encode('utf-8')+'\",\"description\":'#+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
-                        '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
-
+                        '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'])+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'])+'\",\"description\":'
+                        #'\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
+                        #+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
+                        #'\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
                         )
 
         """ Related dataset """
@@ -312,31 +323,52 @@ class MMD4SolR():
 class IndexMMD():
     """ requires a list of dictionaries representing MMD as input """
     def __init__(self,mysolrserver):
-        """ Is it just as wise to just attach all 3 cores used? ØG """
-        """ Then we can deceide on where to put records afterwards """
-        #self.mmd4solr = list()
-        #self.mmd4solr.append(mmd4solr)
+        """ 
+        Connect to SolR cores 
+
+        The thumbnail core should be removed in the future and elements
+        added to the ordinary L1 and L2 cores. It could be that only one
+        core could be used eventually as parent/child relations are
+        supported by SolR.
+        """
+        # Connect to L1
         try:
-            self.solr = pysolr.Solr(mysolrserver)
+            self.solr1 = pysolr.Solr(mysolrserver)
         except Exception as e:
             print("Something failed in SolR init", str(e))
-        print("Connected to SolR server...")
+        print("Connection established to: "+str(mysolrserver))
 
-    def add_level1(self,myrecord,add_thumbnail=True):
+        # Connect to L2
+        mysolrserver2 = mysolrserver.replace('-l1','-l2')
+        try:
+            self.solr2 = pysolr.Solr(mysolrserver2)
+        except Exception as e:
+            print("Something failed in SolR init", str(e))
+        print("Connection established to: "+str(mysolrserver2))
+
+        # Connect to thumbnail
+        mysolrservert = mysolrserver.replace('-l1','-thumbnail')
+        try:
+            self.solrt = pysolr.Solr(mysolrservert)
+        except Exception as e:
+            print("Something failed in SolR init", str(e))
+        print("Connection established to: "+str(mysolrservert))
+
+    def add_level1(self,myrecord,addThumbnail=False,addFeature=False):
         """ Add a level 1 dataset """
-        print("Adding records...")
+        print("Adding records to Level 1 core...")
         mylist = list()
         #print(myrecord)
         #print(json.dumps(myrecord, indent=4))
         mylist.append(myrecord)
-        print(mylist)
+        #print(mylist)
         try:
-            self.solr.add(mylist)
+            self.solr1.add(mylist)
         except Exception as e:
             print("Something failed in SolR add", str(e))
         print("Level 1 record successfully added.")
 
-        if add_thumbnail:
+        if addThumbnail:
             try:
                 #Traverse mmd_data_access_resource to find OGC WMS information
                 for dar in mylist[0]['mmd_data_access_resource']:
@@ -350,19 +382,36 @@ class IndexMMD():
 
             except Exception as e:
                 print("Something failed in adding thumbnail, " + str(e))
+        elif addFeature:
+            try:
+                self.set_feature_type(mylist)
+            except Exception as e:
+                print("Something failed in adding feature type, " + str(e))
 
-    def add_level2(self,myl2record):
+    def add_level2(self,myl2record,addThumbnail=False):
         """ Add a level 2 dataset, i.e. update level 1 as well """
+        mylist = list()
+        mylist.append(myrecord)
+        print(mylist)
+        print(myl2record['mmd_related_dataset'])
+        sys.exit() # while testing
+
         """ Retrieve level 1 record """
         try:
             myresults = "TEST"
-            self.solr.search('mmd_metadata_identifier:'+myl2record['mmd_metadata_identifier'], df='', rows=100)
+            self.solr1.search('mmd_metadata_identifier:'+myl2record['mmd_metadata_identifier'], df='', rows=100)
         except Exception as e:
             print("Something failed in searching for parent dataset, " + str(e))
 
-        #""" Update level 1 record with id of this dataset """
+        """ Index level 2 dataset """
+        try:
+            self.solr2.add(mylist)
+        except Exception as e:
+            print("Something failed in SolR add", str(e))
+            # Need to stop if no success...
+        print("Level 2 record successfully added.")
 
-        #""" Index level 2 dataset """
+        """ Update level 1 record with id of this dataset """
 
     def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms'):
         """ Add thumbnail to SolR
@@ -457,13 +506,64 @@ class IndexMMD():
     def create_ts_thumbnail(self):
         """ Create a base64 encoded thumbnail """
 
-    def set_feature_type(self):
+    def set_feature_type(self, mymd):
         """ Set feature type from OPeNDAP """
+        """ example from Trygve
+        url_in = "http://thredds.met.no/thredds/dodsC/osisaf/met.no/ice/drift_lr/merged/2019/02/ice_drift_nh_polstere-625_multi-oi_201902201200-201902221200.nc"
+        ds = Dataset(url_in)
+        global_attributes = ds.ncattrs()
+        attribute = ds.getncattr(global_attributes[0])
+        """
+        print("Now in set_feature_type")
+        mylinks = {}
+        for i in range(len(mymd[0]['mmd_data_access_resource'])):
+            if isinstance(mymd[0]['mmd_data_access_resource'][i],bytes):
+                mystr = str(mymd[0]['mmd_data_access_resource'][i],'utf-8')
+            else:
+                mystr = mymd[0]['mmd_data_access_resource'][i]
+            if mystr.find('description') != -1:
+                t1,t2 = mystr.split(',',1)
+            else:
+                t1 = mystr
+            t2 = t1.replace('"','')
+            proto,myurl = t2.split(':',1)
+            mylinks[proto] = myurl
 
-    def delete(self):
-        """ Require ID as input """
+        # First try to open as OPeNDAP
         try:
-            self.solr.delete(id=['doc_1', 'doc_2'])
+            ds = netCDF4.Dataset(mylinks['OPeNDAP'])
+        except Exception as e:
+            print("Something failed reading dataset", str(e))
+
+        # Try to get the global attribute featureType
+        try:
+            featureType = ds.getncattr('featureType')
+        except Exception as e:
+            print("Something failed reading dataset", str(e))
+            raise Warning('Could not find featureType')
+        ds.close()
+
+        mydict = OrderedDict({
+            "id": mymd[0]['mmd_metadata_identifier'],
+            "mmd_metadata_identifier": mymd[0]['mmd_metadata_identifier'],
+            "feature_type": featureType,
+        })
+        mylist = list()
+        mylist.append(mydict) 
+
+        try:
+            self.solrt.add(mylist)
+        except Exception as e:
+            print("Something failed in SolR add", str(e))
+            raise Warning("Something failed in SolR add"+str(e))
+
+        print("Successfully added feature type for OPeNDAP.")
+
+    def delete(self, datasetid):
+        """ Require ID as input """
+        print("Deleting ", datasetid)
+        try:
+            self.solr.delete(id=datasetid)
         except Exception as e:
             print("Something failed in SolR delete", str(e))
 
@@ -486,10 +586,10 @@ def main(argv):
     except OSError as e:
         print(e)
 
-    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = False
+    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = False
     try:
-        opts, args = getopt.getopt(argv,"hi:d:c:l:tf2",["ifile=", "ddir=",
-            "core=", "list="])
+        opts, args = getopt.getopt(argv,"hi:d:c:l:r:tf2",["ifile=", "ddir=",
+            "core=", "list=", "remove="])
     except getopt.GetoptError:
         print(sys.argv[0]+' -i <inputfile>')
         sys.exit(2)
@@ -515,8 +615,12 @@ def main(argv):
             tflg = True
         elif opt in ("-f"):
             fflg = True
+        elif opt in ("-r"):
+            deleteid = arg
+            rflg = True
 
-    if not cflg or (not iflg and not dflg and not lflg):
+
+    if not cflg or (not iflg and not dflg and not lflg and not rflg):
         usage()
 
     if l2flg:
@@ -525,6 +629,8 @@ def main(argv):
         myLevel = "l1"
 
     SolrServer = 'http://yourserver/solr/'
+    SolrServer = 'http://157.249.176.182:8080/solr/'
+    
     # Must be fixed when supporting multiple levels
     if l2flg:
         mySolRc = SolrServer + myCore + "-l2"
@@ -539,11 +645,16 @@ def main(argv):
         f2 = open(infile,"r")
         myfiles = f2.readlines()
         f2.close()
-    else:
+    elif rflg:
+        print("Deleting dataset "+deleteid+" from "+mySolRc)
+        mysolr = IndexMMD(mySolRc)
+        mysolr.delete([deleteid])
+        sys.exit()
+    elif dflg:
         try:
             myfiles = os.listdir(ddir)
-        except os.error:
-            print(os.error)
+        except Exception as e:
+            print("Something went wrong in decoding cmd arguments: "+str(e))
             sys.exit(1)
 
     # mysolrlist = list() # might be used later...
@@ -582,19 +693,25 @@ def main(argv):
         """
     else:
         for myfile in myfiles:
+            # Decide files to operate on
             if lflg:
                 myfile = myfile.rstrip()
             if dflg:
                 myfile = os.path.join(ddir,myfile)
+
             # Index files
-
-
             mydoc = MMD4SolR(myfile) # while testing
             mydoc.check_mmd()
             #print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
-            mysolr.add_level1(mydoc.tosolr())
-            mysolr.create_wms_thumbnail
+            if iflg or lflg:
+                print("Indexing dataset "+myfile)
+                if l2flg:
+                    mysolr.add_level2(mydoc.tosolr(),tflg,fflg)
+                else:
+                    mysolr.add_level1(mydoc.tosolr(),tflg,fflg)
+            
+            # mysolr.create_wms_thumbnail # while testing
             sys.exit() # while testing
 
             print("Indexing a single file in "+mySolRc)
