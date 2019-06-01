@@ -61,7 +61,7 @@ class MMD4SolR():
     def __init__(self, filename):
         """ set variables in class """
         self.filename = filename
-        with open(self.filename) as fd:
+        with open(self.filename, encoding='utf-8') as fd:
             self.mydoc = xmltodict.parse(fd.read())
 
     def check_mmd(self):
@@ -289,8 +289,13 @@ class MMD4SolR():
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
             #mydict['mmd_project_long_name'].append(
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
-            mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8')
-            mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
+            print('>>>>')
+            print(self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'])
+            print(self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'])
+            if self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name']:
+                mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8')
+            if self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name']:
+                mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
 
         """ Access constraints """
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
@@ -368,32 +373,42 @@ class IndexMMD():
             print("Something failed in SolR add", str(e))
         print("Level 1 record successfully added.")
 
+        #print(mylist[0]['mmd_data_access_resource'])
         if addThumbnail:
+            print("Checking tumbnails...")
+            darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
+            print(darlist)
+            print(type(darlist))
             try:
-                #Traverse mmd_data_access_resource to find OGC WMS information
-                for dar in mylist[0]['mmd_data_access_resource']:
-                    elements = dar.split(b'\"')
-                    if elements[1] == b'OGC WMS':
-                        getCapUrl = elements[3]
-                        wms_layer = 'amplitude_vv' #NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                        zoom_level = 15
-                        self.add_thumbnail(url=getCapUrl, layer=wms_layer, zoom_level=zoom_level)
-
-
+                if 'OGC WMS' in darlist:
+                    getCapUrl = darlist['OGC WMS']
+                    wms_layer = 'ice_concentration' #NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    #myprojection = ccrs.NorthPolarStereo(central_longitude=10.0,true_scale_latitude=60.0)
+                    myprojection = ccrs.Mercator()
+                    myprojection = ccrs.PlateCarree()
+                    self.add_thumbnail(url=darlist['OGC WMS'], 
+                        layer=wms_layer, projection=myprojection)
+                elif 'OPeNDAP' in darlist:
+                    # To be added
+                    print('')
             except Exception as e:
                 print("Something failed in adding thumbnail, " + str(e))
+                raise Warning("Couldn't add thumbnail.")
         elif addFeature:
             try:
                 self.set_feature_type(mylist)
             except Exception as e:
                 print("Something failed in adding feature type, " + str(e))
 
-    def add_level2(self,myl2record,addThumbnail=False):
+    def add_level2(self,myl2record,addThumbnail=False,addFeature=False):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist = list()
-        mylist.append(myrecord)
+        mylist.append(myl2record)
         print(mylist)
-        print(myl2record['mmd_related_dataset'])
+        print(myl2record['mmd_metadata_identifier'])
+        print(type(myl2record['mmd_related_dataset']))
+        sys.exit() # while testing
+        print(myl2record['mmd_related_dataset']['text'])
         sys.exit() # while testing
 
         """ Retrieve level 1 record """
@@ -452,10 +467,10 @@ class IndexMMD():
                 thumbnail_b64: base64 string representation of image
         """
         #if self.
-        getCapabilities_url = url#self.mylist['mmd_data_access_resource']['OGC WMS']
 
-        wms = WebMapService(getCapabilities_url.decode('utf-8'))
-        wms_extent = wms.contents[layer].boundingBoxWGS84
+        wms = WebMapService(url)
+        available_layers = list(wms.contents)
+        wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         cartopy_extent = [wms_extent[0], wms_extent[2],wms_extent[1],wms_extent[3]]
         cartopy_extent_zoomed = [wms_extent[0]-zoom_level,
                                  wms_extent[2]+zoom_level,
@@ -496,6 +511,7 @@ class IndexMMD():
             encode_string = base64.b64encode(data)
 
         thumbnail_b64 = b'data:image/png;base64,'+encode_string
+        sys-exit() # while testing
 
         os.remove('thumbnail.png')
 
@@ -508,14 +524,9 @@ class IndexMMD():
 
     def set_feature_type(self, mymd):
         """ Set feature type from OPeNDAP """
-        """ example from Trygve
-        url_in = "http://thredds.met.no/thredds/dodsC/osisaf/met.no/ice/drift_lr/merged/2019/02/ice_drift_nh_polstere-625_multi-oi_201902201200-201902221200.nc"
-        ds = Dataset(url_in)
-        global_attributes = ds.ncattrs()
-        attribute = ds.getncattr(global_attributes[0])
-        """
         print("Now in set_feature_type")
-        mylinks = {}
+        mylinks = self.darextract(mymd[0]['mmd_data_access_resource'])
+        """
         for i in range(len(mymd[0]['mmd_data_access_resource'])):
             if isinstance(mymd[0]['mmd_data_access_resource'][i],bytes):
                 mystr = str(mymd[0]['mmd_data_access_resource'][i],'utf-8')
@@ -528,6 +539,7 @@ class IndexMMD():
             t2 = t1.replace('"','')
             proto,myurl = t2.split(':',1)
             mylinks[proto] = myurl
+        """
 
         # First try to open as OPeNDAP
         try:
@@ -561,6 +573,7 @@ class IndexMMD():
 
     def delete(self, datasetid):
         """ Require ID as input """
+        """ Rewrite to take full metadata record as input """
         print("Deleting ", datasetid)
         try:
             self.solr.delete(id=datasetid)
@@ -577,6 +590,24 @@ class IndexMMD():
             print("Something failed: ", str(e))
 
         return(results)
+
+    def darextract(self,mydar):
+        mylinks = {}
+        for i in range(len(mydar)):
+            if isinstance(mydar[i],bytes):
+                mystr = str(mydar[i],'utf-8')
+            else:
+                mystr = mydar[i]
+            if mystr.find('description') != -1:
+                t1,t2 = mystr.split(',',1)
+            else:
+                t1 = mystr
+            t2 = t1.replace('"','')
+            proto,myurl = t2.split(':',1)
+            mylinks[proto] = myurl
+
+        return(mylinks)
+        
 
 def main(argv):
 
@@ -711,7 +742,6 @@ def main(argv):
                 else:
                     mysolr.add_level1(mydoc.tosolr(),tflg,fflg)
             
-            # mysolr.create_wms_thumbnail # while testing
             sys.exit() # while testing
 
             print("Indexing a single file in "+mySolRc)
