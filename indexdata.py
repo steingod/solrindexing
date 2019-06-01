@@ -42,6 +42,7 @@ import base64
 import netCDF4
 #from netCDF4 import Dataset
 
+
 def usage():
     print('')
     print('Usage: '+sys.argv[0]+' -i <dataset_name> -c <core_name> [-h]')
@@ -56,7 +57,8 @@ def usage():
     print('')
     sys.exit(2)
 
-class MMD4SolR():
+
+class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
     def __init__(self, filename):
         """ set variables in class """
@@ -73,6 +75,7 @@ class MMD4SolR():
         Check for presence of required elements
         Temporal and spatial extent are not required as of now.
         """
+        # TODO add proper docstring
         mmd_requirements = {
                 'mmd:metadata_version': False,
                 'mmd:metadata_identifier': False,
@@ -103,56 +106,78 @@ class MMD4SolR():
         Change to external files (SKOS), using embedded files for now
         """
         mmd_controlled_elements = {
-                'mmd:iso_topic_category':
-                    ['farming','biota','boundaries',
-                    'climatologyMeteorologyAtmosphere', 'economy','elevation',
-                    'environment','geoscientificinformation','health',
-                    'imageryBaseMapsEarthCover','inlandWaters','location',
-                    'oceans','planningCadastre','society','structure',
-                    'transportation','utilitiesCommunication'],
-                'mmd:collection':
-                    ['ACCESS','ADC','APPL','CC','DAM','DOKI','GCW',
-                    'NBS','NMAP','NMDC','NSDN','SIOS','YOPP'],
-                'mmd:dataset_production_status':
-                    ['Planned', 'In Work', 'Complete', 'Obsolete'],
+                'mmd:iso_topic_category': ['farming',
+                                           'biota',
+                                           'boundaries',
+                                           'climatologyMeteorologyAtmosphere',
+                                           'economy',
+                                           'elevation',
+                                           'environment',
+                                           'geoscientificinformation',
+                                           'health',
+                                           'imageryBaseMapsEarthCover',
+                                           'inlandWaters',
+                                           'location',
+                                           'oceans',
+                                           'planningCadastre',
+                                           'society',
+                                           'structure',
+                                           'transportation',
+                                           'utilitiesCommunication'],
+                'mmd:collection': ['ACCESS',
+                                   'ADC',
+                                   'APPL',
+                                   'CC',
+                                   'DAM',
+                                   'DOKI',
+                                   'GCW',
+                                   'NBS',
+                                   'NMAP',
+                                   'NMDC',
+                                   'NSDN',
+                                   'SIOS',
+                                   'YOPP'],
+                'mmd:dataset_production_status': ['Planned',
+                                                  'In Work',
+                                                  'Complete',
+                                                  'Obsolete'],
                 }
         for element in mmd_controlled_elements.keys():
             print('Checking '+element)
             if element in self.mydoc['mmd:mmd']:
                 if type(self.mydoc['mmd:mmd'][element]) is list:
                     if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
-                            print('\t'+element+' is all good...')
+                        print('\t'+element+' is all good...')
                     else:
                         print('\t'+element+' contains non valid content')
                         print('('+self.mydoc['mmd:mmd'][element]+')')
                 else:
                     if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
-                            print('\t'+element+' is all good...')
+                        print('\t'+element+' is all good...')
                     else:
                         print('\t'+element+' contains non valid content')
                         print('('+self.mydoc['mmd:mmd'][element]+')')
-
-
 
         """
         Check that keywords also contain GCMD keywords
         Need to check contents more specifically...
         """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'],list):
+        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
             i = 0
             gcmd = False
             print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
             print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
+            # TODO: remove unused for loop
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
                 if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
                     gcmd = True
-                    break;
+                    break
                 i += 1
             if not gcmd:
                 print('Keywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
-                #warnings.warn('Keywords in GCMD are not available')
+                # warnings.warn('Keywords in GCMD are not available')
                 print('Keywords in GCMD are not available')
 
         """ Modify dates if necessary """
@@ -161,31 +186,28 @@ class MMD4SolR():
                 mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                 self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-
     def tosolr(self):
         """ Collect required elements """
-        mydict = OrderedDict({
-                "id":
-                    str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
-                "mmd_metadata_identifier":
-                    str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
-                "mmd_metadata_status":
-                    str(self.mydoc['mmd:mmd']['mmd:metadata_status']),
-                })
-
+        mydict = OrderedDict({"id": str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
+                              "mmd_metadata_identifier": str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
+                              "mmd_metadata_status": str(self.mydoc['mmd:mmd']['mmd:metadata_status'])
+                              })
+        # TODO: the string below [title, abstract, etc ...]
+        #  should be comments or some sort of logging statments
         """ title """
         if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
-            i=0
+            i = 0
+            # TODO: remove unused for loop
             for e in self.mydoc['mmd:mmd']['mmd:title']:
                 if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
                     mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
-                i+=1
+                i += 1
         else:
             mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
 
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],list):
-            i=0
+            i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
@@ -208,8 +230,8 @@ class MMD4SolR():
         """ Collection """
         if 'mmd:collection' in self.mydoc['mmd:mmd']:
             mydict['mmd_collection'] = []
-            #if len(self.mydoc['mmd:mmd']['mmd:collection']) > 1: #Does not work on single collection
-            if isinstance(self.mydoc['mmd:mmd']['mmd:collection'],list): #Does not work on single collection
+            # if len(self.mydoc['mmd:mmd']['mmd:collection']) > 1: #Does not work on single collection
+            if isinstance(self.mydoc['mmd:mmd']['mmd:collection'], list):  # Does not work on single collection
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:collection']:
                     mydict['mmd_collection'].append(
@@ -243,39 +265,50 @@ class MMD4SolR():
 
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-                mydict['mmd_geographic_extent_rectangle_north'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-                mydict['mmd_geographic_extent_rectangle_south'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-
-                mydict['mmd_geographic_extent_rectangle_east'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-                mydict['mmd_geographic_extent_rectangle_west'] = float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                mydict['mmd_geographic_extent_rectangle_north'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                mydict['mmd_geographic_extent_rectangle_south'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+                mydict['mmd_geographic_extent_rectangle_east'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+                mydict['mmd_geographic_extent_rectangle_west'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
 
         """ Data access """
         """ Double check this ØG """
         """ Especially description """
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'],list):
+            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
+                # TODO: remove unused for loop
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
                     mydict['mmd_data_access_resource'].append(
-                            '\"'.encode('utf-8')+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8')+'\",description\":'.encode('utf-8')
+                            '\"'.encode('utf-8') +
+                            self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
+                            '\":\"'.encode('utf-8')+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
+                            '\",description\":'.encode('utf-8')
                             )
                     i += 1
             else:
                 mydict['mmd_data_access_resource'] = [
-                        '\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type']+'\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource']+'\"'
+                        '\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
+                        '\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource']+'\"'
                         ]
 
         """ Related information """
         """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] =  []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
+            # TODO: remove unused for loop
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
-                        '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'])+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'])+'\",\"description\":'
-                        #'\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
-                        #+self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
-                        #'\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
+                        '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']) +
+                        '\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']) +
+                        '\",\"description\":'
+                        # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
+                        # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
+                        # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
                         )
 
         """ Related dataset """
@@ -285,9 +318,9 @@ class MMD4SolR():
 
         """ Project """
         if 'mmd:project' in self.mydoc['mmd:mmd']:
-            #mydict['mmd_project_short_name'].append(
+            # mydict['mmd_project_short_name'].append(
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
-            #mydict['mmd_project_long_name'].append(
+            # mydict['mmd_project_long_name'].append(
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
             mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8')
             mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
@@ -308,7 +341,7 @@ class MMD4SolR():
 
         """ Personnel """
         """ Need to check this again, should restructure cores ØG """
-        #if
+        # if
         #    mydict['mmd_personnel_name'] =
         #    mydict['mmd_personnel_email'] =
         #    mydict['mmd_personnel_organisation'] =
@@ -318,11 +351,12 @@ class MMD4SolR():
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
             mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
-        return(mydict)
+        return mydict
 
-class IndexMMD():
+
+class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
-    def __init__(self,mysolrserver):
+    def __init__(self, mysolrserver):
         """ 
         Connect to SolR cores 
 
@@ -339,7 +373,7 @@ class IndexMMD():
         print("Connection established to: "+str(mysolrserver))
 
         # Connect to L2
-        mysolrserver2 = mysolrserver.replace('-l1','-l2')
+        mysolrserver2 = mysolrserver.replace('-l1', '-l2')
         try:
             self.solr2 = pysolr.Solr(mysolrserver2)
         except Exception as e:
@@ -347,21 +381,21 @@ class IndexMMD():
         print("Connection established to: "+str(mysolrserver2))
 
         # Connect to thumbnail
-        mysolrservert = mysolrserver.replace('-l1','-thumbnail')
+        mysolrservert = mysolrserver.replace('-l1', '-thumbnail')
         try:
             self.solrt = pysolr.Solr(mysolrservert)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: "+str(mysolrservert))
 
-    def add_level1(self,myrecord,addThumbnail=False,addFeature=False):
+    def add_level1(self,myrecord, addThumbnail=False, addFeature=False):
         """ Add a level 1 dataset """
         print("Adding records to Level 1 core...")
         mylist = list()
-        #print(myrecord)
-        #print(json.dumps(myrecord, indent=4))
+        # print(myrecord)
+        # print(json.dumps(myrecord, indent=4))
         mylist.append(myrecord)
-        #print(mylist)
+        # print(mylist)
         try:
             self.solr1.add(mylist)
         except Exception as e:
@@ -370,15 +404,14 @@ class IndexMMD():
 
         if addThumbnail:
             try:
-                #Traverse mmd_data_access_resource to find OGC WMS information
+                # Traverse mmd_data_access_resource to find OGC WMS information
                 for dar in mylist[0]['mmd_data_access_resource']:
                     elements = dar.split(b'\"')
                     if elements[1] == b'OGC WMS':
                         getCapUrl = elements[3]
-                        wms_layer = 'amplitude_vv' #NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                        wms_layer = 'amplitude_vv'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                         zoom_level = 15
                         self.add_thumbnail(url=getCapUrl, layer=wms_layer, zoom_level=zoom_level)
-
 
             except Exception as e:
                 print("Something failed in adding thumbnail, " + str(e))
@@ -388,16 +421,17 @@ class IndexMMD():
             except Exception as e:
                 print("Something failed in adding feature type, " + str(e))
 
-    def add_level2(self,myl2record,addThumbnail=False):
+    def add_level2(self, myl2record, addThumbnail=False):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist = list()
         mylist.append(myrecord)
         print(mylist)
         print(myl2record['mmd_related_dataset'])
-        sys.exit() # while testing
+        sys.exit()  # while testing
 
         """ Retrieve level 1 record """
         try:
+            # TODO: remove unused variable
             myresults = "TEST"
             self.solr1.search('mmd_metadata_identifier:'+myl2record['mmd_metadata_identifier'], df='', rows=100)
         except Exception as e:
@@ -430,15 +464,14 @@ class IndexMMD():
         if type == 'wms':
             thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection)
         elif type == 'ts':
-            thumbnail = 'TMP'#create_ts_thumbnail(...)
+            thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
             print('Invalid thumbnail type: {}').format(type)
             sys.exit(2)
         print(thumbnail)
-        #return thumbnail
+        # return thumbnail
 
-
-    def create_wms_thumbnail(self, url, layer, zoom_level=0 ,projection=ccrs.PlateCarree()):
+    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree()):
         """ Create a base64 encoded thumbnail by means of cartopy.
 
             Args:
@@ -451,20 +484,21 @@ class IndexMMD():
             Returns:
                 thumbnail_b64: base64 string representation of image
         """
-        #if self.
-        getCapabilities_url = url#self.mylist['mmd_data_access_resource']['OGC WMS']
+        # if self.
+        getCapabilities_url = url  # self.mylist['mmd_data_access_resource']['OGC WMS']
 
         wms = WebMapService(getCapabilities_url.decode('utf-8'))
         wms_extent = wms.contents[layer].boundingBoxWGS84
-        cartopy_extent = [wms_extent[0], wms_extent[2],wms_extent[1],wms_extent[3]]
+        # TODO: remove unused for variable?
+        cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
         cartopy_extent_zoomed = [wms_extent[0]-zoom_level,
                                  wms_extent[2]+zoom_level,
                                  wms_extent[1]-zoom_level,
                                  wms_extent[3]+zoom_level]
         max_extent = [-180.0, 180.0, -90.0, 90.0]
 
-        for i,extent in enumerate(cartopy_extent_zoomed):
-            if i%2 == 0:
+        for i, extent in enumerate(cartopy_extent_zoomed):
+            if i % 2 == 0:
                 if extent < max_extent[i]:
                     cartopy_extent_zoomed[i] = max_extent[i]
             else:
@@ -476,7 +510,9 @@ class IndexMMD():
         ax.set_extent(cartopy_extent_zoomed)
 
         land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
-                        scale='50m', facecolor='gray', name='land')
+                                                        scale='50m',
+                                                        facecolor='gray',
+                                                        name='land')
         ax.add_feature(land_mask, zorder=0, edgecolor='black')
 
         # transparent background
@@ -486,12 +522,12 @@ class IndexMMD():
         fig.set_alpha(0)
         ax.background_patch.set_alpha(1)
 
-        ax.add_wms(wms, layer,wms_kwargs={'transparent':True})
+        ax.add_wms(wms, layer, wms_kwargs={'transparent': True})
 
-        fig.savefig('thumbnail.png',format='png')
+        fig.savefig('thumbnail.png', format='png')
         plt.close('all')
 
-        with open('thumbnail.png','rb') as infile:
+        with open('thumbnail.png', 'rb') as infile:
             data=infile.read()
             encode_string = base64.b64encode(data)
 
@@ -500,7 +536,7 @@ class IndexMMD():
         os.remove('thumbnail.png')
 
         return thumbnail_b64
-        #with open('image_b64.txt','wb') as outimg:
+        # with open('image_b64.txt','wb') as outimg:
         #    outimg.write(b'data:image/png;base64,'+encode_string)
 
     def create_ts_thumbnail(self):
@@ -517,16 +553,16 @@ class IndexMMD():
         print("Now in set_feature_type")
         mylinks = {}
         for i in range(len(mymd[0]['mmd_data_access_resource'])):
-            if isinstance(mymd[0]['mmd_data_access_resource'][i],bytes):
-                mystr = str(mymd[0]['mmd_data_access_resource'][i],'utf-8')
+            if isinstance(mymd[0]['mmd_data_access_resource'][i], bytes):
+                mystr = str(mymd[0]['mmd_data_access_resource'][i], 'utf-8')
             else:
                 mystr = mymd[0]['mmd_data_access_resource'][i]
             if mystr.find('description') != -1:
-                t1,t2 = mystr.split(',',1)
+                t1,t2 = mystr.split(',', 1)
             else:
                 t1 = mystr
-            t2 = t1.replace('"','')
-            proto,myurl = t2.split(':',1)
+            t2 = t1.replace('"', '')
+            proto, myurl = t2.split(':', 1)
             mylinks[proto] = myurl
 
         # First try to open as OPeNDAP
@@ -572,24 +608,23 @@ class IndexMMD():
     def search(self):
         """ Require Id as input """
         try:
-            results = solr.search('mmd_title:Sea Ice Extent', df='text_en',rows=100)
+            results = solr.search('mmd_title:Sea Ice Extent', df='text_en', rows=100)
         except Exception as e:
             print("Something failed: ", str(e))
 
-        return(results)
+        return results
 
 def main(argv):
 
     mylog = "mylogfile.txt"
     try:
-        f = open(mylog,"w")
+        f = open(mylog, "w")
     except OSError as e:
         print(e)
 
     cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = False
     try:
-        opts, args = getopt.getopt(argv,"hi:d:c:l:r:tf2",["ifile=", "ddir=",
-            "core=", "list=", "remove="])
+        opts, args = getopt.getopt(argv, "hi:d:c:l:r:tf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
     except getopt.GetoptError:
         print(sys.argv[0]+' -i <inputfile>')
         sys.exit(2)
@@ -619,7 +654,6 @@ def main(argv):
             deleteid = arg
             rflg = True
 
-
     if not cflg or (not iflg and not dflg and not lflg and not rflg):
         usage()
 
@@ -639,10 +673,10 @@ def main(argv):
     mySolRtn = SolrServer + myCore + "-thumbnail"
 
     # Find files to process
-    if (iflg):
+    if iflg:
         myfiles = [infile]
-    elif (lflg):
-        f2 = open(infile,"r")
+    elif lflg:
+        f2 = open(infile, "r")
         myfiles = f2.readlines()
         f2.close()
     elif rflg:
@@ -697,19 +731,19 @@ def main(argv):
             if lflg:
                 myfile = myfile.rstrip()
             if dflg:
-                myfile = os.path.join(ddir,myfile)
+                myfile = os.path.join(ddir, myfile)
 
             # Index files
-            mydoc = MMD4SolR(myfile) # while testing
+            mydoc = MMD4SolR(myfile)  # while testing
             mydoc.check_mmd()
             #print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
             if iflg or lflg:
                 print("Indexing dataset "+myfile)
                 if l2flg:
-                    mysolr.add_level2(mydoc.tosolr(),tflg,fflg)
+                    mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
                 else:
-                    mysolr.add_level1(mydoc.tosolr(),tflg,fflg)
+                    mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
             
             # mysolr.create_wms_thumbnail # while testing
             sys.exit() # while testing
@@ -720,32 +754,43 @@ def main(argv):
                 print(myfile+" does not exist")
                 sys.exit(1)
             myproc = subprocess.check_output(['/usr/bin/java',
-                '-jar','metsis-metadata-jar-with-dependencies.jar',
-                'index-single-metadata',
-                '--level', myLevel,
-                '--metadataFile', myfile,
-                '--server', mySolRc])
+                                              '-jar',
+                                              'metsis-metadata-jar-with-dependencies.jar',
+                                              'index-single-metadata',
+                                              '--level',
+                                              myLevel,
+                                              '--metadataFile',
+                                              myfile,
+                                              '--server',
+                                              mySolRc])
             f.write(myproc)
-            #print("Return value: " + str(myproc))
+            # print("Return value: " + str(myproc))
             if tflg:
                 print("Indexing a single thumbnail in "+mySolRtn)
                 myproc = subprocess.check_output(['/usr/bin/java',
-                    '-jar','metsis-metadata-jar-with-dependencies.jar',
-                    'index-single-thumbnail',
-                    '--metadataFile', myfile,
-                    '--server', mySolRtn,
-                    '--wmsVersion', '1.3.0'])
-                #print("Thumbnail indexing: " + mySolRtn)
-                #print("Return value: " + str(myproc))
+                                                  '-jar',
+                                                  'metsis-metadata-jar-with-dependencies.jar',
+                                                  'index-single-thumbnail',
+                                                  '--metadataFile',
+                                                  myfile,
+                                                  '--server',
+                                                  mySolRtn,
+                                                  '--wmsVersion',
+                                                  '1.3.0'])
+                # print("Thumbnail indexing: " + mySolRtn)
+                # print("Return value: " + str(myproc))
                 f.write(myproc)
             if fflg:
                 print("Indexing a single feature type in "+mySolRtn)
                 myproc = subprocess.check_output(['/usr/bin/java',
-                    '-jar','metsis-metadata-jar-with-dependencies.jar',
-                    'index-single-feature',
-                    '--metadataFile', myfile,
-                    '--server', mySolRtn])
-                #print("Return value: " + str(myproc))
+                                                  '-jar',
+                                                  'metsis-metadata-jar-with-dependencies.jar',
+                                                  'index-single-feature',
+                                                  '--metadataFile',
+                                                  myfile,
+                                                  '--server',
+                                                  mySolRtn])
+                # print("Return value: " + str(myproc))
                 f.write(myproc)
             f.write(myproc)
 
