@@ -29,19 +29,15 @@ import subprocess
 import pysolr
 import xmltodict
 import dateutil.parser
-#from checkMMD_v5 import CheckMMD
 import warnings
 import json
 from collections import OrderedDict
-#Packages for generating thumbnails
 import cartopy.crs as ccrs
 import cartopy
 import matplotlib.pyplot as plt
 from owslib.wms import WebMapService
 import base64
 import netCDF4
-#from netCDF4 import Dataset
-
 
 def usage():
     print('')
@@ -104,6 +100,8 @@ class MMD4SolR:
         """
         Check for correct vocabularies where necessary
         Change to external files (SKOS), using embedded files for now
+        Should be collected from
+            https://github.com/steingod/scivocab/tree/master/metno
         """
         mmd_controlled_elements = {
                 'mmd:iso_topic_category': ['farming',
@@ -168,6 +166,7 @@ class MMD4SolR:
             print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
             print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
             # TODO: remove unused for loop
+            # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
                 if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
                     gcmd = True
@@ -198,6 +197,7 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
             i = 0
             # TODO: remove unused for loop
+            # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:title']:
                 if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
                     mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
@@ -282,6 +282,7 @@ class MMD4SolR:
             if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 # TODO: remove unused for loop
+                # Switch to using e instead of self.mydoc...
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
                     mydict['mmd_data_access_resource'].append(
                             '\"'.encode('utf-8') +
@@ -301,6 +302,7 @@ class MMD4SolR:
         mydict['mmd_related_information_resource'] =  []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
             # TODO: remove unused for loop
+            # Switch to using e instead of self.mydoc...
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
                         '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']) +
@@ -414,7 +416,6 @@ class IndexMMD:
             print(darlist)
             print(type(darlist))
             try:
-<<<<<<< HEAD
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'ice_concentration' #NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
@@ -426,17 +427,6 @@ class IndexMMD:
                 elif 'OPeNDAP' in darlist:
                     # To be added
                     print('')
-=======
-                # Traverse mmd_data_access_resource to find OGC WMS information
-                for dar in mylist[0]['mmd_data_access_resource']:
-                    elements = dar.split(b'\"')
-                    if elements[1] == b'OGC WMS':
-                        getCapUrl = elements[3]
-                        wms_layer = 'amplitude_vv'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                        zoom_level = 15
-                        self.add_thumbnail(url=getCapUrl, layer=wms_layer, zoom_level=zoom_level)
-
->>>>>>> 8c6df870c4be68b86ee3b705b476d4eb8e1a80cd
             except Exception as e:
                 print("Something failed in adding thumbnail, " + str(e))
                 raise Warning("Couldn't add thumbnail.")
@@ -446,25 +436,16 @@ class IndexMMD:
             except Exception as e:
                 print("Something failed in adding feature type, " + str(e))
 
-<<<<<<< HEAD
     def add_level2(self,myl2record,addThumbnail=False,addFeature=False):
-=======
-    def add_level2(self, myl2record, addThumbnail=False):
->>>>>>> 8c6df870c4be68b86ee3b705b476d4eb8e1a80cd
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist = list()
         mylist.append(myl2record)
         print(mylist)
-<<<<<<< HEAD
         print(myl2record['mmd_metadata_identifier'])
         print(type(myl2record['mmd_related_dataset']))
         sys.exit() # while testing
         print(myl2record['mmd_related_dataset']['text'])
         sys.exit() # while testing
-=======
-        print(myl2record['mmd_related_dataset'])
-        sys.exit()  # while testing
->>>>>>> 8c6df870c4be68b86ee3b705b476d4eb8e1a80cd
 
         """ Retrieve level 1 record """
         try:
@@ -521,22 +502,12 @@ class IndexMMD:
             Returns:
                 thumbnail_b64: base64 string representation of image
         """
-<<<<<<< HEAD
-        #if self.
 
         wms = WebMapService(url)
         available_layers = list(wms.contents)
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
-        cartopy_extent = [wms_extent[0], wms_extent[2],wms_extent[1],wms_extent[3]]
-=======
-        # if self.
-        getCapabilities_url = url  # self.mylist['mmd_data_access_resource']['OGC WMS']
-
-        wms = WebMapService(getCapabilities_url.decode('utf-8'))
-        wms_extent = wms.contents[layer].boundingBoxWGS84
         # TODO: remove unused for variable?
-        cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
->>>>>>> 8c6df870c4be68b86ee3b705b476d4eb8e1a80cd
+        cartopy_extent = [wms_extent[0], wms_extent[2],wms_extent[1],wms_extent[3]]
         cartopy_extent_zoomed = [wms_extent[0]-zoom_level,
                                  wms_extent[2]+zoom_level,
                                  wms_extent[1]-zoom_level,
