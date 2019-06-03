@@ -309,9 +309,9 @@ class MMD4SolR:
             # Switch to using e instead of self.mydoc...
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
-                    '\"' + str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']) +
-                    '\":\"' + str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']) +
-                    '\",\"description\":'
+                    '\"'.encode('utf-8') + str(related_information['mmd:type']).encode('utf-8') +
+                    '\":\"'.encode('utf-8') + str(related_information['mmd:resource']).encode('utf-8') +
+                    '\",\"description\":'.encode('utf-8')
                     # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
                     # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
                     # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
