@@ -39,36 +39,30 @@ from owslib.wms import WebMapService
 import base64
 import netCDF4
 
-import argparse
-import logging
 
-logging.basicConfig(filename='app.log',
-                    filemode='w',
-                    format='%(asctime)s - %(message)s',
-                    level=logging.INFO,
-                    datefmt='%d-%b-%y %H:%M:%S')
-
-logging.info('Start logging')
-
-# how to capture stack traces
-# try:
-#   c = a / b
-# except Exception as e:
-#   logging.error("Exception occurred", exc_info=True)
-# OR
-#   logging.exception("Exception occurred")
-# more info about configurable and per-class logging methods at
-# https://realpython.com/python-logging/
+def usage():
+    print('')
+    print('Usage: ' + sys.argv[0] + ' -i <dataset_name> -c <core_name> [-h]')
+    print('\t-h: dump this text')
+    print('\t-i: index an individual dataset')
+    print('\t-l: index individual datasetis from list file')
+    print('\t-d: index a directory with multiple datasets')
+    print('\t-c: core name (e.g. normap, sios, nbs)')
+    print('\t-2: index level 2 dataset')
+    print('\t-t: index a single thumbnail (no argument, require -i or -d)')
+    print('\t-f: index a single feature type (no argument, require -i or -d)')
+    print('')
+    sys.exit(2)
 
 
 class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
+
     def __init__(self, filename):
         """ set variables in class """
         self.filename = filename
         with open(self.filename, encoding='utf-8') as fd:
             self.mydoc = xmltodict.parse(fd.read())
-            self.mydoc = self.mydoc['OAI-PMH']['GetRecord']['record']['metadata']
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
@@ -81,17 +75,17 @@ class MMD4SolR:
         """
         # TODO add proper docstring
         mmd_requirements = {
-                'mmd:metadata_version': False,
-                'mmd:metadata_identifier': False,
-                'mmd:title': False,
-                'mmd:abstract': False,
-                'mmd:metadata_status': False,
-                'mmd:dataset_production_status': False,
-                'mmd:collection': False,
-                'mmd:last_metadata_update': False,
-                'mmd:iso_topic_category': False,
-                'mmd:keywords': False,
-                }
+            'mmd:metadata_version': False,
+            'mmd:metadata_identifier': False,
+            'mmd:title': False,
+            'mmd:abstract': False,
+            'mmd:metadata_status': False,
+            'mmd:dataset_production_status': False,
+            'mmd:collection': False,
+            'mmd:last_metadata_update': False,
+            'mmd:iso_topic_category': False,
+            'mmd:keywords': False,
+        }
         """
         Check for presence and non empty elements
         This must be further developed...
@@ -101,10 +95,8 @@ class MMD4SolR:
             if requirement in self.mydoc['mmd:mmd']:
                 if len(self.mydoc['mmd:mmd'][requirement]) > 1:
                     print(self.mydoc['mmd:mmd'][requirement])
-
-                    print('\t'+requirement+' is present and non empty')
+                    print('\t' + requirement + ' is present and non empty')
                     mmd_requirements[requirement] = True
-
 
         """
         Check for correct vocabularies where necessary
@@ -113,57 +105,57 @@ class MMD4SolR:
             https://github.com/steingod/scivocab/tree/master/metno
         """
         mmd_controlled_elements = {
-                'mmd:iso_topic_category': ['farming',
-                                           'biota',
-                                           'boundaries',
-                                           'climatologyMeteorologyAtmosphere',
-                                           'economy',
-                                           'elevation',
-                                           'environment',
-                                           'geoscientificinformation',
-                                           'health',
-                                           'imageryBaseMapsEarthCover',
-                                           'inlandWaters',
-                                           'location',
-                                           'oceans',
-                                           'planningCadastre',
-                                           'society',
-                                           'structure',
-                                           'transportation',
-                                           'utilitiesCommunication'],
-                'mmd:collection': ['ACCESS',
-                                   'ADC',
-                                   'APPL',
-                                   'CC',
-                                   'DAM',
-                                   'DOKI',
-                                   'GCW',
-                                   'NBS',
-                                   'NMAP',
-                                   'NMDC',
-                                   'NSDN',
-                                   'SIOS',
-                                   'YOPP'],
-                'mmd:dataset_production_status': ['Planned',
-                                                  'In Work',
-                                                  'Complete',
-                                                  'Obsolete'],
-                }
+            'mmd:iso_topic_category': ['farming',
+                                       'biota',
+                                       'boundaries',
+                                       'climatologyMeteorologyAtmosphere',
+                                       'economy',
+                                       'elevation',
+                                       'environment',
+                                       'geoscientificinformation',
+                                       'health',
+                                       'imageryBaseMapsEarthCover',
+                                       'inlandWaters',
+                                       'location',
+                                       'oceans',
+                                       'planningCadastre',
+                                       'society',
+                                       'structure',
+                                       'transportation',
+                                       'utilitiesCommunication'],
+            'mmd:collection': ['ACCESS',
+                               'ADC',
+                               'APPL',
+                               'CC',
+                               'DAM',
+                               'DOKI',
+                               'GCW',
+                               'NBS',
+                               'NMAP',
+                               'NMDC',
+                               'NSDN',
+                               'SIOS',
+                               'YOPP'],
+            'mmd:dataset_production_status': ['Planned',
+                                              'In Work',
+                                              'Complete',
+                                              'Obsolete'],
+        }
         for element in mmd_controlled_elements.keys():
-            print('Checking '+element)
+            print('Checking ' + element)
             if element in self.mydoc['mmd:mmd']:
                 if type(self.mydoc['mmd:mmd'][element]) is list:
                     if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
-                        print('\t'+element+' is all good...')
+                        print('\t' + element + ' is all good...')
                     else:
-                        print('\t'+element+' contains non valid content')
-                        print('('+self.mydoc['mmd:mmd'][element]+')')
+                        print('\t' + element + ' contains non valid content')
+                        print('(' + self.mydoc['mmd:mmd'][element] + ')')
                 else:
                     if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
-                        print('\t'+element+' is all good...')
+                        print('\t' + element + ' is all good...')
                     else:
-                        print('\t'+element+' contains non valid content')
-                        print('('+self.mydoc['mmd:mmd'][element]+')')
+                        print('\t' + element + ' contains non valid content')
+                        print('(' + self.mydoc['mmd:mmd'][element] + ')')
 
         """
         Check that keywords also contain GCMD keywords
@@ -215,7 +207,7 @@ class MMD4SolR:
             mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
 
         """ abstract """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],list):
+        if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
@@ -268,20 +260,22 @@ class MMD4SolR:
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
-            mydict["mmd_temporal_extent_start_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
+            mydict["mmd_temporal_extent_start_date"] = str(
+                self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
             if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                mydict["mmd_temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+                mydict["mmd_temporal_extent_end_date"] = str(
+                    self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
 
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-                mydict['mmd_geographic_extent_rectangle_north'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-                mydict['mmd_geographic_extent_rectangle_south'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-                mydict['mmd_geographic_extent_rectangle_east'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-                mydict['mmd_geographic_extent_rectangle_west'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+            mydict['mmd_geographic_extent_rectangle_north'] = float(
+                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+            mydict['mmd_geographic_extent_rectangle_south'] = float(
+                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+            mydict['mmd_geographic_extent_rectangle_east'] = float(
+                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+            mydict['mmd_geographic_extent_rectangle_west'] = float(
+                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
 
         """ Data access """
         """ Double check this ØG """
@@ -294,17 +288,18 @@ class MMD4SolR:
                 # Switch to using e instead of self.mydoc...
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
                     mydict['mmd_data_access_resource'].append(
-                            '\"'.encode('utf-8') +
-                            self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
-                            '\":\"'.encode('utf-8')+self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
-                            '\",description\":'.encode('utf-8')
-                            )
+                        '\"'.encode('utf-8') +
+                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
+                        '\":\"'.encode('utf-8') + self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode(
+                            'utf-8') +
+                        '\",description\":'.encode('utf-8')
+                    )
                     i += 1
             else:
                 mydict['mmd_data_access_resource'] = [
-                        '\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
-                        '\":\"'+self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource']+'\"'
-                        ]
+                    '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
+                    '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
+                ]
 
         """ Related information """
         """ Must be updated to hold mutiple ØG """
@@ -314,13 +309,13 @@ class MMD4SolR:
             # Switch to using e instead of self.mydoc...
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
-                        '\"'.encode('utf-8')+str(related_information['mmd:type']).encode('utf-8') +
-                        '\":\"'.encode('utf-8')+str(related_information['mmd:resource']).encode('utf-8') +
-                        '\",\"description\":'.encode('utf-8')
-                        # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
-                        # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
-                        # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
-                        )
+                    '\"' + str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']) +
+                    '\":\"' + str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']) +
+                    '\",\"description\":'
+                    # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
+                    # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
+                    # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
+                )
 
         """ Related dataset """
         """ Remember to add type of relation in the future ØG """
@@ -337,7 +332,8 @@ class MMD4SolR:
             print(self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'])
             print(self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'])
             if self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name']:
-                mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8')
+                mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode(
+                    'utf-8')
             if self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name']:
                 mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
 
@@ -372,9 +368,10 @@ class MMD4SolR:
 
 class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
+
     def __init__(self, mysolrserver):
-        """ 
-        Connect to SolR cores 
+        """
+        Connect to SolR cores
 
         The thumbnail core should be removed in the future and elements
         added to the ordinary L1 and L2 cores. It could be that only one
@@ -386,7 +383,7 @@ class IndexMMD:
             self.solr1 = pysolr.Solr(mysolrserver)
         except Exception as e:
             print("Something failed in SolR init", str(e))
-        print("Connection established to: "+str(mysolrserver))
+        print("Connection established to: " + str(mysolrserver))
 
         # Connect to L2
         mysolrserver2 = mysolrserver.replace('-l1', '-l2')
@@ -394,7 +391,7 @@ class IndexMMD:
             self.solr2 = pysolr.Solr(mysolrserver2)
         except Exception as e:
             print("Something failed in SolR init", str(e))
-        print("Connection established to: "+str(mysolrserver2))
+        print("Connection established to: " + str(mysolrserver2))
 
         # Connect to thumbnail
         mysolrservert = mysolrserver.replace('-l1', '-thumbnail')
@@ -402,9 +399,9 @@ class IndexMMD:
             self.solrt = pysolr.Solr(mysolrservert)
         except Exception as e:
             print("Something failed in SolR init", str(e))
-        print("Connection established to: "+str(mysolrservert))
+        print("Connection established to: " + str(mysolrservert))
 
-    def add_level1(self,myrecord, addThumbnail=False, addFeature=False):
+    def add_level1(self, myrecord, addThumbnail=False, addFeature=False):
         """ Add a level 1 dataset """
         print("Adding records to Level 1 core...")
         mylist = list()
@@ -418,7 +415,7 @@ class IndexMMD:
             print("Something failed in SolR add", str(e))
         print("Level 1 record successfully added.")
 
-        #print(mylist[0]['mmd_data_access_resource'])
+        # print(mylist[0]['mmd_data_access_resource'])
         if addThumbnail:
             print("Checking tumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
@@ -427,12 +424,12 @@ class IndexMMD:
             try:
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'ice_concentration' #NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    #myprojection = ccrs.NorthPolarStereo(central_longitude=10.0,true_scale_latitude=60.0)
+                    wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    # myprojection = ccrs.NorthPolarStereo(central_longitude=10.0,true_scale_latitude=60.0)
                     myprojection = ccrs.Mercator()
                     myprojection = ccrs.PlateCarree()
-                    self.add_thumbnail(url=darlist['OGC WMS'], 
-                        layer=wms_layer, projection=myprojection)
+                    self.add_thumbnail(url=darlist['OGC WMS'],
+                                       layer=wms_layer, projection=myprojection)
                 elif 'OPeNDAP' in darlist:
                     # To be added
                     print('')
@@ -452,15 +449,15 @@ class IndexMMD:
         print(mylist)
         print(myl2record['mmd_metadata_identifier'])
         print(type(myl2record['mmd_related_dataset']))
-        sys.exit() # while testing
+        sys.exit()  # while testing
         print(myl2record['mmd_related_dataset']['text'])
-        sys.exit() # while testing
+        sys.exit()  # while testing
 
         """ Retrieve level 1 record """
         try:
             # TODO: remove unused variable
             myresults = "TEST"
-            self.solr1.search('mmd_metadata_identifier:'+myl2record['mmd_metadata_identifier'], df='', rows=100)
+            self.solr1.search('mmd_metadata_identifier:' + myl2record['mmd_metadata_identifier'], df='', rows=100)
         except Exception as e:
             print("Something failed in searching for parent dataset, " + str(e))
 
@@ -516,11 +513,11 @@ class IndexMMD:
         available_layers = list(wms.contents)
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
-        cartopy_extent = [wms_extent[0], wms_extent[2],wms_extent[1],wms_extent[3]]
-        cartopy_extent_zoomed = [wms_extent[0]-zoom_level,
-                                 wms_extent[2]+zoom_level,
-                                 wms_extent[1]-zoom_level,
-                                 wms_extent[3]+zoom_level]
+        cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
+        cartopy_extent_zoomed = [wms_extent[0] - zoom_level,
+                                 wms_extent[2] + zoom_level,
+                                 wms_extent[1] - zoom_level,
+                                 wms_extent[3] + zoom_level]
         max_extent = [-180.0, 180.0, -90.0, 90.0]
 
         for i, extent in enumerate(cartopy_extent_zoomed):
@@ -554,11 +551,11 @@ class IndexMMD:
         plt.close('all')
 
         with open('thumbnail.png', 'rb') as infile:
-            data=infile.read()
+            data = infile.read()
             encode_string = base64.b64encode(data)
 
-        thumbnail_b64 = b'data:image/png;base64,'+encode_string
-        sys-exit() # while testing
+        thumbnail_b64 = b'data:image/png;base64,' + encode_string
+        sys - exit()  # while testing
 
         os.remove('thumbnail.png')
 
@@ -608,13 +605,13 @@ class IndexMMD:
             "feature_type": featureType,
         })
         mylist = list()
-        mylist.append(mydict) 
+        mylist.append(mydict)
 
         try:
             self.solrt.add(mylist)
         except Exception as e:
             print("Something failed in SolR add", str(e))
-            raise Warning("Something failed in SolR add"+str(e))
+            raise Warning("Something failed in SolR add" + str(e))
 
         print("Successfully added feature type for OPeNDAP.")
 
@@ -638,71 +635,101 @@ class IndexMMD:
 
         return results
 
-    def darextract(self,mydar):
+    def darextract(self, mydar):
         mylinks = {}
         for i in range(len(mydar)):
-            if isinstance(mydar[i],bytes):
-                mystr = str(mydar[i],'utf-8')
+            if isinstance(mydar[i], bytes):
+                mystr = str(mydar[i], 'utf-8')
             else:
                 mystr = mydar[i]
             if mystr.find('description') != -1:
-                t1,t2 = mystr.split(',',1)
+                t1, t2 = mystr.split(',', 1)
             else:
                 t1 = mystr
-            t2 = t1.replace('"','')
-            proto,myurl = t2.split(':',1)
+            t2 = t1.replace('"', '')
+            proto, myurl = t2.split(':', 1)
             mylinks[proto] = myurl
 
-        return(mylinks)
-        
+        return (mylinks)
 
 
 def main(argv):
-
     mylog = "mylogfile.txt"
     try:
         f = open(mylog, "w")
     except OSError as e:
         print(e)
 
-    SolrServer = 'http://157.249.176.182:8080/solr/'
-    
-    # Must be fixed when supporting multiple levels
-    if argv['level_2'] is not None:
-        mySolRc = SolrServer + argv['core_name'] + "-l2"
+    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = False
+    try:
+        opts, args = getopt.getopt(argv, "hi:d:c:l:r:tf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
+    except getopt.GetoptError:
+        print(sys.argv[0] + ' -i <inputfile>')
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            usage()
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            infile = arg
+            iflg = True
+        elif opt in ("-d", "--ddir"):
+            ddir = arg
+            dflg = True
+        elif opt in ("-c", "--core"):
+            myCore = arg
+            cflg = True
+        elif opt in ("-l"):
+            infile = arg
+            lflg = True
+        elif opt in ("-2"):
+            l2flg = True
+        elif opt in ("-t"):
+            tflg = True
+        elif opt in ("-f"):
+            fflg = True
+        elif opt in ("-r"):
+            deleteid = arg
+            rflg = True
+
+    if not cflg or (not iflg and not dflg and not lflg and not rflg):
+        usage()
+
+    if l2flg:
+        myLevel = "l2"
     else:
-        mySolRc = SolrServer + argv['core_name'] + "-l1"
-    mySolRtn = SolrServer + argv['core_name'] + "-thumbnail"
+        myLevel = "l1"
+
+    SolrServer = 'http://yourserver/solr/'
+    SolrServer = 'http://157.249.176.182:8080/solr/'
+
+    # Must be fixed when supporting multiple levels
+    if l2flg:
+        mySolRc = SolrServer + myCore + "-l2"
+    else:
+        mySolRc = SolrServer + myCore + "-l1"
+    mySolRtn = SolrServer + myCore + "-thumbnail"
 
     # Find files to process
-    if argv['index_single'] is not None:
-        myfiles = [argv['index_single']]
-    elif argv['index_list'] is not None:
-        f2 = open(argv['index_list'], "r")
+    if iflg:
+        myfiles = [infile]
+    elif lflg:
+        f2 = open(infile, "r")
         myfiles = f2.readlines()
         f2.close()
-    elif argv['index_directory'] is not None:
-        try:
-            myfiles = os.listdir(argv['index_directory'])
-        except Exception as e:
-            print("Something went wrong in decoding cmd arguments: "+str(e))
-            sys.exit(1)
-    elif argv['remove_index'] is not None:
-        print("Deleting dataset "+argv['remove_index']+" from "+mySolRc)
+    elif rflg:
+        print("Deleting dataset " + deleteid + " from " + mySolRc)
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete([argv['remove_index']])
+        mysolr.delete([deleteid])
         sys.exit()
-    if argv['feature_type'] is not None:
-        fflg = True
-    else:
-        fflg = False
-    if argv['thumbnail'] is not None:
-        tflg = True
-    else:
-        tflg = False
+    elif dflg:
+        try:
+            myfiles = os.listdir(ddir)
+        except Exception as e:
+            print("Something went wrong in decoding cmd arguments: " + str(e))
+            sys.exit(1)
+
     # mysolrlist = list() # might be used later...
-    dflg = False
-    l2flg = False
     if dflg and l2flg:
         print('Commented out')
         """
@@ -739,28 +766,29 @@ def main(argv):
     else:
         for myfile in myfiles:
             # Decide files to operate on
-            if argv['index_single'] is not None:
+            if lflg:
                 myfile = myfile.rstrip()
-            if argv['index_directory'] is not None:
-                myfile = os.path.join(argv['index_directory'], myfile)
+            if dflg:
+                myfile = os.path.join(ddir, myfile)
 
             # Index files
             mydoc = MMD4SolR(myfile)  # while testing
             mydoc.check_mmd()
-            #print(mydoc.tosolr())
+            # print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
-            print("Indexing dataset "+myfile)
-            if argv['level_2'] is not None:
-                mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
-            else:
-                mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
-            
-            sys.exit() # while testing
+            if iflg or lflg:
+                print("Indexing dataset " + myfile)
+                if l2flg:
+                    mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
+                else:
+                    mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
 
-            print("Indexing a single file in "+mySolRc)
-            f.write("\n======\nIndexing "+ myfile)
+            sys.exit()  # while testing
+
+            print("Indexing a single file in " + mySolRc)
+            f.write("\n======\nIndexing " + myfile)
             if not os.path.isfile(myfile):
-                print(myfile+" does not exist")
+                print(myfile + " does not exist")
                 sys.exit(1)
             myproc = subprocess.check_output(['/usr/bin/java',
                                               '-jar',
@@ -775,7 +803,7 @@ def main(argv):
             f.write(myproc)
             # print("Return value: " + str(myproc))
             if tflg:
-                print("Indexing a single thumbnail in "+mySolRtn)
+                print("Indexing a single thumbnail in " + mySolRtn)
                 myproc = subprocess.check_output(['/usr/bin/java',
                                                   '-jar',
                                                   'metsis-metadata-jar-with-dependencies.jar',
@@ -790,7 +818,7 @@ def main(argv):
                 # print("Return value: " + str(myproc))
                 f.write(myproc)
             if fflg:
-                print("Indexing a single feature type in "+mySolRtn)
+                print("Indexing a single feature type in " + mySolRtn)
                 myproc = subprocess.check_output(['/usr/bin/java',
                                                   '-jar',
                                                   'metsis-metadata-jar-with-dependencies.jar',
@@ -807,31 +835,6 @@ def main(argv):
     f.write("Number of files processed were:" + str(len(myfiles)))
     f.close()
 
-def parse_arguments():
-    ap = argparse.ArgumentParser()
-    group = ap.add_mutually_exclusive_group(required=True)
-    group.add_argument("-i", "--index-single", help="index an individual dataset")
-    group.add_argument("-l", "--index-list", help="index individual dataset from list file")
-    group.add_argument("-d", "--index-directory", help="index a directory with multiple dataset")
-    group.add_argument("-r", "--remove-index", help="index a directory with multiple dataset")
-
-    ap.add_argument("-c", "--core-name", help="core name (e.g. normap, sios, nbs)", required=True)
-    ap.add_argument("-2", "--level-2", help="index level 2 dataset")
-
-    ap.add_argument("-t", "--thumbnail", help="index a single thumbnail (no argument, require -i or -d)")
-    ap.add_argument("-f", "--feature-type", help="index a single feature type (no argument, require -i or -d)")
-
-    debug = ap.add_mutually_exclusive_group()
-    debug.add_argument("-v", "--verbose", action="store_true")
-    debug.add_argument("-q", "--quiet", action="store_true")
-
-    args = vars(ap.parse_args())
-    return args
-
 
 if __name__ == "__main__":
-    arguments = parse_arguments()
-    print(arguments)
-    main(arguments)
-
-    #main(sys.argv[1:])
+    main(sys.argv[1:])
