@@ -39,19 +39,26 @@ from owslib.wms import WebMapService
 import base64
 import netCDF4
 
-def usage():
-    print('')
-    print('Usage: '+sys.argv[0]+' -i <dataset_name> -c <core_name> [-h]')
-    print('\t-h: dump this text')
-    print('\t-i: index an individual dataset')
-    print('\t-l: index individual datasetis from list file')
-    print('\t-d: index a directory with multiple datasets')
-    print('\t-c: core name (e.g. normap, sios, nbs)')
-    print('\t-2: index level 2 dataset')
-    print('\t-t: index a single thumbnail (no argument, require -i or -d)')
-    print('\t-f: index a single feature type (no argument, require -i or -d)')
-    print('')
-    sys.exit(2)
+import argparse
+import logging
+
+logging.basicConfig(filename='app.log',
+                    filemode='w',
+                    format='%(asctime)s - %(message)s',
+                    level=logging.INFO,
+                    datefmt='%d-%b-%y %H:%M:%S')
+
+logging.info('Start logging')
+
+# how to capture stack traces
+# try:
+#   c = a / b
+# except Exception as e:
+#   logging.error("Exception occurred", exc_info=True)
+# OR
+#   logging.exception("Exception occurred")
+# more info about configurable and per-class logging methods at
+# https://realpython.com/python-logging/
 
 
 class MMD4SolR:
@@ -61,6 +68,7 @@ class MMD4SolR:
         self.filename = filename
         with open(self.filename, encoding='utf-8') as fd:
             self.mydoc = xmltodict.parse(fd.read())
+            self.mydoc = self.mydoc['OAI-PMH']['GetRecord']['record']['metadata']
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
@@ -93,6 +101,7 @@ class MMD4SolR:
             if requirement in self.mydoc['mmd:mmd']:
                 if len(self.mydoc['mmd:mmd'][requirement]) > 1:
                     print(self.mydoc['mmd:mmd'][requirement])
+
                     print('\t'+requirement+' is present and non empty')
                     mmd_requirements[requirement] = True
 
@@ -299,15 +308,15 @@ class MMD4SolR:
 
         """ Related information """
         """ Must be updated to hold mutiple ØG """
-        mydict['mmd_related_information_resource'] =  []
+        mydict['mmd_related_information_resource'] = []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
                 mydict['mmd_related_information_resource'].append(
-                        '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']) +
-                        '\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']) +
-                        '\",\"description\":'
+                        '\"'.encode('utf-8')+str(related_information['mmd:type']).encode('utf-8') +
+                        '\":\"'.encode('utf-8')+str(related_information['mmd:resource']).encode('utf-8') +
+                        '\",\"description\":'.encode('utf-8')
                         # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
                         # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
                         # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
@@ -436,7 +445,7 @@ class IndexMMD:
             except Exception as e:
                 print("Something failed in adding feature type, " + str(e))
 
-    def add_level2(self,myl2record,addThumbnail=False,addFeature=False):
+    def add_level2(self, myl2record, addThumbnail=False, addFeature=False):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist = list()
         mylist.append(myl2record)
@@ -647,6 +656,7 @@ class IndexMMD:
         return(mylinks)
         
 
+
 def main(argv):
 
     mylog = "mylogfile.txt"
@@ -655,76 +665,44 @@ def main(argv):
     except OSError as e:
         print(e)
 
-    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = False
-    try:
-        opts, args = getopt.getopt(argv, "hi:d:c:l:r:tf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
-    except getopt.GetoptError:
-        print(sys.argv[0]+' -i <inputfile>')
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            usage()
-            sys.exit()
-        elif opt in ("-i", "--ifile"):
-            infile = arg
-            iflg = True
-        elif opt in ("-d", "--ddir"):
-            ddir = arg
-            dflg = True
-        elif opt in ("-c", "--core"):
-            myCore = arg
-            cflg = True
-        elif opt in ("-l"):
-            infile = arg
-            lflg = True
-        elif opt in ("-2"):
-            l2flg = True
-        elif opt in ("-t"):
-            tflg = True
-        elif opt in ("-f"):
-            fflg = True
-        elif opt in ("-r"):
-            deleteid = arg
-            rflg = True
-
-    if not cflg or (not iflg and not dflg and not lflg and not rflg):
-        usage()
-
-    if l2flg:
-        myLevel = "l2"
-    else:
-        myLevel = "l1"
-
-    SolrServer = 'http://yourserver/solr/'
     SolrServer = 'http://157.249.176.182:8080/solr/'
     
     # Must be fixed when supporting multiple levels
-    if l2flg:
-        mySolRc = SolrServer + myCore + "-l2"
+    if argv['level_2'] is not None:
+        mySolRc = SolrServer + argv['core_name'] + "-l2"
     else:
-        mySolRc = SolrServer + myCore + "-l1"
-    mySolRtn = SolrServer + myCore + "-thumbnail"
+        mySolRc = SolrServer + argv['core_name'] + "-l1"
+    mySolRtn = SolrServer + argv['core_name'] + "-thumbnail"
 
     # Find files to process
-    if iflg:
-        myfiles = [infile]
-    elif lflg:
-        f2 = open(infile, "r")
+    if argv['index_single'] is not None:
+        myfiles = [argv['index_single']]
+    elif argv['index_list'] is not None:
+        f2 = open(argv['index_list'], "r")
         myfiles = f2.readlines()
         f2.close()
-    elif rflg:
-        print("Deleting dataset "+deleteid+" from "+mySolRc)
-        mysolr = IndexMMD(mySolRc)
-        mysolr.delete([deleteid])
-        sys.exit()
-    elif dflg:
+    elif argv['index_directory'] is not None:
         try:
-            myfiles = os.listdir(ddir)
+            myfiles = os.listdir(argv['index_directory'])
         except Exception as e:
             print("Something went wrong in decoding cmd arguments: "+str(e))
             sys.exit(1)
-
+    elif argv['remove_index'] is not None:
+        print("Deleting dataset "+argv['remove_index']+" from "+mySolRc)
+        mysolr = IndexMMD(mySolRc)
+        mysolr.delete([argv['remove_index']])
+        sys.exit()
+    if argv['feature_type'] is not None:
+        fflg = True
+    else:
+        fflg = False
+    if argv['thumbnail'] is not None:
+        tflg = True
+    else:
+        tflg = False
     # mysolrlist = list() # might be used later...
+    dflg = False
+    l2flg = False
     if dflg and l2flg:
         print('Commented out')
         """
@@ -761,22 +739,21 @@ def main(argv):
     else:
         for myfile in myfiles:
             # Decide files to operate on
-            if lflg:
+            if argv['index_single'] is not None:
                 myfile = myfile.rstrip()
-            if dflg:
-                myfile = os.path.join(ddir, myfile)
+            if argv['index_directory'] is not None:
+                myfile = os.path.join(argv['index_directory'], myfile)
 
             # Index files
             mydoc = MMD4SolR(myfile)  # while testing
             mydoc.check_mmd()
             #print(mydoc.tosolr())
             mysolr = IndexMMD(mySolRc)
-            if iflg or lflg:
-                print("Indexing dataset "+myfile)
-                if l2flg:
-                    mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
-                else:
-                    mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
+            print("Indexing dataset "+myfile)
+            if argv['level_2'] is not None:
+                mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
+            else:
+                mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
             
             sys.exit() # while testing
 
@@ -830,6 +807,31 @@ def main(argv):
     f.write("Number of files processed were:" + str(len(myfiles)))
     f.close()
 
+def parse_arguments():
+    ap = argparse.ArgumentParser()
+    group = ap.add_mutually_exclusive_group(required=True)
+    group.add_argument("-i", "--index-single", help="index an individual dataset")
+    group.add_argument("-l", "--index-list", help="index individual dataset from list file")
+    group.add_argument("-d", "--index-directory", help="index a directory with multiple dataset")
+    group.add_argument("-r", "--remove-index", help="index a directory with multiple dataset")
+
+    ap.add_argument("-c", "--core-name", help="core name (e.g. normap, sios, nbs)", required=True)
+    ap.add_argument("-2", "--level-2", help="index level 2 dataset")
+
+    ap.add_argument("-t", "--thumbnail", help="index a single thumbnail (no argument, require -i or -d)")
+    ap.add_argument("-f", "--feature-type", help="index a single feature type (no argument, require -i or -d)")
+
+    debug = ap.add_mutually_exclusive_group()
+    debug.add_argument("-v", "--verbose", action="store_true")
+    debug.add_argument("-q", "--quiet", action="store_true")
+
+    args = vars(ap.parse_args())
+    return args
+
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    arguments = parse_arguments()
+    print(arguments)
+    main(arguments)
+
+    #main(sys.argv[1:])
