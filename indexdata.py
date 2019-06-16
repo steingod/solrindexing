@@ -305,17 +305,11 @@ class MMD4SolR:
         """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] = []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
-            # TODO: remove unused for loop
-            # Switch to using e instead of self.mydoc...
-            for related_information in self.mydoc['mmd:mmd']['mmd:related_information']:
-                mydict['mmd_related_information_resource'].append(
-                    '\"'.encode('utf-8') + str(related_information['mmd:type']).encode('utf-8') +
-                    '\":\"'.encode('utf-8') + str(related_information['mmd:resource']).encode('utf-8') +
-                    '\",\"description\":'.encode('utf-8')
-                    # '\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type']).encode('utf-8')+'\":\"'+str(self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource']).encode('utf-8')+'\",\"description\":'
-                    # +self.mydoc['mmd:mmd']['mmd:related_information']['mmd:description'].encode('utf-8')
-                    # '\"'.encode('utf-8')+related_information['mmd:type'].encode('utf-8')+'\":\"'.encode('utf-8')+related_information['mmd:resource'].encode('utf-8')+'\",\"description\":'.encode('utf-8')
-                )
+            # There can potentially be several related_information sections.
+            # Need to handle this later. TODO
+            # Assumes all child elements are present if parent is found
+            mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
+            mydict['mmd_related_information_resource'].append(mystring)
 
         """ Related dataset """
         """ Remember to add type of relation in the future ØG """
@@ -346,18 +340,30 @@ class MMD4SolR:
             mydict['mmd_use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
 
         """ Data center """
-        """ This may be missing curently, not easy to find out """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
-            if 'mmd:long_name' in self.mydoc['mmd:mmd']['mmd:data_center']:
-                mydict['mmd_data_center'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:long_name'])
+            if 'mmd:long_name' in self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']:
+                mydict['mmd_data_center_data_center_name_long_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']['mmd:long_name'])
+            if 'mmd:short_name' in self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']:
+                mydict['mmd_data_center_data_center_name_short_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']['mmd:short_name'])
+            if 'mmd:data_center_url' in self.mydoc['mmd:mmd']['mmd:data_center']:
+                mydict['mmd_data_center_data_center_url'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_url'])
+            if 'mmd:contact' in self.mydoc['mmd:mmd']['mmd:data_center']:
+                mydict['mmd_data_center_contact_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:name'])
+                mydict['mmd_data_center_contact_role'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:role'])
+                mydict['mmd_data_center_contact_email'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:email'])
 
         """ Personnel """
         """ Need to check this again, should restructure cores ØG """
-        # if
-        #    mydict['mmd_personnel_name'] =
-        #    mydict['mmd_personnel_email'] =
-        #    mydict['mmd_personnel_organisation'] =
-        #    mydict['mmd_personnel_role'] =
+        mydict['mmd_personnel_name'] = []
+        mydict['mmd_personnel_email'] = []
+        mydict['mmd_personnel_organisation'] = []
+        mydict['mmd_personnel_role'] = []
+        if 'mmd:personnel' in self.mydoc['mmd:mmd']:
+            for e in self.mydoc['mmd:mmd']['mmd:personnel']:
+                mydict['mmd_personnel_name'].append(e['mmd:name'])
+                mydict['mmd_personnel_role'].append(e['mmd:role'])
+                mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
+                mydict['mmd_personnel_email'].append(e['mmd:email'])
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
