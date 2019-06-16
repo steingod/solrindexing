@@ -322,9 +322,6 @@ class MMD4SolR:
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
             # mydict['mmd_project_long_name'].append(
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
-            print('>>>>')
-            print(self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'])
-            print(self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'])
             if self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name']:
                 mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode(
                     'utf-8')
@@ -359,7 +356,15 @@ class MMD4SolR:
         mydict['mmd_personnel_organisation'] = []
         mydict['mmd_personnel_role'] = []
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
-            for e in self.mydoc['mmd:mmd']['mmd:personnel']:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:personnel'], list):
+                for e in self.mydoc['mmd:mmd']['mmd:personnel']:
+                    print(e)
+                    mydict['mmd_personnel_name'].append(e['mmd:name'])
+                    mydict['mmd_personnel_role'].append(e['mmd:role'])
+                    mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
+                    mydict['mmd_personnel_email'].append(e['mmd:email'])
+            else:
+                e = self.mydoc['mmd:mmd']['mmd:personnel']
                 mydict['mmd_personnel_name'].append(e['mmd:name'])
                 mydict['mmd_personnel_role'].append(e['mmd:role'])
                 mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
