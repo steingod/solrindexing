@@ -252,8 +252,11 @@ class MMD4SolR:
             mydict['mmd_keywords_keyword'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                    for e in (self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']):
-                        mydict['mmd_keywords_keyword'].append(e)
+                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],str):
+                        mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
+                    else:
+                        for e in (self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']):
+                            mydict['mmd_keywords_keyword'].append(e)
             else:
                 for e in (self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']):
                     mydict['mmd_keywords_keyword'].append(e)
@@ -312,9 +315,10 @@ class MMD4SolR:
             mydict['mmd_related_information_resource'].append(mystring)
 
         """ Related dataset """
+        """ TODO """
         """ Remember to add type of relation in the future ØG """
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
-            mydict['mmd_related_dataset'] = str(self.mydoc['mmd:mmd']['mmd:related_dataset'])
+            mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
         if 'mmd:project' in self.mydoc['mmd:mmd']:
@@ -436,9 +440,11 @@ class IndexMMD:
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    # myprojection = ccrs.NorthPolarStereo(central_longitude=10.0,true_scale_latitude=60.0)
+                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
+                    #        central_latitude=90., true_scale_latitude=60.)
+                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     myprojection = ccrs.Mercator()
-                    myprojection = ccrs.PlateCarree()
+                    #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                                        layer=wms_layer, projection=myprojection)
                 elif 'OPeNDAP' in darlist:
@@ -457,20 +463,32 @@ class IndexMMD:
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist = list()
         mylist.append(myl2record)
-        print(mylist)
-        print(myl2record['mmd_metadata_identifier'])
-        print(type(myl2record['mmd_related_dataset']))
-        sys.exit()  # while testing
-        print(myl2record['mmd_related_dataset']['text'])
-        sys.exit()  # while testing
 
         """ Retrieve level 1 record """
+        print(self.solr1.url)
+        print(self.solr2.url)
+        print(self.solrt.url)
+        print(myl2record['mmd_metadata_identifier'])
+        print('parent: '+myl2record['mmd_related_dataset'])
         try:
             # TODO: remove unused variable
-            myresults = "TEST"
-            self.solr1.search('mmd_metadata_identifier:' + myl2record['mmd_metadata_identifier'], df='', rows=100)
+            myresults = self.solr1.search('mmd_metadata_identifier:' +
+                    myl2record['mmd_related_dataset'], df='', rows=100)
         except Exception as e:
             print("Something failed in searching for parent dataset, " + str(e))
+
+        #print("Saw {0} result(s).".format(len(myresults)))
+        # Clean the loop below, shouldn't be necessary as only one parent
+        # should be present... TODO
+        if len(myresults) != 1:
+            raise Warning("Didn't find unique parent record")
+        for result in myresults:
+            result.pop('full_text')
+            print(result['mmd_title'])
+            myresults = result
+        print(myresults['mmd_related_dataset'])
+        print(myresults)
+        sys.exit() # while testing
 
         """ Index level 2 dataset """
         try:
@@ -522,6 +540,8 @@ class IndexMMD:
 
         wms = WebMapService(url)
         available_layers = list(wms.contents)
+        if layer not in available_layers:
+            layer = available_layers[0]
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
@@ -545,19 +565,24 @@ class IndexMMD:
 
         land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
                                                         scale='50m',
-                                                        facecolor='gray',
+                                                        facecolor='#cccccc',
                                                         name='land')
-        ax.add_feature(land_mask, zorder=0, edgecolor='black')
+        ax.add_feature(land_mask, zorder=0, edgecolor='#aaaaaa',
+                linewidth=0.5)
 
         # transparent background
         ax.outline_patch.set_visible(False)
         ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
+        fig.set_figwidth(4.5)
+        fig.set_figheight(4.5)
+        fig.set_dpi(100)
         ax.background_patch.set_alpha(1)
 
         ax.add_wms(wms, layer, wms_kwargs={'transparent': True})
 
+        #fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
         fig.savefig('thumbnail.png', format='png')
         plt.close('all')
 
@@ -715,11 +740,13 @@ def main(argv):
     SolrServer = 'http://157.249.176.182:8080/solr/'
 
     # Must be fixed when supporting multiple levels
-    if l2flg:
-        mySolRc = SolrServer + myCore + "-l2"
-    else:
-        mySolRc = SolrServer + myCore + "-l1"
-    mySolRtn = SolrServer + myCore + "-thumbnail"
+    # Not needed with the new init of pySolr. ØG
+    #if l2flg:
+    #    mySolRc = SolrServer + myCore + "-l2"
+    #else:
+    #    mySolRc = SolrServer + myCore + "-l1"
+    #mySolRtn = SolrServer + myCore + "-thumbnail"
+    mySolRc = SolrServer+myCore+'-l1'
 
     # Find files to process
     if iflg:
