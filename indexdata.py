@@ -250,8 +250,13 @@ class MMD4SolR:
         """ Should structure this on GCMD only at some point """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
+            print(self.mydoc['mmd:mmd']['mmd:keywords'])
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
+                    print(i,type(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
+                    print(i,(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
+                    if 'mmd:keyword' not in self.mydoc['mmd:mmd']['mmd:keywords'][i]:
+                        continue
                     if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],str):
                         mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
                     else:
@@ -441,8 +446,8 @@ class IndexMMD:
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
-                    #        central_latitude=90., true_scale_latitude=60.)
+                    myprojection = ccrs.Stereographic(central_longitude=0.0,
+                            central_latitude=90., true_scale_latitude=60.)
                     #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     myprojection = ccrs.Mercator()
                     #myprojection = ccrs.PlateCarree()
@@ -533,8 +538,13 @@ class IndexMMD:
         else:
             print('Invalid thumbnail type: {}').format(type)
             sys.exit(2)
-        print(thumbnail)
+        #print(thumbnail)
         # return thumbnail
+
+        # Prepare input to SolR
+        mylist = []
+        myrecord['mmd_metadata_identifier'] = ''
+        myrecord['thumbnail_data'] = thumbnail
 
     def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree()):
         """ Create a base64 encoded thumbnail by means of cartopy.
@@ -557,11 +567,13 @@ class IndexMMD:
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
+        #print(cartopy_extent)
         cartopy_extent_zoomed = [wms_extent[0] - zoom_level,
                                  wms_extent[2] + zoom_level,
                                  wms_extent[1] - zoom_level,
                                  wms_extent[3] + zoom_level]
         max_extent = [-180.0, 180.0, -90.0, 90.0]
+        #print(cartopy_extent_zoomed)
 
         for i, extent in enumerate(cartopy_extent_zoomed):
             if i % 2 == 0:
@@ -573,14 +585,15 @@ class IndexMMD:
 
         subplot_kw = dict(projection=projection)
         fig, ax = plt.subplots(subplot_kw=subplot_kw)
+        #ax.set_extent(cartopy_extent_zoomed, crs=projection)
         ax.set_extent(cartopy_extent_zoomed)
 
-        land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
-                                                        scale='50m',
-                                                        facecolor='#cccccc',
-                                                        name='land')
-        ax.add_feature(land_mask, zorder=0, edgecolor='#aaaaaa',
-                linewidth=0.5)
+        #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
+        #                                                scale='50m',
+        #                                                facecolor='#cccccc',
+        #                                                name='land')
+        #ax.add_feature(land_mask, zorder=0, edgecolor='#aaaaaa',
+        #        linewidth=0.5)
 
         # transparent background
         ax.outline_patch.set_visible(False)
@@ -592,18 +605,21 @@ class IndexMMD:
         fig.set_dpi(100)
         ax.background_patch.set_alpha(1)
 
-        ax.add_wms(wms, layer, wms_kwargs={'transparent': True})
+        ax.add_wms(wms, layer, 
+                wms_kwargs={'transparent': True,
+                    'color':'boxfill/redblue'})
+        ax.coastlines(linewidth=0.5)
 
-        #fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
-        fig.savefig('thumbnail.png', format='png')
+        fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
+        #fig.savefig('thumbnail.png', format='png')
         plt.close('all')
+        sys.exit() # while testing
 
         with open('thumbnail.png', 'rb') as infile:
             data = infile.read()
             encode_string = base64.b64encode(data)
 
         thumbnail_b64 = b'data:image/png;base64,' + encode_string
-        sys - exit()  # while testing
 
         os.remove('thumbnail.png')
 
