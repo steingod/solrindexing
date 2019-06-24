@@ -462,21 +462,21 @@ class IndexMMD:
 
     def add_level2(self, myl2record, addThumbnail=False, addFeature=False):
         """ Add a level 2 dataset, i.e. update level 1 as well """
-        mylist = list()
-        mylist.append(myl2record)
+        mylist2 = list()
+        mylist2.append(myl2record)
 
         """ Retrieve level 1 record """
-        print(self.solr1.url)
-        print(self.solr2.url)
-        print(self.solrt.url)
-        print(myl2record['mmd_metadata_identifier'])
-        print('parent: '+myl2record['mmd_related_dataset'])
+        #print(self.solr1.url)
+        #print(self.solr2.url)
+        #print(self.solrt.url)
+        #print('>>> ',myl2record['mmd_metadata_identifier'])
+        #print('>>> ','parent: '+myl2record['mmd_related_dataset'])
         try:
             # TODO: remove unused variable
             myresults = self.solr1.search('mmd_metadata_identifier:' +
                     myl2record['mmd_related_dataset'], df='', rows=100)
         except Exception as e:
-            print("Something failed in searching for parent dataset, " + str(e))
+            Warning("Something failed in searching for parent dataset, " + str(e))
 
         #print("Saw {0} result(s).".format(len(myresults)))
         # Clean the loop below, shouldn't be necessary as only one parent
@@ -485,21 +485,32 @@ class IndexMMD:
             raise Warning("Didn't find unique parent record")
         for result in myresults:
             result.pop('full_text')
-            print(result['mmd_title'])
             myresults = result
-        print(myresults['mmd_related_dataset'])
-        print(myresults)
-        sys.exit() # while testing
+        # Check that the parent found has mmd_related_dataset set and
+        # update this
+        if 'mmd_related_dataset' in dict(myresults):
+            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
+        else:
+            print('mmd_related_dataset not found in parent, creating it...')
+            myresults['mmd_related_dataset'] = []
+            print('Adding ', myl2record['mmd_metadata_identifier'],' to ',myl2record['mmd_related_dataset'])
+            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
+        mylist1 = list()
+        mylist1.append(myresults)
 
         """ Index level 2 dataset """
         try:
-            self.solr2.add(mylist)
+            self.solr2.add(mylist2)
         except Exception as e:
-            print("Something failed in SolR add", str(e))
-            # Need to stop if no success...
+            raise Exception("Something failed in SolR add level 2", str(e))
         print("Level 2 record successfully added.")
 
         """ Update level 1 record with id of this dataset """
+        try:
+            self.solr1.add(mylist1)
+        except Exception as e:
+            raise Exception("Something failed in SolR update level 1 for level 2", str(e))
+        print("Level 1 record successfully updated.")
 
     def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms'):
         """ Add thumbnail to SolR
