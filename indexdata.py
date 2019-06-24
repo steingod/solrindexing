@@ -318,7 +318,8 @@ class MMD4SolR:
         """ TODO """
         """ Remember to add type of relation in the future ØG """
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
-            mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+            if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
+                mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
         if 'mmd:project' in self.mydoc['mmd:mmd']:
