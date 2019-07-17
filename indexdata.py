@@ -181,8 +181,13 @@ class MMD4SolR:
                 print('Keywords in GCMD are not available')
 
         """ Modify dates if necessary """
+        if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
+            mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
+            self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                if self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None:
+                    break
                 mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                 self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -214,7 +219,7 @@ class MMD4SolR:
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract']['#text'])
+            mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
         """ Last metadata update """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
@@ -327,6 +332,7 @@ class MMD4SolR:
                 mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
+        #print('>>>>>>',len(self.mydoc['mmd:mmd']['mmd:project']))
         if 'mmd:project' in self.mydoc['mmd:mmd']:
             # mydict['mmd_project_short_name'].append(
             #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
@@ -446,8 +452,8 @@ class IndexMMD:
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    myprojection = ccrs.Stereographic(central_longitude=0.0,
-                            central_latitude=90., true_scale_latitude=60.)
+                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
+                    #        central_latitude=90., true_scale_latitude=60.)
                     #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     myprojection = ccrs.Mercator()
                     #myprojection = ccrs.PlateCarree()
@@ -562,8 +568,17 @@ class IndexMMD:
 
         wms = WebMapService(url)
         available_layers = list(wms.contents)
+        print(available_layers)
         if layer not in available_layers:
-            layer = available_layers[0]
+            if 'temperature' in available_layers:
+                layer = 'temperature'
+            elif 'salinity' in available_layers:
+                layer = 'salinity'
+            elif 'ta' in available_layers:
+                layer = 'ta'
+            else:
+                layer = available_layers[0]
+        print('layer selected:', layer)
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
@@ -607,7 +622,7 @@ class IndexMMD:
 
         ax.add_wms(wms, layer, 
                 wms_kwargs={'transparent': True,
-                    'color':'boxfill/redblue'})
+                    'style':'boxfill/redblue'})
         ax.coastlines(linewidth=0.5)
 
         fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
