@@ -93,10 +93,21 @@ class MMD4SolR:
         print('\n')
         for requirement in mmd_requirements.keys():
             if requirement in self.mydoc['mmd:mmd']:
-                if len(self.mydoc['mmd:mmd'][requirement]) > 1:
-                    print(self.mydoc['mmd:mmd'][requirement])
-                    print('\t' + requirement + ' is present and non empty')
-                    mmd_requirements[requirement] = True
+                print('Checking for',requirement)
+                #print(self.mydoc['mmd:mmd'][requirement])
+                if requirement in self.mydoc['mmd:mmd']:
+                    if self.mydoc['mmd:mmd'][requirement] != None:
+                        #print(self.mydoc['mmd:mmd'][requirement])
+                        print('\t' + requirement + ' is present and non empty')
+                        mmd_requirements[requirement] = True
+                    else:
+                        print('Required element',requirement,
+                            'is missing, setting it to unknown')
+                        self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
+                else:
+                    print('Required element',requirement,
+                            'is missing, setting it to unknown')
+                    self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
 
         """
         Check for correct vocabularies where necessary
@@ -214,12 +225,18 @@ class MMD4SolR:
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
+            print('>>>>>>>>',len(self.mydoc['mmd:mmd']['mmd:abstract']))
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
+            if len(self.mydoc['mmd:mmd']['mmd:abstract']) > 1:
+                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
+                    mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+
+            else:
+                mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
         """ Last metadata update """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
@@ -281,14 +298,29 @@ class MMD4SolR:
 
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-            mydict['mmd_geographic_extent_rectangle_north'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-            mydict['mmd_geographic_extent_rectangle_south'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-            mydict['mmd_geographic_extent_rectangle_east'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-            mydict['mmd_geographic_extent_rectangle_west'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+            if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
+                    list):
+                print('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
+                latvals = []
+                lonvals = []
+                for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
+                    latvals.append(float(e['mmd:rectangle']['mmd:north']))
+                    latvals.append(float(e['mmd:rectangle']['mmd:south']))
+                    lonvals.append(float(e['mmd:rectangle']['mmd:east']))
+                    lonvals.append(float(e['mmd:rectangle']['mmd:west']))
+                mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
+                mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
+                mydict['mmd_geographic_extent_rectangle_west'] = max(lonvals)
+                mydict['mmd_geographic_extent_rectangle_east'] = min(lonvals)
+            else:
+                mydict['mmd_geographic_extent_rectangle_north'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                mydict['mmd_geographic_extent_rectangle_south'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+                mydict['mmd_geographic_extent_rectangle_east'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+                mydict['mmd_geographic_extent_rectangle_west'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
 
         """ Data access """
         """ Double check this ØG """
@@ -332,17 +364,19 @@ class MMD4SolR:
                 mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
-        #print('>>>>>>',len(self.mydoc['mmd:mmd']['mmd:project']))
+        mydict['mmd_project_short_name'] = []
+        mydict['mmd_project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
-            # mydict['mmd_project_short_name'].append(
-            #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
-            # mydict['mmd_project_long_name'].append(
-            #        self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
-            if self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name']:
-                mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode(
-                    'utf-8')
-            if self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name']:
-                mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
+            # Check if multiple nodes are present
+            if isinstance(self.mydoc['mmd:mmd']['mmd:project'], list):
+                for e in self.mydoc['mmd:mmd']['mmd:project']:
+                    mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                    mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+            else:
+                # Extract information as appropriate
+                e = self.mydoc['mmd:mmd']['mmd:project']
+                mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                mydict['mmd_project_long_name'].append(e['mmd:long_name'])
 
         """ Access constraints """
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
@@ -374,7 +408,6 @@ class MMD4SolR:
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:personnel'], list):
                 for e in self.mydoc['mmd:mmd']['mmd:personnel']:
-                    print(e)
                     mydict['mmd_personnel_name'].append(e['mmd:name'])
                     mydict['mmd_personnel_role'].append(e['mmd:role'])
                     mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
