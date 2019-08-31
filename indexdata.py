@@ -231,7 +231,7 @@ class MMD4SolR:
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            if len(self.mydoc['mmd:mmd']['mmd:abstract']) > 1:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
                 if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
 
@@ -335,9 +335,9 @@ class MMD4SolR:
                     mydict['mmd_data_access_resource'].append(
                         '\"'.encode('utf-8') +
                         self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
-                        '\":\"'.encode('utf-8') + self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode(
-                            'utf-8') +
-                        '\",description\":'.encode('utf-8')
+                        '\":\"'.encode('utf-8') + 
+                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
+                        '\",\"description\":\"\"'.encode('utf-8') 
                     )
                     i += 1
             else:
