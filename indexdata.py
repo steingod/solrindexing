@@ -220,7 +220,12 @@ class MMD4SolR:
                     mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
+                if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
+                    mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+
+            else:
+                mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
