@@ -836,7 +836,6 @@ def main(argv):
         myLevel = "l1"
 
     SolrServer = 'http://yourserver/solr/'
-    SolrServer = 'http://157.249.176.182:8080/solr/'
 
     # Must be fixed when supporting multiple levels
     # Not needed with the new init of pySolr. ØG
