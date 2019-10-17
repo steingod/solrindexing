@@ -93,10 +93,21 @@ class MMD4SolR:
         print('\n')
         for requirement in mmd_requirements.keys():
             if requirement in self.mydoc['mmd:mmd']:
-                if len(self.mydoc['mmd:mmd'][requirement]) > 1:
-                    print(self.mydoc['mmd:mmd'][requirement])
-                    print('\t' + requirement + ' is present and non empty')
-                    mmd_requirements[requirement] = True
+                print('Checking for',requirement)
+                #print(self.mydoc['mmd:mmd'][requirement])
+                if requirement in self.mydoc['mmd:mmd']:
+                    if self.mydoc['mmd:mmd'][requirement] != None:
+                        #print(self.mydoc['mmd:mmd'][requirement])
+                        print('\t' + requirement + ' is present and non empty')
+                        mmd_requirements[requirement] = True
+                    else:
+                        print('Required element',requirement,
+                            'is missing, setting it to unknown')
+                        self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
+                else:
+                    print('Required element',requirement,
+                            'is missing, setting it to unknown')
+                    self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
 
         """
         Check for correct vocabularies where necessary
@@ -181,8 +192,13 @@ class MMD4SolR:
                 print('Keywords in GCMD are not available')
 
         """ Modify dates if necessary """
+        if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
+            mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
+            self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                if self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None:
+                    break
                 mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                 self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -204,17 +220,28 @@ class MMD4SolR:
                     mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title']['#text'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
+                if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
+                    mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+
+            else:
+                mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
+            print('>>>>>>>>',len(self.mydoc['mmd:mmd']['mmd:abstract']))
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
                 i += 1
         else:
-            mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract']['#text'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
+                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
+                    mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+
+            else:
+                mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
         """ Last metadata update """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
@@ -276,14 +303,29 @@ class MMD4SolR:
 
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
-            mydict['mmd_geographic_extent_rectangle_north'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-            mydict['mmd_geographic_extent_rectangle_south'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-            mydict['mmd_geographic_extent_rectangle_east'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-            mydict['mmd_geographic_extent_rectangle_west'] = float(
-                self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+            if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
+                    list):
+                print('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
+                latvals = []
+                lonvals = []
+                for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
+                    latvals.append(float(e['mmd:rectangle']['mmd:north']))
+                    latvals.append(float(e['mmd:rectangle']['mmd:south']))
+                    lonvals.append(float(e['mmd:rectangle']['mmd:east']))
+                    lonvals.append(float(e['mmd:rectangle']['mmd:west']))
+                mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
+                mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
+                mydict['mmd_geographic_extent_rectangle_west'] = max(lonvals)
+                mydict['mmd_geographic_extent_rectangle_east'] = min(lonvals)
+            else:
+                mydict['mmd_geographic_extent_rectangle_north'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                mydict['mmd_geographic_extent_rectangle_south'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+                mydict['mmd_geographic_extent_rectangle_east'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+                mydict['mmd_geographic_extent_rectangle_west'] = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
 
         """ Data access """
         """ Double check this ØG """
@@ -298,9 +340,9 @@ class MMD4SolR:
                     mydict['mmd_data_access_resource'].append(
                         '\"'.encode('utf-8') +
                         self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
-                        '\":\"'.encode('utf-8') + self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode(
-                            'utf-8') +
-                        '\",description\":'.encode('utf-8')
+                        '\":\"'.encode('utf-8') +
+                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
+                        '\",\"description\":\"\"'.encode('utf-8')
                     )
                     i += 1
             else:
@@ -327,16 +369,19 @@ class MMD4SolR:
                 mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
+        mydict['mmd_project_short_name'] = []
+        mydict['mmd_project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
-            # mydict['mmd_project_short_name'].append(
-            #        self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode('utf-8'))
-            # mydict['mmd_project_long_name'].append(
-            #        self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8'))
-            if self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name']:
-                mydict['mmd_project_short_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:short_name'].encode(
-                    'utf-8')
-            if self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name']:
-                mydict['mmd_project_long_name'] = self.mydoc['mmd:mmd']['mmd:project']['mmd:long_name'].encode('utf-8')
+            # Check if multiple nodes are present
+            if isinstance(self.mydoc['mmd:mmd']['mmd:project'], list):
+                for e in self.mydoc['mmd:mmd']['mmd:project']:
+                    mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                    mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+            else:
+                # Extract information as appropriate
+                e = self.mydoc['mmd:mmd']['mmd:project']
+                mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                mydict['mmd_project_long_name'].append(e['mmd:long_name'])
 
         """ Access constraints """
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
@@ -368,7 +413,6 @@ class MMD4SolR:
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:personnel'], list):
                 for e in self.mydoc['mmd:mmd']['mmd:personnel']:
-                    print(e)
                     mydict['mmd_personnel_name'].append(e['mmd:name'])
                     mydict['mmd_personnel_role'].append(e['mmd:role'])
                     mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
@@ -444,15 +488,19 @@ class IndexMMD:
             print(type(darlist))
             try:
                 if 'OGC WMS' in darlist:
+                    print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    wms_layer = 'amplitude_vv'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    #wms_style = 'boxfill/ncview'
+                    wms_style = 'boxfill/redblue'
                     myprojection = ccrs.Stereographic(central_longitude=0.0,
                             central_latitude=90., true_scale_latitude=60.)
-                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
+                    myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     myprojection = ccrs.Mercator()
                     #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
-                                       layer=wms_layer, projection=myprojection)
+                                       layer=wms_layer, zoom_level=0, projection=myprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # To be added
                     print('')
@@ -517,7 +565,7 @@ class IndexMMD:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         print("Level 1 record successfully updated.")
 
-    def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms'):
+    def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms', style=None):
         """ Add thumbnail to SolR
 
             Args:
@@ -532,8 +580,8 @@ class IndexMMD:
                 boolean
         """
         if type == 'wms':
-            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection)
-        elif type == 'ts':
+            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection, style=style)
+        elif type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
             print('Invalid thumbnail type: {}').format(type)
@@ -546,7 +594,7 @@ class IndexMMD:
         myrecord['mmd_metadata_identifier'] = ''
         myrecord['thumbnail_data'] = thumbnail
 
-    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree()):
+    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(),**kwargs):
         """ Create a base64 encoded thumbnail by means of cartopy.
 
             Args:
@@ -560,10 +608,31 @@ class IndexMMD:
                 thumbnail_b64: base64 string representation of image
         """
 
-        wms = WebMapService(url)
-        available_layers = list(wms.contents)
+        wms = WebMapService(url,timeout=80)
+        available_layers = list(wms.contents.keys())
+        #print(available_layers)
+        #print(layer)
         if layer not in available_layers:
             layer = available_layers[0]
+            #print(layer)
+
+        if 'style' in kwargs.keys():
+            style = kwargs['style']
+            available_styles = list(wms.contents[layer].styles.keys())
+            #print(available_styles)
+
+            if available_styles:
+                if style not in available_styles:
+                    style = [available_styles[0]]
+                else:
+                    style = [style]
+            else:
+                style = None
+        else:
+            style = None
+
+        print('st',style)
+        print('HERE, wms_thumb')
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
@@ -588,6 +657,7 @@ class IndexMMD:
         #ax.set_extent(cartopy_extent_zoomed, crs=projection)
         ax.set_extent(cartopy_extent_zoomed)
 
+
         #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
         #                                                scale='50m',
         #                                                facecolor='#cccccc',
@@ -605,10 +675,11 @@ class IndexMMD:
         fig.set_dpi(100)
         ax.background_patch.set_alpha(1)
 
-        ax.add_wms(wms, layer, 
-                wms_kwargs={'transparent': True,
-                    'color':'boxfill/redblue'})
-        ax.coastlines(linewidth=0.5)
+        ax.add_wms(wms, layer,
+                wms_kwargs={'transparent': False,
+                            'styles':style})
+        #print({'transparent': False,'styles':style})
+        ax.coastlines(resolution="50m",linewidth=0.5)
 
         fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
         #fig.savefig('thumbnail.png', format='png')
