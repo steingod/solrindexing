@@ -340,9 +340,9 @@ class MMD4SolR:
                     mydict['mmd_data_access_resource'].append(
                         '\"'.encode('utf-8') +
                         self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
-                        '\":\"'.encode('utf-8') + 
+                        '\":\"'.encode('utf-8') +
                         self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
-                        '\",\"description\":\"\"'.encode('utf-8') 
+                        '\",\"description\":\"\"'.encode('utf-8')
                     )
                     i += 1
             else:
@@ -488,15 +488,19 @@ class IndexMMD:
             print(type(darlist))
             try:
                 if 'OGC WMS' in darlist:
+                    print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'ice_concentration'  # NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
-                    #        central_latitude=90., true_scale_latitude=60.)
-                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
+                    wms_layer = 'amplitude_vv'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    #wms_style = 'boxfill/ncview'
+                    wms_style = 'boxfill/redblue'
+                    myprojection = ccrs.Stereographic(central_longitude=0.0,
+                            central_latitude=90., true_scale_latitude=60.)
+                    myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     myprojection = ccrs.Mercator()
                     #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
-                                       layer=wms_layer, projection=myprojection)
+                                       layer=wms_layer, zoom_level=0, projection=myprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # To be added
                     print('')
@@ -561,7 +565,7 @@ class IndexMMD:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         print("Level 1 record successfully updated.")
 
-    def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms'):
+    def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms', style=None):
         """ Add thumbnail to SolR
 
             Args:
@@ -576,8 +580,8 @@ class IndexMMD:
                 boolean
         """
         if type == 'wms':
-            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection)
-        elif type == 'ts':
+            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection, style=style)
+        elif type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
             print('Invalid thumbnail type: {}').format(type)
@@ -590,7 +594,7 @@ class IndexMMD:
         myrecord['mmd_metadata_identifier'] = ''
         myrecord['thumbnail_data'] = thumbnail
 
-    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree()):
+    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(),**kwargs):
         """ Create a base64 encoded thumbnail by means of cartopy.
 
             Args:
@@ -604,19 +608,31 @@ class IndexMMD:
                 thumbnail_b64: base64 string representation of image
         """
 
-        wms = WebMapService(url)
-        available_layers = list(wms.contents)
-        print(available_layers)
+        wms = WebMapService(url,timeout=80)
+        available_layers = list(wms.contents.keys())
+        #print(available_layers)
+        #print(layer)
         if layer not in available_layers:
-            if 'temperature' in available_layers:
-                layer = 'temperature'
-            elif 'salinity' in available_layers:
-                layer = 'salinity'
-            elif 'ta' in available_layers:
-                layer = 'ta'
+            layer = available_layers[0]
+            #print(layer)
+
+        if 'style' in kwargs.keys():
+            style = kwargs['style']
+            available_styles = list(wms.contents[layer].styles.keys())
+            #print(available_styles)
+
+            if available_styles:
+                if style not in available_styles:
+                    style = [available_styles[0]]
+                else:
+                    style = [style]
             else:
-                layer = available_layers[0]
-        print('layer selected:', layer)
+                style = None
+        else:
+            style = None
+
+        print('st',style)
+        print('HERE, wms_thumb')
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
         # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
@@ -641,6 +657,7 @@ class IndexMMD:
         #ax.set_extent(cartopy_extent_zoomed, crs=projection)
         ax.set_extent(cartopy_extent_zoomed)
 
+
         #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
         #                                                scale='50m',
         #                                                facecolor='#cccccc',
@@ -658,10 +675,11 @@ class IndexMMD:
         fig.set_dpi(100)
         ax.background_patch.set_alpha(1)
 
-        ax.add_wms(wms, layer, 
-                wms_kwargs={'transparent': True,
-                    'style':'boxfill/redblue'})
-        ax.coastlines(linewidth=0.5)
+        ax.add_wms(wms, layer,
+                wms_kwargs={'transparent': False,
+                            'styles':style})
+        #print({'transparent': False,'styles':style})
+        ax.coastlines(resolution="50m",linewidth=0.5)
 
         fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
         #fig.savefig('thumbnail.png', format='png')
@@ -818,7 +836,6 @@ def main(argv):
         myLevel = "l1"
 
     SolrServer = 'http://yourserver/solr/'
-    SolrServer = 'http://157.249.176.182:8080/solr/'
 
     # Must be fixed when supporting multiple levels
     # Not needed with the new init of pySolr. ØG
