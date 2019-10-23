@@ -336,6 +336,7 @@ class MMD4SolR:
         """ Especially description """
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
+            mydict['mmd_data_access_type'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 # TODO: remove unused for loop
@@ -348,12 +349,19 @@ class MMD4SolR:
                         self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
                         '\",\"description\":\"\"'.encode('utf-8')
                     )
+                    mydict['mmd_data_access_type'].append(
+                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')
+                    )
                     i += 1
             else:
                 mydict['mmd_data_access_resource'] = [
                     '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
                     '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
-                ]
+                    ]
+                mydict['mmd_data_access_type'] = [
+                    '\"' +
+                    self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
+                    '\"' ]
 
         """ Related information """
         """ Must be updated to hold mutiple ØG """
@@ -494,17 +502,18 @@ class IndexMMD:
                 if 'OGC WMS' in darlist:
                     print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'amplitude_vv'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    #wms_layer = 'ice_conc'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     #wms_style = 'boxfill/ncview'
                     wms_style = 'boxfill/redblue'
-                    myprojection = ccrs.Stereographic(central_longitude=0.0,
-                            central_latitude=90., true_scale_latitude=60.)
-                    myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
-                    myprojection = ccrs.Mercator()
-                    #myprojection = ccrs.PlateCarree()
+                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
+                    #        central_latitude=90., true_scale_latitude=60.)
+                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
+                    #myprojection = ccrs.Mercator()
+                    myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
-                                       layer=wms_layer, zoom_level=0, projection=myprojection,style=wms_style)
+                            layer=wms_layer, zoom_level=0, 
+                            projection=myprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # To be added
                     print('')
@@ -688,7 +697,6 @@ class IndexMMD:
         fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
         #fig.savefig('thumbnail.png', format='png')
         plt.close('all')
-        sys.exit() # while testing
 
         with open('thumbnail.png', 'rb') as infile:
             data = infile.read()
@@ -696,7 +704,8 @@ class IndexMMD:
 
         thumbnail_b64 = b'data:image/png;base64,' + encode_string
 
-        os.remove('thumbnail.png')
+        # Keep thumbnails while testing...
+        #os.remove('thumbnail.png')
 
         return thumbnail_b64
         # with open('image_b64.txt','wb') as outimg:
