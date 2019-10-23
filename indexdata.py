@@ -334,6 +334,8 @@ class MMD4SolR:
         """ Data access """
         """ Double check this ØG """
         """ Especially description """
+        """ Revisit when SolR core is modified, duplicated information is
+        used now """
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
             mydict['mmd_data_access_type'] = []
@@ -489,10 +491,11 @@ class IndexMMD:
         try:
             self.solr1.add(mylist)
         except Exception as e:
-            print("Something failed in SolR add", str(e))
+            print("Something failed in SolR add Level 1", str(e))
         print("Level 1 record successfully added.")
 
         # print(mylist[0]['mmd_data_access_resource'])
+        # Remove flag later, do automatically if WMS is available...
         if addThumbnail:
             print("Checking tumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
@@ -512,6 +515,7 @@ class IndexMMD:
                     #myprojection = ccrs.Mercator()
                     myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
+                            identifier=mylist[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
                             projection=myprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
@@ -578,7 +582,7 @@ class IndexMMD:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         print("Level 1 record successfully updated.")
 
-    def add_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms', style=None):
+    def add_thumbnail(self, url, identifier, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms', style=None):
         """ Add thumbnail to SolR
 
             Args:
@@ -599,13 +603,21 @@ class IndexMMD:
         else:
             print('Invalid thumbnail type: {}').format(type)
             sys.exit(2)
-        #print(thumbnail)
-        # return thumbnail
 
         # Prepare input to SolR
-        mylist = []
-        myrecord['mmd_metadata_identifier'] = ''
+        myrecord = OrderedDict()
+        myrecord['id'] = identifier
+        myrecord['mmd_metadata_identifier'] = identifier
         myrecord['thumbnail_data'] = thumbnail
+        mylist = list()
+        mylist.append(myrecord)
+
+        try:
+            self.solrt.add(mylist)
+        except Exception as e:
+            raise Exception("Something failed in SolR add thumbnail", str(e))
+
+        print("Thumbnail record successfully added.")
 
     def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(),**kwargs):
         """ Create a base64 encoded thumbnail by means of cartopy.
