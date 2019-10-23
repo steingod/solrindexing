@@ -31,6 +31,7 @@ import xmltodict
 import dateutil.parser
 import warnings
 import json
+import yaml
 from collections import OrderedDict
 import cartopy.crs as ccrs
 import cartopy
@@ -42,12 +43,12 @@ import netCDF4
 
 def usage():
     print('')
-    print('Usage: ' + sys.argv[0] + ' -i <dataset_name> -c <core_name> [-h]')
+    print('Usage: ' + sys.argv[0] + ' -i <dataset_name> -c <cfgfile> [-h]')
     print('\t-h: dump this text')
+    print('\t-c: configuration file')
     print('\t-i: index an individual dataset')
     print('\t-l: index individual datasetis from list file')
     print('\t-d: index a directory with multiple datasets')
-    print('\t-c: core name (e.g. normap, sios, nbs)')
     print('\t-2: index level 2 dataset')
     print('\t-t: index a single thumbnail (no argument, require -i or -d)')
     print('\t-f: index a single feature type (no argument, require -i or -d)')
@@ -146,6 +147,9 @@ class MMD4SolR:
                                'NMDC',
                                'NSDN',
                                'SIOS',
+                               'SESS_2018',
+                               'SESS_2019',
+                               'SIOS_access_programme', 
                                'YOPP'],
             'mmd:dataset_production_status': ['Planned',
                                               'In Work',
@@ -806,13 +810,14 @@ def main(argv):
             usage()
             sys.exit()
         elif opt in ("-i", "--ifile"):
+
             infile = arg
             iflg = True
         elif opt in ("-d", "--ddir"):
             ddir = arg
             dflg = True
-        elif opt in ("-c", "--core"):
-            myCore = arg
+        elif opt in ("-c", "--cfg"):
+            cfgfile = arg
             cflg = True
         elif opt in ("-l"):
             infile = arg
@@ -835,7 +840,13 @@ def main(argv):
     else:
         myLevel = "l1"
 
-    SolrServer = 'http://yourserver/solr/'
+    # Read config file
+    print("Reading", cfgfile)
+    with open(cfgfile, 'r') as ymlfile:
+        cfg = yaml.load(ymlfile)
+
+    SolrServer = cfg['solrserver']
+    myCore = cfg['solrcore']
 
     # Must be fixed when supporting multiple levels
     # Not needed with the new init of pySolr. ØG
