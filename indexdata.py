@@ -386,8 +386,11 @@ class MMD4SolR:
         mydict['mmd_project_short_name'] = []
         mydict['mmd_project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
+            if self.mydoc['mmd:mmd']['mmd:project'] == None:
+                mydict['mmd_project_short_name'].append('Not provided')
+                mydict['mmd_project_long_name'].append('Not provided')
+            elif isinstance(self.mydoc['mmd:mmd']['mmd:project'], list):
             # Check if multiple nodes are present
-            if isinstance(self.mydoc['mmd:mmd']['mmd:project'], list):
                 for e in self.mydoc['mmd:mmd']['mmd:project']:
                     mydict['mmd_project_short_name'].append(e['mmd:short_name'])
                     mydict['mmd_project_long_name'].append(e['mmd:long_name'])
