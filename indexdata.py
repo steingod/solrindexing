@@ -302,8 +302,9 @@ class MMD4SolR:
             mydict["mmd_temporal_extent_start_date"] = str(
                 self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
             if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                mydict["mmd_temporal_extent_end_date"] = str(
-                    self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+                if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
+                    mydict["mmd_temporal_extent_end_date"] = str(
+                        self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
 
         """ Geographical extent """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
