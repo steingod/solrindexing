@@ -231,6 +231,7 @@ class MMD4SolR:
             else:
                 mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
+        print('title:',mydict['mmd_title'])
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
@@ -440,16 +441,24 @@ class MMD4SolR:
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:personnel'], list):
                 for e in self.mydoc['mmd:mmd']['mmd:personnel']:
-                    mydict['mmd_personnel_name'].append(e['mmd:name'])
-                    mydict['mmd_personnel_role'].append(e['mmd:role'])
-                    mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
-                    mydict['mmd_personnel_email'].append(e['mmd:email'])
+                    if 'mmd:name' in e and e['mmd:name'] != None:
+                        mydict['mmd_personnel_name'].append(e['mmd:name'])
+                    if 'mmd:role' in e and e['mmd:role'] != None:
+                        mydict['mmd_personnel_role'].append(e['mmd:role'])
+                    if 'mmd:organisation' in e and e['mmd:organisation'] != None:
+                        mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
+                    if 'mmd:email' in e and e['mmd:email'] != None:
+                        mydict['mmd_personnel_email'].append(e['mmd:email'])
             else:
                 e = self.mydoc['mmd:mmd']['mmd:personnel']
-                mydict['mmd_personnel_name'].append(e['mmd:name'])
-                mydict['mmd_personnel_role'].append(e['mmd:role'])
-                mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
-                mydict['mmd_personnel_email'].append(e['mmd:email'])
+                if 'mmd:name' in e and e['mmd:name'] != None:
+                    mydict['mmd_personnel_name'].append(e['mmd:name'])
+                if 'mmd:role' in e and e['mmd:role'] != None:
+                    mydict['mmd_personnel_role'].append(e['mmd:role'])
+                if 'mmd:organisation' in e and e['mmd:organisation'] != None:
+                    mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
+                if 'mmd:email' in e and e['mmd:email'] != None:
+                    mydict['mmd_personnel_email'].append(e['mmd:email'])
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
@@ -525,8 +534,8 @@ class IndexMMD:
                     #myprojection = ccrs.Stereographic(central_longitude=0.0,
                     #        central_latitude=90., true_scale_latitude=60.)
                     #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
-                    #myprojection = ccrs.Mercator()
-                    myprojection = ccrs.PlateCarree()
+                    myprojection = ccrs.Mercator()
+                    #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                             identifier=mylist[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
@@ -675,11 +684,11 @@ class IndexMMD:
                 thumbnail_b64: base64 string representation of image
         """
 
-        wms = WebMapService(url,timeout=80)
+        wms = WebMapService(url,timeout=480)
         available_layers = list(wms.contents.keys())
         if layer not in available_layers:
             layer = available_layers[0]
-            #print(layer)
+            print(layer)
 
         if 'style' in kwargs.keys():
             style = kwargs['style']
