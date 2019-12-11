@@ -339,7 +339,9 @@ class MMD4SolR:
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             mydict['mmd_data_access_resource'] = []
             mydict['mmd_data_access_type'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
+            if self.mydoc['mmd:mmd']['mmd:data_access']==None:
+                print("data_access element is empty")
+            elif isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 # TODO: remove unused for loop
                 # Switch to using e instead of self.mydoc...
@@ -397,8 +399,15 @@ class MMD4SolR:
             else:
                 # Extract information as appropriate
                 e = self.mydoc['mmd:mmd']['mmd:project']
-                mydict['mmd_project_short_name'].append(e['mmd:short_name'])
-                mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+                if 'mmd:short_name' in e:
+                    mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                else:
+                    mydict['mmd_project_short_name'].append('Not provided')
+                    
+                if 'mmd:long_name' in e:
+                    mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+                else:
+                    mydict['mmd_project_long_name'].append('Not provided')
 
         """ Access constraints """
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
