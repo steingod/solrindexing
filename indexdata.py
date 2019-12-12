@@ -52,6 +52,7 @@ def usage():
     print('\t-2: index level 2 dataset')
     print('\t-t: index a single thumbnail (no argument, require -i or -d)')
     print('\t-f: index a single feature type (no argument, require -i or -d)')
+    print('\t-r: remove dataset with specified metadata_identifier')
     print('')
     sys.exit(2)
 
@@ -821,16 +822,38 @@ class IndexMMD:
 
         print("Successfully added feature type for OPeNDAP.")
 
-    def delete(self, datasetid):
+    def delete_level1(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
-        print("Deleting ", datasetid)
+        print("Deleting ", datasetid, " from Level 1")
         try:
-            self.solr.delete(id=datasetid)
+            self.solr1.delete(id=datasetid)
         except Exception as e:
             print("Something failed in SolR delete", str(e))
 
-        print("Records successfully deleted")
+        print("Records successfully deleted from Level 1 core")
+
+    def delete_level2(self, datasetid):
+        """ Require ID as input """
+        """ Rewrite to take full metadata record as input """
+        print("Deleting ", datasetid, " from Level 2")
+        try:
+            self.solr2.delete(id=datasetid)
+        except Exception as e:
+            print("Something failed in SolR delete", str(e))
+
+        print("Records successfully deleted from Level 2 core")
+
+    def delete_thumbnail(self, datasetid):
+        """ Require ID as input """
+        """ Rewrite to take full metadata record as input """
+        print("Deleting ", datasetid, " from thumbnail")
+        try:
+            self.solrt.delete(id=datasetid)
+        except Exception as e:
+            print("Something failed in SolR delete", str(e))
+
+        print("Records successfully deleted from thumbnail core")
 
     def search(self):
         """ Require Id as input """
@@ -902,11 +925,6 @@ def main(argv):
     if not cflg or (not iflg and not dflg and not lflg and not rflg):
         usage()
 
-    if l2flg:
-        myLevel = "l2"
-    else:
-        myLevel = "l1"
-
     # Read config file
     print("Reading", cfgfile)
     with open(cfgfile, 'r') as ymlfile:
@@ -915,13 +933,6 @@ def main(argv):
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
-    # Must be fixed when supporting multiple levels
-    # Not needed with the new init of pySolr. ØG
-    #if l2flg:
-    #    mySolRc = SolrServer + myCore + "-l2"
-    #else:
-    #    mySolRc = SolrServer + myCore + "-l1"
-    #mySolRtn = SolrServer + myCore + "-thumbnail"
     mySolRc = SolrServer+myCore+'-l1'
 
     # Find files to process
@@ -932,9 +943,16 @@ def main(argv):
         myfiles = f2.readlines()
         f2.close()
     elif rflg:
-        print("Deleting dataset " + deleteid + " from " + mySolRc)
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete([deleteid])
+        mysolr.delete_level1(deleteid)
+        sys.exit()
+    elif rflg and l2flg:
+        mysolr = IndexMMD(mySolRc)
+        mysolr.delete_level2(deleteid)
+        sys.exit()
+    elif rflg and tflg:
+        mysolr = IndexMMD(mySolRc)
+        mysolr.delete_level2(deleteid)
         sys.exit()
     elif dflg:
         try:
@@ -944,106 +962,26 @@ def main(argv):
             sys.exit(1)
 
     # mysolrlist = list() # might be used later...
-    if dflg and l2flg:
-        print('Commented out')
-        """
-        # Until the indexing utility actually works as expected...
-        print("Indexing a Level 2 directory in "+mySolRc)
-        f.write("Indexing a Level 2 directory in "+mySolRc)
-        f.write("\n======\nIndexing "+ ddir)
-        myproc = subprocess.check_output(['/usr/bin/java',
-            '-jar','metsis-metadata-jar-with-dependencies.jar',
-            'index-metadata',
-            '--sourceDirectory', ddir,
-            '--server', mySolRc,
-            '--level', myLevel,
-            '--includeRelatedDataset', 'true'])
-        f.write(myproc)
-        if tflg:
-            print("Indexing a single thumbnail in "+mySolRtn)
-            myproc = subprocess.check_output(['/usr/bin/java',
-                '-jar','metsis-metadata-jar-with-dependencies.jar',
-                'index-thumbnail',
-                '--sourceDirectory', ddir, '--server', mySolRtn,
-                '--wmsVersion', '1.3.0'])
-            print("Return value: " + str(myproc))
-            f.write(myproc)
-        if fflg:
-            print("Indexing a single feature type in "+mySolRtn)
-            myproc = subprocess.check_output(['/usr/bin/java',
-                '-jar','metsis-metadata-jar-with-dependencies.jar',
-                'index-feature',
-                '--sourceDirectory', ddir, '--server', mySolRtn])
-            print("Return value: " + str(myproc))
-            f.write(myproc)
-        """
-    else:
-        for myfile in myfiles:
-            # Decide files to operate on
-            if lflg:
-                myfile = myfile.rstrip()
-            if dflg:
-                myfile = os.path.join(ddir, myfile)
+    for myfile in myfiles:
+        # Decide files to operate on
+        if lflg:
+            myfile = myfile.rstrip()
+        if dflg:
+            myfile = os.path.join(ddir, myfile)
 
-            # Index files
-            mydoc = MMD4SolR(myfile)  # while testing
-            mydoc.check_mmd()
-            # print(mydoc.tosolr())
-            mysolr = IndexMMD(mySolRc)
-            if iflg or lflg:
-                print("Indexing dataset " + myfile)
-                if l2flg:
-                    mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
-                else:
-                    mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
+        # Index files
+        mydoc = MMD4SolR(myfile)  # while testing
+        mydoc.check_mmd()
+        # print(mydoc.tosolr())
+        mysolr = IndexMMD(mySolRc)
+        if iflg or lflg:
+            print("Indexing dataset " + myfile)
+            if l2flg:
+                mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
+            else:
+                mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
 
-            sys.exit()  # while testing
-
-            print("Indexing a single file in " + mySolRc)
-            f.write("\n======\nIndexing " + myfile)
-            if not os.path.isfile(myfile):
-                print(myfile + " does not exist")
-                sys.exit(1)
-            myproc = subprocess.check_output(['/usr/bin/java',
-                                              '-jar',
-                                              'metsis-metadata-jar-with-dependencies.jar',
-                                              'index-single-metadata',
-                                              '--level',
-                                              myLevel,
-                                              '--metadataFile',
-                                              myfile,
-                                              '--server',
-                                              mySolRc])
-            f.write(myproc)
-            # print("Return value: " + str(myproc))
-            if tflg:
-                print("Indexing a single thumbnail in " + mySolRtn)
-                myproc = subprocess.check_output(['/usr/bin/java',
-                                                  '-jar',
-                                                  'metsis-metadata-jar-with-dependencies.jar',
-                                                  'index-single-thumbnail',
-                                                  '--metadataFile',
-                                                  myfile,
-                                                  '--server',
-                                                  mySolRtn,
-                                                  '--wmsVersion',
-                                                  '1.3.0'])
-                # print("Thumbnail indexing: " + mySolRtn)
-                # print("Return value: " + str(myproc))
-                f.write(myproc)
-            if fflg:
-                print("Indexing a single feature type in " + mySolRtn)
-                myproc = subprocess.check_output(['/usr/bin/java',
-                                                  '-jar',
-                                                  'metsis-metadata-jar-with-dependencies.jar',
-                                                  'index-single-feature',
-                                                  '--metadataFile',
-                                                  myfile,
-                                                  '--server',
-                                                  mySolRtn])
-                # print("Return value: " + str(myproc))
-                f.write(myproc)
-            f.write(myproc)
+        sys.exit()  # while testing
 
     # Report status
     f.write("Number of files processed were:" + str(len(myfiles)))
