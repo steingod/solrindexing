@@ -504,7 +504,7 @@ class IndexMMD:
         print("Connection established to: " + str(mysolrservert))
 
     def add_level1(self, myrecord, addThumbnail=False, addFeature=False,
-            mapprojection=ccrs.Mercator()):
+            mapprojection=ccrs.Mercator(),wmstimeout=120):
         """ Add a level 1 dataset """
         print("Adding records to Level 1 core...")
         mylist = list()
@@ -533,15 +533,11 @@ class IndexMMD:
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     #wms_style = 'boxfill/ncview'
                     wms_style = 'boxfill/redblue'
-                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
-                    #        central_latitude=90., true_scale_latitude=60.)
-                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
-                    #myprojection = ccrs.Mercator()
-                    #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                             identifier=mylist[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
-                            projection=mapprojection,style=wms_style)
+                            projection=mapprojection,wmstimeout=120,
+                            style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
@@ -556,7 +552,7 @@ class IndexMMD:
                 print("Something failed in adding feature type, " + str(e))
 
     def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
-            mapprojection=ccrs.Mercator()):
+            mapprojection=ccrs.Mercator(),wmstimeout=120):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist2 = list()
         mylist2.append(myl2record)
@@ -612,15 +608,11 @@ class IndexMMD:
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     wms_style = 'boxfill/redblue'
-                    #myprojection = ccrs.Stereographic(central_longitude=0.0,
-                    #        central_latitude=90., true_scale_latitude=60.)
-                    #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
-                    #myprojection = ccrs.Mercator()
-                    #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                             identifier=mylist2[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
-                            projection=mapprojection,style=wms_style)
+                            projection=mapprojection,wmstimeout=120,
+                            style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
@@ -635,7 +627,8 @@ class IndexMMD:
                 print("Something failed in adding feature type, " + str(e))
 
 
-    def add_thumbnail(self, url, identifier, layer, zoom_level=0, projection=ccrs.PlateCarree(), type='wms', style=None):
+    def add_thumbnail(self, url, identifier, layer, zoom_level,
+            projection, wmstimeout, type='wms', style=None):
         """ Add thumbnail to SolR
 
             Args:
@@ -650,7 +643,8 @@ class IndexMMD:
                 boolean
         """
         if type == 'wms':
-            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level, projection, style=style)
+            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level,
+                    projection, wmstimeout, style=style)
         elif type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
@@ -672,7 +666,8 @@ class IndexMMD:
 
         print("Thumbnail record successfully added.")
 
-    def create_wms_thumbnail(self, url, layer, zoom_level=0, projection=ccrs.PlateCarree(),**kwargs):
+    def create_wms_thumbnail(self, url, layer, zoom_level=0,
+            projection=ccrs.PlateCarree(),wmstimeout=120,**kwargs):
         """ Create a base64 encoded thumbnail by means of cartopy.
 
             Args:
@@ -686,7 +681,7 @@ class IndexMMD:
                 thumbnail_b64: base64 string representation of image
         """
 
-        wms = WebMapService(url,timeout=480)
+        wms = WebMapService(url,timeout=wmstimeout)
         available_layers = list(wms.contents.keys())
         if layer not in available_layers:
             layer = available_layers[0]
@@ -711,9 +706,9 @@ class IndexMMD:
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
         #print(cartopy_extent)
         cartopy_extent_zoomed = [wms_extent[0] - zoom_level,
-                                 wms_extent[2] + zoom_level,
-                                 wms_extent[1] - zoom_level,
-                                 wms_extent[3] + zoom_level]
+                wms_extent[2] + zoom_level,
+                wms_extent[1] - zoom_level,
+                wms_extent[3] + zoom_level]
         max_extent = [-180.0, 180.0, -90.0, 90.0]
         #print(cartopy_extent_zoomed)
 
@@ -750,8 +745,8 @@ class IndexMMD:
 
         ax.add_wms(wms, layer,
                 wms_kwargs={'transparent': False,
-                            'styles':style})
-        #print({'transparent': False,'styles':style})
+                    'styles':style})
+                #print({'transparent': False,'styles':style})
         ax.coastlines(resolution="50m",linewidth=0.5)
 
         fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
@@ -768,7 +763,7 @@ class IndexMMD:
         #os.remove('thumbnail.png')
 
         return thumbnail_b64
-        # with open('image_b64.txt','wb') as outimg:
+    # with open('image_b64.txt','wb') as outimg:
         #    outimg.write(b'data:image/png;base64,'+encode_string)
 
     def create_ts_thumbnail(self):
@@ -989,10 +984,10 @@ def main(argv):
             print("Indexing dataset " + myfile)
             if l2flg:
                 mysolr.add_level2(mydoc.tosolr(), tflg,
-                        fflg,mapprojection)
+                        fflg,mapprojection,cfg['wms-timeout'])
             else:
                 mysolr.add_level1(mydoc.tosolr(), tflg,
-                        fflg,mapprojection)
+                        fflg,mapprojection,cfg['wms-timeout'])
 
         sys.exit()  # while testing
 
