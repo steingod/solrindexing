@@ -536,12 +536,12 @@ class IndexMMD:
                     #myprojection = ccrs.Stereographic(central_longitude=0.0,
                     #        central_latitude=90., true_scale_latitude=60.)
                     #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
-                    myprojection = ccrs.Mercator()
+                    #myprojection = ccrs.Mercator()
                     #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                             identifier=mylist[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
-                            projection=myprojection,style=wms_style)
+                            projection=mapprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
@@ -569,8 +569,6 @@ class IndexMMD:
             Warning("Something failed in searching for parent dataset, " + str(e))
 
         #print("Saw {0} result(s).".format(len(myresults)))
-        # Clean the loop below, shouldn't be necessary as only one parent
-        # should be present... TODO
         if len(myresults) != 1:
             raise Warning("Didn't find unique parent record")
         for result in myresults:
@@ -579,6 +577,7 @@ class IndexMMD:
         # Check that the parent found has mmd_related_dataset set and
         # update this
         if 'mmd_related_dataset' in dict(myresults):
+            # Need to check that this doesn't already exist...
             myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
         else:
             print('mmd_related_dataset not found in parent, creating it...')
@@ -617,11 +616,11 @@ class IndexMMD:
                     #        central_latitude=90., true_scale_latitude=60.)
                     #myprojection = ccrs.NorthPolarStereo(central_longitude=0.0)
                     #myprojection = ccrs.Mercator()
-                    myprojection = ccrs.PlateCarree()
+                    #myprojection = ccrs.PlateCarree()
                     self.add_thumbnail(url=darlist['OGC WMS'],
                             identifier=mylist2[0]['mmd_metadata_identifier'],
                             layer=wms_layer, zoom_level=0, 
-                            projection=myprojection,style=wms_style)
+                            projection=mapprojection,style=wms_style)
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
@@ -932,6 +931,16 @@ def main(argv):
     with open(cfgfile, 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
 
+    # Specify map projection
+    if cfg['wms-thumbnail-projection'] == 'Mercator':
+        mapprojection = ccrs.Mercator()
+    elif cfg['wms-thumbnail-projection'] == 'PlateCarree':
+        mapprojection = ccrs.PlateCarree()
+    elif cfg['wms-thumbnail-projection'] == 'PolarStereographic':
+        mapprojection = ccrs.Stereographic(central_longitude=0.0,central_latitude=90., true_scale_latitude=60.)
+    else:
+        raise Exception('Map projection is not properly specified in config')
+
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
@@ -979,11 +988,11 @@ def main(argv):
         if iflg or lflg:
             print("Indexing dataset " + myfile)
             if l2flg:
-                mysolr.add_level2(mydoc.tosolr(), tflg, fflg,
-                        cfg['wms-thumbnail-projection'])
+                mysolr.add_level2(mydoc.tosolr(), tflg,
+                        fflg,mapprojection)
             else:
-                mysolr.add_level1(mydoc.tosolr(), tflg, fflg,
-                        cfg['wms-thumbnail-projection'])
+                mysolr.add_level1(mydoc.tosolr(), tflg,
+                        fflg,mapprojection)
 
         sys.exit()  # while testing
 
