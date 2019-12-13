@@ -503,7 +503,8 @@ class IndexMMD:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrservert))
 
-    def add_level1(self, myrecord, addThumbnail=False, addFeature=False):
+    def add_level1(self, myrecord, addThumbnail=False, addFeature=False,
+            mapprojection=ccrs.Mercator()):
         """ Add a level 1 dataset """
         print("Adding records to Level 1 core...")
         mylist = list()
@@ -554,7 +555,8 @@ class IndexMMD:
             except Exception as e:
                 print("Something failed in adding feature type, " + str(e))
 
-    def add_level2(self, myl2record, addThumbnail=False, addFeature=False):
+    def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
+            mapprojection=ccrs.Mercator()):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist2 = list()
         mylist2.append(myl2record)
@@ -977,9 +979,11 @@ def main(argv):
         if iflg or lflg:
             print("Indexing dataset " + myfile)
             if l2flg:
-                mysolr.add_level2(mydoc.tosolr(), tflg, fflg)
+                mysolr.add_level2(mydoc.tosolr(), tflg, fflg,
+                        cfg['wms-thumbnail-projection'])
             else:
-                mysolr.add_level1(mydoc.tosolr(), tflg, fflg)
+                mysolr.add_level1(mydoc.tosolr(), tflg, fflg,
+                        cfg['wms-thumbnail-projection'])
 
         sys.exit()  # while testing
 
