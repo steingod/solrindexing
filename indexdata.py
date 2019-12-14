@@ -383,9 +383,22 @@ class MMD4SolR:
         """ Related dataset """
         """ TODO """
         """ Remember to add type of relation in the future ØG """
+        """ Only interpreting parent for now since SolR doesn't take more
+        """
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
-            if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
-                mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+            if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
+                    list):
+                print('Too many fields in related_dataset...')
+                for e in self.mydoc['mmd:mmd']['mmd:related_dataset']:
+                    #print(e)
+                    if '@mmd:relation_type' in e:
+                        if e['@mmd:relation_type'] == 'parent':
+                            #print(e['@mmd:relation_type'])
+                            if '#text' in dict(e):
+                                mydict['mmd_related_dataset'] = e['#text']
+            else:
+                if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
+                    mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
         """ Project """
         mydict['mmd_project_short_name'] = []
