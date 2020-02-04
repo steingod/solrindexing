@@ -324,6 +324,7 @@ class MMD4SolR:
                 mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
                 mydict['mmd_geographic_extent_rectangle_west'] = max(lonvals)
                 mydict['mmd_geographic_extent_rectangle_east'] = min(lonvals)
+                mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
             else:
                 mydict['mmd_geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
@@ -333,6 +334,10 @@ class MMD4SolR:
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
                 mydict['mmd_geographic_extent_rectangle_west'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+
+        """ Need BBOX for spatial search to work, the above is not used
+        actually..."""
 
         """ Data access """
         """ Double check this ØG """
