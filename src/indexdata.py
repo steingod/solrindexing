@@ -47,7 +47,7 @@ def usage():
     print('\t-h: dump this text')
     print('\t-c: configuration file')
     print('\t-i: index an individual dataset')
-    print('\t-l: index individual datasetis from list file')
+    print('\t-l: index individual datasets from list file (need more checking)')
     print('\t-d: index a directory with multiple datasets')
     print('\t-2: index level 2 dataset')
     print('\t-t: index a single thumbnail (no argument, require -i or -d)')
@@ -92,22 +92,19 @@ class MMD4SolR:
         Check for presence and non empty elements
         This must be further developed...
         """
-        print('\n')
         for requirement in mmd_requirements.keys():
             if requirement in self.mydoc['mmd:mmd']:
-                print('Checking for',requirement)
-                #print(self.mydoc['mmd:mmd'][requirement])
+                print('\tChecking for',requirement)
                 if requirement in self.mydoc['mmd:mmd']:
                     if self.mydoc['mmd:mmd'][requirement] != None:
-                        #print(self.mydoc['mmd:mmd'][requirement])
-                        print('\t' + requirement + ' is present and non empty')
+                        print('\t\t' + requirement + ' is present and non empty')
                         mmd_requirements[requirement] = True
                     else:
-                        print('Required element',requirement,
+                        print('\tRequired element',requirement,
                             'is missing, setting it to unknown')
                         self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
                 else:
-                    print('Required element',requirement,
+                    print('\tRequired element',requirement,
                             'is missing, setting it to unknown')
                     self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
 
@@ -158,19 +155,19 @@ class MMD4SolR:
                                               'Obsolete'],
         }
         for element in mmd_controlled_elements.keys():
-            print('Checking ' + element)
+            print('\tChecking ' + element)
             if element in self.mydoc['mmd:mmd']:
                 if type(self.mydoc['mmd:mmd'][element]) is list:
                     if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
-                        print('\t' + element + ' is all good...')
+                        print('\t\t' + element + ' is all good...')
                     else:
-                        print('\t' + element + ' contains non valid content')
+                        print('\t\t' + element + ' contains non valid content')
                         print('(' + self.mydoc['mmd:mmd'][element] + ')')
                 else:
                     if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
-                        print('\t' + element + ' is all good...')
+                        print('\t\t' + element + ' is all good...')
                     else:
-                        print('\t' + element + ' contains non valid content')
+                        print('\t\t' + element + ' contains non valid content')
                         print('(' + self.mydoc['mmd:mmd'][element] + ')')
 
         """
@@ -180,8 +177,8 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
             i = 0
             gcmd = False
-            print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
-            print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
+            ##print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
+            ##print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
@@ -190,11 +187,11 @@ class MMD4SolR:
                     break
                 i += 1
             if not gcmd:
-                print('Keywords in GCMD are not available')
+                print('\tKeywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
                 # warnings.warn('Keywords in GCMD are not available')
-                print('Keywords in GCMD are not available')
+                print('\tKeywords in GCMD are not available')
 
         """ Modify dates if necessary """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
@@ -232,11 +229,11 @@ class MMD4SolR:
             else:
                 mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
-        print('title:',mydict['mmd_title'])
+        ##print('title:',mydict['mmd_title'])
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
-            print('>>>>>>>>',len(self.mydoc['mmd:mmd']['mmd:abstract']))
+            ##print('>>>>>>>>',len(self.mydoc['mmd:mmd']['mmd:abstract']))
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
@@ -283,11 +280,11 @@ class MMD4SolR:
         """ Should structure this on GCMD only at some point """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
-            print(self.mydoc['mmd:mmd']['mmd:keywords'])
+            ##print(self.mydoc['mmd:mmd']['mmd:keywords'])
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                    print(i,type(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
-                    print(i,(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
+                    ##print(i,type(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
+                    ##print(i,(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
                     if 'mmd:keyword' not in self.mydoc['mmd:mmd']['mmd:keywords'][i]:
                         continue
                     if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],str):
@@ -390,18 +387,18 @@ class MMD4SolR:
         """ Remember to add type of relation in the future ØG """
         """ Only interpreting parent for now since SolR doesn't take more
         """
+        self.parent = None
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
                     list):
                 print('Too many fields in related_dataset...')
                 for e in self.mydoc['mmd:mmd']['mmd:related_dataset']:
-                    #print(e)
                     if '@mmd:relation_type' in e:
                         if e['@mmd:relation_type'] == 'parent':
-                            #print(e['@mmd:relation_type'])
                             if '#text' in dict(e):
                                 mydict['mmd_related_dataset'] = e['#text']
             else:
+                """ Not sure if this is used?? """
                 if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
                     mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
 
@@ -539,13 +536,13 @@ class IndexMMD:
         # print(mylist[0]['mmd_data_access_resource'])
         # Remove flag later, do automatically if WMS is available...
         if addThumbnail:
-            print("Checking tumbnails...")
+            print("Checking thumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
             print(darlist)
-            print(type(darlist))
+            #print(type(darlist))
             try:
                 if 'OGC WMS' in darlist:
-                    print('HERE, wms')
+                    #print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
                     #wms_layer = 'ice_conc'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
@@ -577,7 +574,7 @@ class IndexMMD:
 
         """ Retrieve level 1 record """
         try:
-            myresults = self.solr1.search('mmd_metadata_identifier:' +
+            myresults = self.solr1.search('id:' +
                     myl2record['mmd_related_dataset'], df='', rows=100)
         except Exception as e:
             Warning("Something failed in searching for parent dataset, " + str(e))
@@ -589,10 +586,11 @@ class IndexMMD:
             result.pop('full_text')
             myresults = result
         # Check that the parent found has mmd_related_dataset set and
-        # update this
+        # update this, but first check that it doesn't already exists
         if 'mmd_related_dataset' in dict(myresults):
             # Need to check that this doesn't already exist...
-            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
+            if myl2record['mmd_metadata_identifier'] not in myresults['mmd_related_dataset']:
+                myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
         else:
             print('mmd_related_dataset not found in parent, creating it...')
             myresults['mmd_related_dataset'] = []
@@ -914,7 +912,6 @@ def main(argv):
             usage()
             sys.exit()
         elif opt in ("-i", "--ifile"):
-
             infile = arg
             iflg = True
         elif opt in ("-d", "--ddir"):
@@ -985,29 +982,74 @@ def main(argv):
             print("Something went wrong in decoding cmd arguments: " + str(e))
             sys.exit(1)
 
-    # mysolrlist = list() # might be used later...
+    fileno = 0
+    myfiles2 = []
     for myfile in myfiles:
+        l2flg = False # while testing as option
         # Decide files to operate on
+        if not myfile.endswith('.xml'):
+            continue
         if lflg:
             myfile = myfile.rstrip()
         if dflg:
             myfile = os.path.join(ddir, myfile)
 
         # Index files
-        mydoc = MMD4SolR(myfile)  # while testing
-        mydoc.check_mmd()
-        # print(mydoc.tosolr())
-        mysolr = IndexMMD(mySolRc)
-        if iflg or lflg:
-            print("Indexing dataset " + myfile)
-            if l2flg:
-                mysolr.add_level2(mydoc.tosolr(), tflg,
-                        fflg,mapprojection,cfg['wms-timeout'])
-            else:
-                mysolr.add_level1(mydoc.tosolr(), tflg,
-                        fflg,mapprojection,cfg['wms-timeout'])
+        print('\nProcessing file',fileno, myfile)
 
-        sys.exit()  # while testing
+        mydoc = MMD4SolR(myfile) 
+        mydoc.check_mmd()
+        fileno += 1
+        mysolr = IndexMMD(mySolRc)
+        """ Do not search for mmd_metadata_identifier, always used id...  """
+        """ Check if this can be used???? """
+        newdoc = mydoc.tosolr()
+        if 'mmd_related_dataset' in newdoc:
+            myresults = mysolr.solr1.search('id:' +
+                    newdoc['mmd_related_dataset'], df='', rows=100)
+            if len(myresults) == 0:
+                print("No parent found")
+                myfiles2.append(myfile)
+                continue
+            l2flg = True
+        #if iflg or lflg:
+        print("Indexing dataset " + myfile)
+        if l2flg:
+            mysolr.add_level2(mydoc.tosolr(), tflg,
+                    fflg,mapprojection,cfg['wms-timeout'])
+        else:
+            mysolr.add_level1(mydoc.tosolr(), tflg,
+                    fflg,mapprojection,cfg['wms-timeout'])
+
+    # Now process all the level 2 files that failed in the previous
+    # sequence. If the Level 1 dataset is not available, this will fail at
+    # level 2
+    fileno = 0
+    for myfile in myfiles2:
+        l2flg = False # while testing as option
+        print('\nProcessing file',fileno, myfile)
+        mydoc = MMD4SolR(myfile) 
+        mydoc.check_mmd()
+        fileno += 1
+        mysolr = IndexMMD(mySolRc)
+        """ Do not search for mmd_metadata_identifier, always used id...  """
+        """ Check if this can be used???? """
+        newdoc = mydoc.tosolr()
+        if 'mmd_related_dataset' in newdoc:
+            myresults = mysolr.solr1.search('id:' +
+                    newdoc['mmd_related_dataset'], df='', rows=100)
+            if len(myresults) == 0:
+                print("No parent found")
+                myfiles2.append(myfile)
+                continue
+            l2flg = True
+        print("Indexing dataset " + myfile)
+        if l2flg:
+            mysolr.add_level2(mydoc.tosolr(), tflg,
+                    fflg,mapprojection,cfg['wms-timeout'])
+        else:
+            mysolr.add_level1(mydoc.tosolr(), tflg,
+                    fflg,mapprojection,cfg['wms-timeout'])
 
     # Report status
     f.write("Number of files processed were:" + str(len(myfiles)))
