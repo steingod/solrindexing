@@ -280,21 +280,15 @@ class MMD4SolR:
         """ Should structure this on GCMD only at some point """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
-            ##print(self.mydoc['mmd:mmd']['mmd:keywords'])
-            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                    ##print(i,type(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
-                    ##print(i,(self.mydoc['mmd:mmd']['mmd:keywords'][i]))
-                    if 'mmd:keyword' not in self.mydoc['mmd:mmd']['mmd:keywords'][i]:
-                        continue
-                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],str):
-                        mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
-                    else:
-                        for e in (self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']):
-                            mydict['mmd_keywords_keyword'].append(e)
+            if 'mmd:keyword' not in self.mydoc['mmd:mmd']['mmd:keywords']:
+                print('Keywords are missing...')
+                sys.exit() # Fix this later...
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'], list):
+                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                        mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
             else:
-                for e in (self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']):
-                    mydict['mmd_keywords_keyword'].append(e)
+                mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
