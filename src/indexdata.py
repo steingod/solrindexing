@@ -381,8 +381,11 @@ class MMD4SolR:
             # There can potentially be several related_information sections.
             # Need to handle this later. TODO
             # Assumes all child elements are present if parent is found
-            mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
-            mydict['mmd_related_information_resource'].append(mystring)
+            # Check if required children are present
+            if 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:related_information'] and (self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] != None):
+                if 'mmd:type' in self.mydoc['mmd:mmd']['mmd:related_information']:
+                    mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
+                    mydict['mmd_related_information_resource'].append(mystring)
 
         """ Related dataset """
         """ TODO """
@@ -987,7 +990,6 @@ def main(argv):
     fileno = 0
     myfiles2 = []
     for myfile in myfiles:
-        l2flg = False # while testing as option
         # Decide files to operate on
         if not myfile.endswith('.xml'):
             continue
@@ -1006,6 +1008,11 @@ def main(argv):
         """ Do not search for mmd_metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
+        print(type(newdoc['mmd_data_access_resource']))
+        print(len(newdoc['mmd_data_access_resource']))
+        print((newdoc['mmd_data_access_resource']))
+        if "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
+            tflg = True
         if 'mmd_related_dataset' in newdoc:
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
@@ -1022,6 +1029,8 @@ def main(argv):
         else:
             mysolr.add_level1(mydoc.tosolr(), tflg,
                     fflg,mapprojection,cfg['wms-timeout'])
+        l2flg = False
+        tflg = False
 
     # Now process all the level 2 files that failed in the previous
     # sequence. If the Level 1 dataset is not available, this will fail at
@@ -1037,6 +1046,8 @@ def main(argv):
         """ Do not search for mmd_metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
+        if "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
+            tflg = True
         if 'mmd_related_dataset' in newdoc:
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
@@ -1052,6 +1063,8 @@ def main(argv):
         else:
             mysolr.add_level1(mydoc.tosolr(), tflg,
                     fflg,mapprojection,cfg['wms-timeout'])
+        l2flg = False
+        tflg = False
 
     # Report status
     f.write("Number of files processed were:" + str(len(myfiles)))
