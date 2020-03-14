@@ -497,11 +497,15 @@ class MMD4SolR:
         """ Need to revisit this when SolR is reimplemented """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],list):
+                dsselected = False
                 for item in self.mydoc['mmd:mmd']['mmd:data_center']:
                     #print(item['mmd:data_center_name'])
                     if "mmd:long_name" in item['mmd:data_center_name'] and "Norwegian" in item['mmd:data_center_name']['mmd:long_name']:
                         myds = item
+                        dsselected = True
                         break
+                if not dsselected:
+                    myds = self.mydoc['mmd:mmd']['mmd:data_center'][0]
             elif isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],dict):
                 myds = self.mydoc['mmd:mmd']['mmd:data_center']
             #print(myds)
