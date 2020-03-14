@@ -332,7 +332,8 @@ class MMD4SolR:
                     #print(item)
                     for mykey in item:
                         #print(item[mykey])
-                        mytime = dateutil.parser.parse(item[mykey])
+                        if item[mykey] != '':
+                            mytime = dateutil.parser.parse(item[mykey])
                         if mytime < mintime:
                             mintime = mytime
                         if mytime > maxtime:
@@ -639,6 +640,7 @@ class IndexMMD:
         myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
         myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
         myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
+        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('.xml','')
         #print('>>>>>>>',myl2record['mmd_related_dataset'])
 
         """ Retrieve level 1 record """
@@ -650,7 +652,8 @@ class IndexMMD:
 
         #print("Saw {0} result(s).".format(len(myresults)))
         if len(myresults) != 1:
-            raise Warning("Didn't find unique parent record")
+            Warning("Didn't find unique parent record, skipping record")
+            return
         for result in myresults:
             result.pop('full_text')
             myresults = result
@@ -1088,6 +1091,7 @@ def main(argv):
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
+            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('.xml','')
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
