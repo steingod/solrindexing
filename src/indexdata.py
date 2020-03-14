@@ -638,8 +638,7 @@ class IndexMMD:
         # Fix for NPI data...
         myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
         myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
-        myl2record['mmd_related_dataset'] =
-        myl2record['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
+        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
         #print('>>>>>>>',myl2record['mmd_related_dataset'])
 
         """ Retrieve level 1 record """
