@@ -360,10 +360,14 @@ class MMD4SolR:
                 latvals = []
                 lonvals = []
                 for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
-                    latvals.append(float(e['mmd:rectangle']['mmd:north']))
-                    latvals.append(float(e['mmd:rectangle']['mmd:south']))
-                    lonvals.append(float(e['mmd:rectangle']['mmd:east']))
-                    lonvals.append(float(e['mmd:rectangle']['mmd:west']))
+                    if e['mmd:rectangle']['mmd:north'] != None:
+                        latvals.append(float(e['mmd:rectangle']['mmd:north']))
+                    if e['mmd:rectangle']['mmd:south'] != None:
+                        latvals.append(float(e['mmd:rectangle']['mmd:south']))
+                    if e['mmd:rectangle']['mmd:east'] != None:
+                        lonvals.append(float(e['mmd:rectangle']['mmd:east']))
+                    if e['mmd:rectangle']['mmd:west'] != None:
+                        lonvals.append(float(e['mmd:rectangle']['mmd:west']))
                 mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
                 mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
                 mydict['mmd_geographic_extent_rectangle_west'] = min(lonvals)
