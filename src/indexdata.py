@@ -1087,8 +1087,7 @@ def main(argv):
             # Special fix for NPI
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
-            newdoc['mmd_related_dataset'] =
-            newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
+            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
