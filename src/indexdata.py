@@ -49,8 +49,9 @@ def usage():
     print('\t-i: index an individual dataset')
     print('\t-l: index individual datasets from list file (need more checking)')
     print('\t-d: index a directory with multiple datasets')
-    print('\t-2: index level 2 dataset')
+    #print('\t-2: index level 2 dataset')
     print('\t-t: index a single thumbnail (no argument, require -i or -d)')
+    print('\t-n: do not index thumbnail (since it normally does if WMS is present)')
     print('\t-f: index a single feature type (no argument, require -i or -d)')
     print('\t-r: remove dataset with specified metadata_identifier')
     print('')
@@ -199,7 +200,8 @@ class MMD4SolR:
             self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                if self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None:
+                if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] ==
+                        None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'): 
                     break
                 mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                 self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -229,11 +231,9 @@ class MMD4SolR:
             else:
                 mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
-        ##print('title:',mydict['mmd_title'])
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
-            ##print('>>>>>>>>',len(self.mydoc['mmd:mmd']['mmd:abstract']))
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
@@ -261,7 +261,6 @@ class MMD4SolR:
         """ Collection """
         if 'mmd:collection' in self.mydoc['mmd:mmd']:
             mydict['mmd_collection'] = []
-            # if len(self.mydoc['mmd:mmd']['mmd:collection']) > 1: #Does not work on single collection
             if isinstance(self.mydoc['mmd:mmd']['mmd:collection'], list):  # Does not work on single collection
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:collection']:
@@ -288,6 +287,8 @@ class MMD4SolR:
             elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
                     if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
+                        if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
+                            continue
                         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
                             for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
                                 mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
@@ -543,11 +544,8 @@ class IndexMMD:
         if addThumbnail:
             print("Checking thumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
-            print(darlist)
-            #print(type(darlist))
             try:
                 if 'OGC WMS' in darlist:
-                    #print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
                     #wms_layer = 'ice_conc'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
@@ -621,11 +619,8 @@ class IndexMMD:
         if addThumbnail:
             print("Checking tumbnails...")
             darlist = self.darextract(mylist2[0]['mmd_data_access_resource'])
-            print(darlist)
-            print(type(darlist))
             try:
                 if 'OGC WMS' in darlist:
-                    print('HERE, wms')
                     getCapUrl = darlist['OGC WMS']
                     wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
                     wms_style = 'boxfill/redblue'
@@ -906,9 +901,9 @@ def main(argv):
     except OSError as e:
         print(e)
 
-    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = False
+    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = nflg = False
     try:
-        opts, args = getopt.getopt(argv, "hi:d:c:l:r:tf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
+        opts, args = getopt.getopt(argv, "hi:d:c:l:r:ntf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
     except getopt.GetoptError:
         print(sys.argv[0] + ' -i <inputfile>')
         sys.exit(2)
@@ -932,6 +927,8 @@ def main(argv):
             l2flg = True
         elif opt in ("-t"):
             tflg = True
+        elif opt in ("-n"):
+            nflg = True
         elif opt in ("-f"):
             fflg = True
         elif opt in ("-r"):
@@ -990,6 +987,7 @@ def main(argv):
     fileno = 0
     myfiles2 = []
     for myfile in myfiles:
+        myfile = myfile.strip()
         # Decide files to operate on
         if not myfile.endswith('.xml'):
             continue
@@ -1006,12 +1004,11 @@ def main(argv):
         fileno += 1
         mysolr = IndexMMD(mySolRc)
         """ Do not search for mmd_metadata_identifier, always used id...  """
-        """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
-        print(type(newdoc['mmd_data_access_resource']))
-        print(len(newdoc['mmd_data_access_resource']))
-        print((newdoc['mmd_data_access_resource']))
-        if "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
+        #print(type(newdoc['mmd_data_access_resource']))
+        #print(len(newdoc['mmd_data_access_resource']))
+        #print((newdoc['mmd_data_access_resource']))
+        if (not nflg) and "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
             tflg = True
         if 'mmd_related_dataset' in newdoc:
             myresults = mysolr.solr1.search('id:' +
@@ -1021,7 +1018,6 @@ def main(argv):
                 myfiles2.append(myfile)
                 continue
             l2flg = True
-        #if iflg or lflg:
         print("Indexing dataset " + myfile)
         if l2flg:
             mysolr.add_level2(mydoc.tosolr(), tflg,
@@ -1034,11 +1030,10 @@ def main(argv):
 
     # Now process all the level 2 files that failed in the previous
     # sequence. If the Level 1 dataset is not available, this will fail at
-    # level 2
+    # level 2. Meaning, the section below only ingests at level 2.
     fileno = 0
     for myfile in myfiles2:
-        l2flg = False # while testing as option
-        print('\nProcessing file',fileno, myfile)
+        print('\nProcessing L2 file',fileno, myfile)
         mydoc = MMD4SolR(myfile) 
         mydoc.check_mmd()
         fileno += 1
@@ -1046,24 +1041,15 @@ def main(argv):
         """ Do not search for mmd_metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
-        if "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
+        if (not nflg) and "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
             tflg = True
-        if 'mmd_related_dataset' in newdoc:
-            myresults = mysolr.solr1.search('id:' +
-                    newdoc['mmd_related_dataset'], df='', rows=100)
-            if len(myresults) == 0:
-                print("No parent found")
-                myfiles2.append(myfile)
-                continue
-            l2flg = True
+        # Skip file if not a level 2 file
+        if 'mmd_related_dataset' not in newdoc:
+            continue
         print("Indexing dataset " + myfile)
-        if l2flg:
-            mysolr.add_level2(mydoc.tosolr(), tflg,
-                    fflg,mapprojection,cfg['wms-timeout'])
-        else:
-            mysolr.add_level1(mydoc.tosolr(), tflg,
-                    fflg,mapprojection,cfg['wms-timeout'])
-        l2flg = False
+        # Ingest at level 2
+        mysolr.add_level2(mydoc.tosolr(), tflg,
+                fflg,mapprojection,cfg['wms-timeout'])
         tflg = False
 
     # Report status
