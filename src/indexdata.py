@@ -163,13 +163,20 @@ class MMD4SolR:
                         print('\t\t' + element + ' is all good...')
                     else:
                         print('\t\t' + element + ' contains non valid content')
-                        print('(' + self.mydoc['mmd:mmd'][element] + ')')
+                        for elem in self.mydoc['mmd:mmd'][element]:
+                            if elem != None:
+                                print('(' + elem + ')')
+                            else:
+                                print('Element is empty')
                 else:
                     if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
                         print('\t\t' + element + ' is all good...')
                     else:
                         print('\t\t' + element + ' contains non valid content')
-                        print('(' + self.mydoc['mmd:mmd'][element] + ')')
+                        if self.mydoc['mmd:mmd'][element] != None:
+                            print('(' + self.mydoc['mmd:mmd'][element] + ')')
+                        else:
+                            print('Element is empty')
 
         """
         Check that keywords also contain GCMD keywords
@@ -199,12 +206,29 @@ class MMD4SolR:
             mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
             self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
-            for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] ==
-                        None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'): 
-                    break
-                mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
-                self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+            if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
+                #print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
+                i=0
+                for item in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                    #print(i, item)
+                    for mykey in  item:
+                        #print('\t', mykey,item[mykey])
+                        if (item[mykey]==None) or (item[mykey]=='--'):
+                            mydate = ''
+                            self.mydoc['mmd:mmd']['mmd:temporal_extent'][i][mykey] = mydate
+                        else:
+                            mydate = dateutil.parser.parse(str(item[mykey]))
+                            self.mydoc['mmd:mmd']['mmd:temporal_extent'][i][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    i += 1
+            else:
+                for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                    #print(mykey)
+                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'): 
+                        mydate = ''
+                        self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
+                    else:
+                        mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
+                        self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     def tosolr(self):
         """ Collect required elements """
@@ -301,14 +325,33 @@ class MMD4SolR:
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
-            mydict["mmd_temporal_extent_start_date"] = str(
-                self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
-            if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
-                    mydict["mmd_temporal_extent_end_date"] = str(
-                        self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+            if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
+                maxtime = dateutil.parser.parse('1000-01-01T00:00:00Z')
+                mintime = dateutil.parser.parse('2099-01-01T00:00:00Z')
+                for item in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                    #print(item)
+                    for mykey in item:
+                        #print(item[mykey])
+                        mytime = dateutil.parser.parse(item[mykey])
+                        if mytime < mintime:
+                            mintime = mytime
+                        if mytime > maxtime:
+                            maxtime = mytime
+                #print('max',maxtime.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                #print('min',mintime.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                mydict['mmd_temporal_extent_start_date'] = mintime.strftime('%Y-%m-%dT%H:%M:%SZ')
+                mydict['mmd_temporal_extent_end_date'] = maxtime.strftime('%Y-%m-%dT%H:%M:%SZ')
+            else:
+                mydict["mmd_temporal_extent_start_date"] = str(
+                    self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
+                if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                    if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
+                        mydict["mmd_temporal_extent_end_date"] = str(
+                            self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
 
         """ Geographical extent """
+        """ Assumes longitudes positive eastwards and in the are -180:180
+        """
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
@@ -322,10 +365,17 @@ class MMD4SolR:
                     lonvals.append(float(e['mmd:rectangle']['mmd:west']))
                 mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
                 mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
-                mydict['mmd_geographic_extent_rectangle_west'] = max(lonvals)
-                mydict['mmd_geographic_extent_rectangle_east'] = min(lonvals)
-                mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                mydict['mmd_geographic_extent_rectangle_west'] = min(lonvals)
+                mydict['mmd_geographic_extent_rectangle_east'] = max(lonvals)
+                mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
             else:
+                for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
+                    #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
+                    if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item] == None:
+                        Warning('Missing geographical element')
+                        mydict['mmd_metadata_status'] = 'Inactive'
+                        return mydict
+
                 mydict['mmd_geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
                 mydict['mmd_geographic_extent_rectangle_south'] = float(
@@ -335,9 +385,6 @@ class MMD4SolR:
                 mydict['mmd_geographic_extent_rectangle_west'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
-
-        """ Need BBOX for spatial search to work, the above is not used
-        actually..."""
 
         """ Data access """
         """ Double check this ØG """
@@ -442,17 +489,27 @@ class MMD4SolR:
             mydict['mmd_use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
 
         """ Data center """
+        """ Need to revisit this when SolR is reimplemented """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
-            if 'mmd:long_name' in self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']:
-                mydict['mmd_data_center_data_center_name_long_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']['mmd:long_name'])
-            if 'mmd:short_name' in self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']:
-                mydict['mmd_data_center_data_center_name_short_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_name']['mmd:short_name'])
-            if 'mmd:data_center_url' in self.mydoc['mmd:mmd']['mmd:data_center']:
-                mydict['mmd_data_center_data_center_url'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:data_center_url'])
-            if 'mmd:contact' in self.mydoc['mmd:mmd']['mmd:data_center']:
-                mydict['mmd_data_center_contact_name'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:name'])
-                mydict['mmd_data_center_contact_role'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:role'])
-                mydict['mmd_data_center_contact_email'] = str(self.mydoc['mmd:mmd']['mmd:data_center']['mmd:contact']['mmd:email'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],list):
+                for item in self.mydoc['mmd:mmd']['mmd:data_center']:
+                    #print(item['mmd:data_center_name'])
+                    if "mmd:long_name" in item['mmd:data_center_name'] and "Norwegian" in item['mmd:data_center_name']['mmd:long_name']:
+                        myds = item
+                        break
+            elif isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],dict):
+                myds = self.mydoc['mmd:mmd']['mmd:data_center']
+            #print(myds)
+            if 'mmd:long_name' in myds['mmd:data_center_name']:
+                mydict['mmd_data_center_data_center_name_long_name'] = str(myds['mmd:data_center_name']['mmd:long_name'])
+            if 'mmd:short_name' in myds['mmd:data_center_name']:
+                mydict['mmd_data_center_data_center_name_short_name'] = str(myds['mmd:data_center_name']['mmd:short_name'])
+            if 'mmd:data_center_url' in myds:
+                mydict['mmd_data_center_data_center_url'] = str(myds['mmd:data_center_url'])
+            if 'mmd:contact' in myds:
+                mydict['mmd_data_center_contact_name'] = str(myds['mmd:contact']['mmd:name'])
+                mydict['mmd_data_center_contact_role'] = str(myds['mmd:contact']['mmd:role'])
+                mydict['mmd_data_center_contact_email'] = str(myds['mmd:contact']['mmd:email'])
 
         """ Personnel """
         """ Need to check this again, should restructure cores ØG """
@@ -526,6 +583,10 @@ class IndexMMD:
 
     def add_level1(self, myrecord, addThumbnail=False, addFeature=False,
             mapprojection=ccrs.Mercator(),wmstimeout=120):
+        if myrecord['mmd_metadata_status'] == 'Inactive':
+            Warning('Skipping record')
+            return
+
         """ Add a level 1 dataset """
         print("Adding records to Level 1 core...")
         mylist = list()
@@ -574,6 +635,12 @@ class IndexMMD:
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mylist2 = list()
         mylist2.append(myl2record)
+        # Fix for NPI data...
+        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
+        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
+        myl2record['mmd_related_dataset'] =
+        myl2record['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
+        #print('>>>>>>>',myl2record['mmd_related_dataset'])
 
         """ Retrieve level 1 record """
         try:
@@ -1008,9 +1075,21 @@ def main(argv):
         #print(type(newdoc['mmd_data_access_resource']))
         #print(len(newdoc['mmd_data_access_resource']))
         #print((newdoc['mmd_data_access_resource']))
-        if (not nflg) and "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
-            tflg = True
+        #print(newdoc)
+        #print('>>>>>',newdoc['mmd_metadata_status'])
+        if (newdoc['mmd_metadata_status'] == "Inactive"):
+            continue
+        if (not nflg) and ('mmd_data_access_resource' in newdoc):
+            for e in newdoc['mmd_data_access_resource']: 
+                print(type(e))
+                if "OGC WMS" in str(e): 
+                    tflg = True
         if 'mmd_related_dataset' in newdoc:
+            # Special fix for NPI
+            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
+            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
+            newdoc['mmd_related_dataset'] =
+            newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
