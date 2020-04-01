@@ -403,18 +403,19 @@ class MMD4SolR:
                 print("data_access element is empty")
             elif isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
-                # TODO: remove unused for loop
-                # Switch to using e instead of self.mydoc...
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
+                    if e['mmd:type'] == None:
+                        continue
+                    print('>>>>>> '+str(e))
                     mydict['mmd_data_access_resource'].append(
                         '\"'.encode('utf-8') +
-                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8') +
+                        e['mmd:type'].encode('utf-8') +
                         '\":\"'.encode('utf-8') +
-                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:resource'].encode('utf-8') +
+                        e['mmd:resource'].encode('utf-8') +
                         '\",\"description\":\"\"'.encode('utf-8')
                     )
                     mydict['mmd_data_access_type'].append(
-                        self.mydoc['mmd:mmd']['mmd:data_access'][i]['mmd:type'].encode('utf-8')
+                        e['mmd:type'].encode('utf-8')
                     )
                     i += 1
             else:
