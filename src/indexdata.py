@@ -305,9 +305,12 @@ class MMD4SolR:
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
-                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
-                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
-                        mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                    mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                else:
+                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                            mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
             elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
                     if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
@@ -406,7 +409,7 @@ class MMD4SolR:
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
                     if e['mmd:type'] == None:
                         continue
-                    print('>>>>>> '+str(e))
+                    #print('>>>>>> '+str(e))
                     mydict['mmd_data_access_resource'].append(
                         '\"'.encode('utf-8') +
                         e['mmd:type'].encode('utf-8') +
