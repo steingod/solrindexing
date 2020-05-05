@@ -799,7 +799,6 @@ class IndexMMD:
             style = None
 
         wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
-        # TODO: remove unused for variable?
         cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
         #print(cartopy_extent)
         cartopy_extent_zoomed = [wms_extent[0] - zoom_level,
@@ -820,8 +819,13 @@ class IndexMMD:
         subplot_kw = dict(projection=projection)
         fig, ax = plt.subplots(subplot_kw=subplot_kw)
         #ax.set_extent(cartopy_extent_zoomed, crs=projection)
-        ax.set_extent(cartopy_extent_zoomed)
-
+        #print(">>>>>", cartopy_extent_zoomed)
+        # There are issues with versions of cartopy and PROJ. The
+        # environment should be updated.
+        try:
+            ax.set_extent(cartopy_extent_zoomed)
+        except Exception as e:
+            raise Exception("Something failed on map projection", str(e))
 
         #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
         #                                                scale='50m',
