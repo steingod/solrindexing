@@ -305,7 +305,7 @@ class MMD4SolR:
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['mmd_keywords_keyword'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
-                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
                     mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
                 else:
                     for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
@@ -822,10 +822,10 @@ class IndexMMD:
         #print(">>>>>", cartopy_extent_zoomed)
         # There are issues with versions of cartopy and PROJ. The
         # environment should be updated.
-        try:
-            ax.set_extent(cartopy_extent_zoomed)
-        except Exception as e:
-            raise Exception("Something failed on map projection", str(e))
+        #try:
+        #    ax.set_extent(cartopy_extent_zoomed)
+        #except Exception as e:
+        #    raise Exception("Something failed on map projection", str(e))
 
         #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
         #                                                scale='50m',
