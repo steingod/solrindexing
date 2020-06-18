@@ -425,12 +425,14 @@ class MMD4SolR:
                 mydict['mmd_data_access_resource'] = [
                     '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
                     '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
+                    ',\"description\":' + '\"'
                     ]
                 mydict['mmd_data_access_type'] = [
                     '\"' +
                     self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
                     '\"' ]
 
+                #print(mydict['mmd_data_access_resource'])
         """ Related information """
         """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] = []
@@ -740,8 +742,12 @@ class IndexMMD:
                 boolean
         """
         if type == 'wms':
-            thumbnail = self.create_wms_thumbnail(url, layer, zoom_level,
+            try:
+                thumbnail = self.create_wms_thumbnail(url, layer, zoom_level,
                     projection, wmstimeout, style=style)
+            except Exception as e:
+                print("Message:",e)
+                return
         elif type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
