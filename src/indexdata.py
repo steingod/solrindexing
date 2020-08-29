@@ -326,10 +326,18 @@ class MMD4SolR:
             else:
                 mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
 
-        """ ISO TopicCategory """
+        """ 
+        ISO TopicCategory 
+
+        Need to fix the possibility for multiple values, but not
+        prioritised now
+        """
         if 'mmd:iso_topic_category' in self.mydoc['mmd:mmd']:
             mydict['mmd_iso_topic_category'] = []
-            mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:iso_topic_category'],dict):
+                mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category']['#text'])
+            else:
+                mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
 
         """ Keywords """
         """ Should structure this on GCMD only at some point """
