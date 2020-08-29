@@ -302,7 +302,11 @@ class MMD4SolR:
 
         """ Dataset production status """
         if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
-            mydict['mmd_dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
+            if isinstance(self.mydoc['mmd:mmd']['mmd:dataset_production_status'],
+                    dict):
+                mydict['mmd_dataset_production_status'] = self.mydoc['mmd:mmd']['mmd:dataset_production_status']['#text']
+            else:
+                mydict['mmd_dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
 
         """ Dataset status """
         if 'mmd:metadata_status' in self.mydoc['mmd:mmd']:
