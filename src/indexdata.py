@@ -489,14 +489,26 @@ class MMD4SolR:
         """ Must be updated to hold mutiple ØG """
         mydict['mmd_related_information_resource'] = []
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
-            # There can potentially be several related_information sections.
-            # Need to handle this later. TODO
+            # There can be several related_information sections.
+            # Need to fix handling of this elsewhere in the software
+            # For now only Dataset landing page is extracted for SolR
             # Assumes all child elements are present if parent is found
             # Check if required children are present
-            if 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:related_information'] and (self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] != None):
-                if 'mmd:type' in self.mydoc['mmd:mmd']['mmd:related_information']:
-                    mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
+            if isinstance(self.mydoc['mmd:mmd']['mmd:related_information'],list):
+                for e in self.mydoc['mmd:mmd']['mmd:related_information']:
+                    #print('>>>', e)
+                    if 'mmd:type' in e:
+                        #print('#### ',e['mmd:type'])
+                        if 'Dataset landing page' in e['mmd:type']:
+                            mystring = '\"' + e['mmd:type'] + '\":\"' + \
+                                e['mmd:resource'] + '\",\"description\":'
+                            mydict['mmd_related_information_resource'].append(mystring)
+            else:
+                if 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:related_information'] and (self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] != None):
+                    if 'mmd:type' in self.mydoc['mmd:mmd']['mmd:related_information']:
+                        mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
                     mydict['mmd_related_information_resource'].append(mystring)
+        #print(mydict['mmd_related_information_resource'])
 
         """ Related dataset """
         """ TODO """
