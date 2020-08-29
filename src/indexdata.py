@@ -74,7 +74,9 @@ class MMD4SolR:
 
         """
         Check for presence of required elements
-        Temporal and spatial extent are not required as of now.
+        Temporal and spatial extent are not required as of no as it will
+        break functionality for some datasets and communities especially
+        in the Arctic context.
         """
         # TODO add proper docstring
         mmd_requirements = {
@@ -103,11 +105,11 @@ class MMD4SolR:
                     else:
                         print('\tRequired element',requirement,
                             'is missing, setting it to unknown')
-                        self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
+                        self.mydoc['mmd:mmd'][requirement] = 'Unknown'
                 else:
                     print('\tRequired element',requirement,
                             'is missing, setting it to unknown')
-                    self.mydoc['mmd:mmd']['mmd:dataset_production_status'] = 'Unknown'
+                    self.mydoc['mmd:mmd'][requirement] = 'Unknown'
 
         """
         Check for correct vocabularies where necessary
@@ -156,27 +158,28 @@ class MMD4SolR:
                                               'Obsolete'],
         }
         for element in mmd_controlled_elements.keys():
-            print('\tChecking ' + element)
+            print('\tChecking ' + element + 
+                '\n\t\tfor compliance with controlled vocabulary')
             if element in self.mydoc['mmd:mmd']:
-                if type(self.mydoc['mmd:mmd'][element]) is list:
-                    if all(elem in mmd_controlled_elements[element] for elem in self.mydoc['mmd:mmd'][element]):
-                        print('\t\t' + element + ' is all good...')
-                    else:
-                        print('\t\t' + element + ' contains non valid content')
-                        for elem in self.mydoc['mmd:mmd'][element]:
-                            if elem != None:
-                                print('(' + elem + ')')
-                            else:
-                                print('Element is empty')
-                else:
-                    if self.mydoc['mmd:mmd'][element] in mmd_controlled_elements[element]:
-                        print('\t\t' + element + ' is all good...')
-                    else:
-                        print('\t\t' + element + ' contains non valid content')
-                        if self.mydoc['mmd:mmd'][element] != None:
-                            print('(' + self.mydoc['mmd:mmd'][element] + ')')
+                if isinstance(self.mydoc['mmd:mmd'][element], list):
+                    for elem in self.mydoc['mmd:mmd'][element]:
+                        if isinstance(elem,dict):
+                            myvalue = elem['#text']
                         else:
-                            print('Element is empty')
+                            myvalue = elem
+                        if myvalue not in mmd_controlled_elements[element]:
+                            print('\t\t' + element + 
+                                ' contains non valid content' + 
+                                myvalue)
+                else:
+                    if isinstance(self.mydoc['mmd:mmd'][element],dict):
+                        myvalue = self.mydoc['mmd:mmd'][element]['#text']
+                    else:
+                        myvalue = self.mydoc['mmd:mmd'][element]
+                    if myvalue not in mmd_controlled_elements[element]:
+                        print('\t\t' + element + 
+                            ' contains non valid content' + 
+                            myvalue)
 
         """
         Check that keywords also contain GCMD keywords
