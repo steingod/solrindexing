@@ -584,7 +584,11 @@ class MMD4SolR:
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
-            mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
+            print(type(self.mydoc['mmd:mmd']['mmd:activity_type']))
+            if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'],dict):
+                mydict['mmd_activity_type'] = self.mydoc['mmd:mmd']['mmd:activity_type']['#text']
+            else:
+                mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
         return mydict
 
