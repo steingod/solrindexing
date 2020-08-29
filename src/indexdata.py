@@ -257,11 +257,24 @@ class MMD4SolR:
                         self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     def tosolr(self):
-        """ Collect required elements """
-        mydict = OrderedDict({"id": str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
-                              "mmd_metadata_identifier": str(self.mydoc['mmd:mmd']['mmd:metadata_identifier']),
-                              "mmd_metadata_status": str(self.mydoc['mmd:mmd']['mmd:metadata_status'])
-                              })
+        """ 
+        Collect required elements 
+        """
+        mydict = OrderedDict()
+
+        """ Identifier """
+        if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
+            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
+            mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
+        else:
+            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
+            mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
+        
+        """ Metadata status """
+        if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_status'],dict):
+            mydict['mmd_metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']['#text']
+        else:
+            mydict['mmd_metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']
         # TODO: the string below [title, abstract, etc ...]
         #  should be comments or some sort of logging statments
         """ title """
@@ -307,10 +320,6 @@ class MMD4SolR:
                 mydict['mmd_dataset_production_status'] = self.mydoc['mmd:mmd']['mmd:dataset_production_status']['#text']
             else:
                 mydict['mmd_dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
-
-        """ Dataset status """
-        if 'mmd:metadata_status' in self.mydoc['mmd:mmd']:
-            mydict['mmd_metadata_status'] = str(self.mydoc['mmd:mmd']['mmd:metadata_status'])
 
         """ Collection """
         if 'mmd:collection' in self.mydoc['mmd:mmd']:
@@ -596,7 +605,7 @@ class MMD4SolR:
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
-            print(type(self.mydoc['mmd:mmd']['mmd:activity_type']))
+            #print(type(self.mydoc['mmd:mmd']['mmd:activity_type']))
             if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'],dict):
                 mydict['mmd_activity_type'] = self.mydoc['mmd:mmd']['mmd:activity_type']['#text']
             else:
@@ -1149,7 +1158,7 @@ def main(argv):
             continue
         if (not nflg) and ('mmd_data_access_resource' in newdoc):
             for e in newdoc['mmd_data_access_resource']: 
-                print(type(e))
+                #print(type(e))
                 if "OGC WMS" in str(e): 
                     tflg = True
         if 'mmd_related_dataset' in newdoc:
