@@ -220,9 +220,12 @@ class MMD4SolR:
                                 # The comparison below is a hack, need to
                                 # revisit later, but works for now.
                                 myvalue = '0000-00-00:T00:00:00Z'
-                                for mydaterec in mydateels:
-                                    if mydaterec['mmd:datetime'] > myvalue:
-                                        myvalue = mydaterec['mmd:datetime']
+                                if isinstance(mydateels,list):
+                                    for mydaterec in mydateels:
+                                        if mydaterec['mmd:datetime'] > myvalue:
+                                            myvalue = mydaterec['mmd:datetime']
+                                else:
+                                    myvalue = mydateels['mmd:datetime']
 
             else:
                 # To be removed when all records are transformed intop the
