@@ -204,9 +204,31 @@ class MMD4SolR:
                 # warnings.warn('Keywords in GCMD are not available')
                 print('\tKeywords in GCMD are not available')
 
-        """ Modify dates if necessary """
+        """ 
+        Modify dates if necessary 
+        Adapted for the new MMD specification, but not all information is
+        extracted as SolR is not adapted.
+        """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
-            mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
+            if isinstance(self.mydoc['mmd:mmd']['mmd:last_metadata_update'],
+                    dict):
+                for mydict in self.mydoc['mmd:mmd']['mmd:last_metadata_update'].items():
+                    if 'mmd:update' in mydict:
+                        for myupdate in mydict:
+                            if 'mmd:update' not in myupdate:
+                                mydateels = myupdate
+                                # The comparison below is a hack, need to
+                                # revisit later, but works for now.
+                                myvalue = '0000-00-00:T00:00:00Z'
+                                for mydaterec in mydateels:
+                                    if mydaterec['mmd:datetime'] > myvalue:
+                                        myvalue = mydaterec['mmd:datetime']
+
+            else:
+                # To be removed when all records are transformed intop the
+                # new format
+                myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
+            mydate = dateutil.parser.parse(myvalue)
             self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
@@ -225,7 +247,8 @@ class MMD4SolR:
                     i += 1
             else:
                 for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                    #print(mykey)
+                    if mykey == '@xmlns:gml':
+                        continue
                     if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'): 
                         mydate = ''
                         self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
@@ -291,8 +314,10 @@ class MMD4SolR:
             if isinstance(self.mydoc['mmd:mmd']['mmd:collection'], list):  # Does not work on single collection
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:collection']:
-                    mydict['mmd_collection'].append(
-                        self.mydoc['mmd:mmd']['mmd:collection'][i].encode('utf-8'))
+                    if isinstance(e,dict):
+                        mydict['mmd_collection'].append(e['#text'])
+                    else:
+                        mydict['mmd_collection'].append(e)
                     i += 1
             else:
                 mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
