@@ -643,7 +643,7 @@ class IndexMMD:
         """
         # Connect to L1
         try:
-            self.solr1 = pysolr.Solr(mysolrserver)
+            self.solr1 = pysolr.Solr(mysolrserver, always_commit=True)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrserver))
@@ -651,7 +651,7 @@ class IndexMMD:
         # Connect to L2
         mysolrserver2 = mysolrserver.replace('-l1', '-l2')
         try:
-            self.solr2 = pysolr.Solr(mysolrserver2)
+            self.solr2 = pysolr.Solr(mysolrserver2, always_commit=True)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrserver2))
@@ -659,7 +659,7 @@ class IndexMMD:
         # Connect to thumbnail
         mysolrservert = mysolrserver.replace('-l1', '-thumbnail')
         try:
-            self.solrt = pysolr.Solr(mysolrservert)
+            self.solrt = pysolr.Solr(mysolrservert, always_commit=True)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrservert))
@@ -674,11 +674,12 @@ class IndexMMD:
         print("Adding records to Level 1 core...")
         mylist = list()
         # print(myrecord)
-        # print(json.dumps(myrecord, indent=4))
+        #print(json.dumps(myrecord, indent=4))
         mylist.append(myrecord)
-        # print(mylist)
+        #print(mylist)
         try:
-            self.solr1.add(mylist)
+            #self.solr1.add(mylist)
+            self.solr1.add([myrecord])
         except Exception as e:
             print("Something failed in SolR add Level 1", str(e))
         print("Level 1 record successfully added.")
