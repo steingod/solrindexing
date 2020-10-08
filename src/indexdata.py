@@ -336,7 +336,8 @@ class MMD4SolR:
                         mydict['mmd_collection'].append(e)
                     i += 1
             else:
-                mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
+                #mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
+                mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection']
 
         """ 
         ISO TopicCategory 
@@ -463,14 +464,14 @@ class MMD4SolR:
                         continue
                     #print('>>>>>> '+str(e))
                     mydict['mmd_data_access_resource'].append(
-                        '\"'.encode('utf-8') +
-                        e['mmd:type'].encode('utf-8') +
-                        '\":\"'.encode('utf-8') +
-                        e['mmd:resource'].encode('utf-8') +
-                        '\",\"description\":\"\"'.encode('utf-8')
+                        '\"' +
+                        e['mmd:type'] +
+                        '\":\"' +
+                        e['mmd:resource'] +
+                        '\",\"description\":\"\"'
                     )
                     mydict['mmd_data_access_type'].append(
-                        e['mmd:type'].encode('utf-8')
+                        e['mmd:type']
                     )
                     i += 1
             else:
@@ -678,8 +679,8 @@ class IndexMMD:
         mylist.append(myrecord)
         #print(mylist)
         try:
-            #self.solr1.add(mylist)
-            self.solr1.add([myrecord])
+            self.solr1.add(mylist)
+            #self.solr1.add([myrecord])
         except Exception as e:
             print("Something failed in SolR add Level 1", str(e))
         print("Level 1 record successfully added.")
@@ -827,9 +828,10 @@ class IndexMMD:
         myrecord = OrderedDict()
         myrecord['id'] = identifier
         myrecord['mmd_metadata_identifier'] = identifier
-        myrecord['thumbnail_data'] = thumbnail
+        myrecord['thumbnail_data'] = str(thumbnail)
         mylist = list()
         mylist.append(myrecord)
+        #print(mylist)
 
         try:
             self.solrt.add(mylist)
@@ -933,7 +935,8 @@ class IndexMMD:
             data = infile.read()
             encode_string = base64.b64encode(data)
 
-        thumbnail_b64 = b'data:image/png;base64,' + encode_string
+        thumbnail_b64 = (b'data:image/png;base64,' +
+                encode_string).decode('utf-8')
 
         # Keep thumbnails while testing...
         #os.remove('thumbnail.png')
@@ -1165,6 +1168,7 @@ def main(argv):
         mysolr = IndexMMD(mySolRc)
         """ Do not search for mmd_metadata_identifier, always used id...  """
         newdoc = mydoc.tosolr()
+        #print(newdoc)
         #print(type(newdoc['mmd_data_access_resource']))
         #print(len(newdoc['mmd_data_access_resource']))
         #print((newdoc['mmd_data_access_resource']))
