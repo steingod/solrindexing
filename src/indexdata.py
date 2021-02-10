@@ -25,6 +25,7 @@ NOTES:
 import sys
 import os.path
 import getopt
+#import argparse
 import subprocess
 import pysolr
 import xmltodict
@@ -228,7 +229,7 @@ class MMD4SolR:
                                     myvalue = mydateels['mmd:datetime']
 
             else:
-                # To be removed when all records are transformed intop the
+                # To be removed when all records are transformed into the
                 # new format
                 myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
             mydate = dateutil.parser.parse(myvalue)
@@ -1104,7 +1105,7 @@ def main(argv):
     # Read config file
     print("Reading", cfgfile)
     with open(cfgfile, 'r') as ymlfile:
-        cfg = yaml.load(ymlfile)
+        cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
     # Specify map projection
     if cfg['wms-thumbnail-projection'] == 'Mercator':
@@ -1136,9 +1137,9 @@ def main(argv):
         mysolr = IndexMMD(mySolRc)
         mysolr.delete_level2(deleteid)
         sys.exit()
-    elif rflg and tflg:
+    elif rflg:
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level2(deleteid)
+        mysolr.delete_level(deleteid)
         sys.exit()
     elif dflg:
         try:
