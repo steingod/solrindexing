@@ -37,6 +37,7 @@ def parse_arguments():
             help="String to search for", required=True)
     parser.add_argument('-2','--level2', action='store_true', help="Flag to search in level 2 core")
     parser.add_argument('-t','--thumbnail', action='store_true', help="Flag to search in thumbnail core")
+    parser.add_argument('-d','--delete', action='store_true', help="Flag to delete records")
 
     args = parser.parse_args()
 
@@ -161,35 +162,15 @@ def main(argv):
     i=0
     for doc in myresults:
         print(i, doc['id'])
+        deleteid = doc['id']
+        if args.delete:
+            if args.thumbnail:
+                mysolr.delete_thumbnail(deleteid)
+            elif args.level2:
+                mysolr.delete_level2(deleteid)
+            else:
+                mysolr.delete_level1(deleteid)
         i+=1
-    #print(myresults.docs)
-
-    sys.exit()
-    # Find files to process
-    if iflg:
-        myfiles = [infile]
-    elif lflg:
-        f2 = open(infile, "r")
-        myfiles = f2.readlines()
-        f2.close()
-    elif rflg:
-        mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level1(deleteid)
-        sys.exit()
-    elif rflg and l2flg:
-        mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level2(deleteid)
-        sys.exit()
-    elif rflg:
-        mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level(deleteid)
-        sys.exit()
-    elif dflg:
-        try:
-            myfiles = os.listdir(ddir)
-        except Exception as e:
-            print("Something went wrong in decoding cmd arguments: " + str(e))
-            sys.exit(1)
 
     return
 
