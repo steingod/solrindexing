@@ -2,10 +2,7 @@
 # -*- coding: UTF-8 -*-
 """
 PURPOSE:
-    This is a wrapper around the Java SolR indexing tool. It id designed
-    to simplify the process of indexing single or multiple datasets. In
-    the current version it only supports one level of metadata as do the
-    Java utility.
+    This is designed to simplify the process of indexing single or multiple datasets. 
 
 AUTHOR:
     Øystein Godøy, METNO/FOU, 2017-11-09
@@ -50,7 +47,6 @@ def usage():
     print('\t-i: index an individual dataset')
     print('\t-l: index individual datasets from list file (need more checking)')
     print('\t-d: index a directory with multiple datasets')
-    #print('\t-2: index level 2 dataset')
     print('\t-t: index a single thumbnail (no argument, require -i or -d)')
     print('\t-n: do not index thumbnail (since it normally does if WMS is present)')
     print('\t-f: index a single feature type (no argument, require -i or -d)')
@@ -266,12 +262,14 @@ class MMD4SolR:
         """
         mydict = OrderedDict()
 
+        # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : by _ in the id field, let mmd_metadata_identifier be the correct one.
+
         """ Identifier """
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
-            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
+            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text'].replace(':','_')
             mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
         else:
-            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
+            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier'].replace(':','_')
             mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
         
         """ Metadata status """
@@ -731,7 +729,7 @@ class IndexMMD:
         """ Retrieve level 1 record """
         try:
             myresults = self.solr1.search('id:' +
-                    myl2record['mmd_related_dataset'], df='', rows=100)
+                    myl2record['mmd_related_dataset'].replace(':','_'), df='', rows=100)
         except Exception as e:
             Warning("Something failed in searching for parent dataset, " + str(e))
 
@@ -746,13 +744,13 @@ class IndexMMD:
         # update this, but first check that it doesn't already exists
         if 'mmd_related_dataset' in dict(myresults):
             # Need to check that this doesn't already exist...
-            if myl2record['mmd_metadata_identifier'] not in myresults['mmd_related_dataset']:
-                myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
+            if myl2record['mmd_metadata_identifier'].replace(':','_') not in myresults['mmd_related_dataset']:
+                myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         else:
             print('mmd_related_dataset not found in parent, creating it...')
             myresults['mmd_related_dataset'] = []
-            print('Adding ', myl2record['mmd_metadata_identifier'],' to ',myl2record['mmd_related_dataset'])
-            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'])
+            print('Adding ', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
+            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         mylist1 = list()
         mylist1.append(myresults)
 
@@ -827,7 +825,7 @@ class IndexMMD:
 
         # Prepare input to SolR
         myrecord = OrderedDict()
-        myrecord['id'] = identifier
+        myrecord['id'] = identifier.replace(':','_')
         myrecord['mmd_metadata_identifier'] = identifier
         myrecord['thumbnail_data'] = str(thumbnail)
         mylist = list()
@@ -983,7 +981,7 @@ class IndexMMD:
         ds.close()
 
         mydict = OrderedDict({
-            "id": mymd[0]['mmd_metadata_identifier'],
+            "id": mymd[0]['mmd_metadata_identifier'].replace(':','_'),
             "mmd_metadata_identifier": mymd[0]['mmd_metadata_identifier'],
             "feature_type": featureType,
         })
