@@ -158,16 +158,19 @@ class MMD4SolR:
             print('\tChecking ' + element + 
                 '\n\t\tfor compliance with controlled vocabulary')
             if element in self.mydoc['mmd:mmd']:
+                #print('Found',element,'in document')
                 if isinstance(self.mydoc['mmd:mmd'][element], list):
                     for elem in self.mydoc['mmd:mmd'][element]:
+                        #print('>>>',elem)
                         if isinstance(elem,dict):
                             myvalue = elem['#text']
                         else:
                             myvalue = elem
                         if myvalue not in mmd_controlled_elements[element]:
-                            print('\t\t' + element + 
-                                ' contains non valid content' + 
-                                myvalue)
+                            if myvalue is not None:
+                                print('\t\t' + element + ' contains non valid content' + myvalue)
+                            else:
+                                print('Discovered an empty element.')
                 else:
                     if isinstance(self.mydoc['mmd:mmd'][element],dict):
                         myvalue = self.mydoc['mmd:mmd'][element]['#text']
@@ -423,11 +426,19 @@ class MMD4SolR:
                         lonvals.append(float(e['mmd:rectangle']['mmd:east']))
                     if e['mmd:rectangle']['mmd:west'] != None:
                         lonvals.append(float(e['mmd:rectangle']['mmd:west']))
-                mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
-                mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
-                mydict['mmd_geographic_extent_rectangle_west'] = min(lonvals)
-                mydict['mmd_geographic_extent_rectangle_east'] = max(lonvals)
-                mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
+                print(len(latvals))
+                print(latvals)
+                if len(latvals) > 0 and len(lonvals) > 0:
+                    mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
+                    mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
+                    mydict['mmd_geographic_extent_rectangle_west'] = min(lonvals)
+                    mydict['mmd_geographic_extent_rectangle_east'] = max(lonvals)
+                    mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
+                else:
+                    mydict['mmd_geographic_extent_rectangle_north'] = 90.
+                    mydict['mmd_geographic_extent_rectangle_south'] = -90.
+                    mydict['mmd_geographic_extent_rectangle_west'] = -180.
+                    mydict['mmd_geographic_extent_rectangle_east'] = 180.
             else:
                 for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
                     #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
@@ -1186,6 +1197,9 @@ def main(argv):
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
             newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('.xml','')
+            # Skip if DOI is used to refer to parent, taht isn't consistent.
+            if 'doi.org' in newdoc['mmd_related_dataset']:
+                continue
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
@@ -1216,8 +1230,10 @@ def main(argv):
         """ Do not search for mmd_metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
-        if (not nflg) and "OGC WMS" in (''.join(e.decode('UTF-8') for e in newdoc['mmd_data_access_resource'])): 
-            tflg = True
+        for e in newdoc['mmd_data_access_resource']: 
+            print('>>>>>e', e)
+            if (not nflg) and "OGC WMS" in (''.join(e)): 
+                tflg = True
         # Skip file if not a level 2 file
         if 'mmd_related_dataset' not in newdoc:
             continue
