@@ -256,8 +256,11 @@ class MMD4SolR:
                         mydate = ''
                         self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
                     else:
-                        mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
-                        self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        try:
+                            mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
+                            self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        except Exception as e:
+                            self.logger.error('Date format could not be parsed: %s', e)
 
     def tosolr(self):
         """ 
@@ -510,7 +513,7 @@ class MMD4SolR:
                     #print('>>>', e)
                     if 'mmd:type' in e:
                         #print('#### ',e['mmd:type'])
-                        if 'Dataset landing page' in e['mmd:type']:
+                        if 'Dataset landing page' in e['mmd:type'] and e['mmd:resource'] != None:
                             mystring = '\"' + e['mmd:type'] + '\":\"' + \
                                 e['mmd:resource'] + '\",\"description\":'
                             mydict['mmd_related_information_resource'].append(mystring)
