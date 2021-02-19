@@ -12,17 +12,17 @@ UPDATES:
         Integrated modifications from Trygve Halsne and Massimo Di Stefano
     Øystein Godøy, METNO/FOU, 2018-04-19
         Added support for level 2
+    Øystein Godøy, METNO/FOU, 2021-02-19
+        Added argparse, fixing robustness issues.
 
 NOTES:
     - under rewrite...
-    - Should support ingestion of directories as well...
 
 """
 
 import sys
 import os.path
-import getopt
-#import argparse
+import argparse
 import subprocess
 import pysolr
 import xmltodict
@@ -38,22 +38,36 @@ from owslib.wms import WebMapService
 import base64
 import netCDF4
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('-c','--cfg',dest='cfgfile', help='Configuration file', required=True)
+    parser.add_argument('-i','--input_file',help='Individual file to be ingested.')
+    parser.add_argument('-l','--list_file',help='File with datasets to be ingested specified.')
+    parser.add_argument('-d','--directory',help='Directory to ingest')
+    parser.add_argument('-t','--thumbnail',help='Create and index thumbnail, do not update the main content.', action='store_true')
+    parser.add_argument('-n','--no_thumbnail',help='Do not index thumbnails (normally done automatically if WMS available).', action='store_true')
+    parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
+    parser.add_argument('-r','--remove',help='Remove the dataset with the specified identifier (to be replaced by searchindex).')
+    parser.add_argument('-2','--level2',help='Operate on child core.')
+    args = parser.parse_args()
 
-def usage():
-    print('')
-    print('Usage: ' + sys.argv[0] + ' -i <dataset_name> -c <cfgfile> [-h]')
-    print('\t-h: dump this text')
-    print('\t-c: configuration file')
-    print('\t-i: index an individual dataset')
-    print('\t-l: index individual datasets from list file (need more checking)')
-    print('\t-d: index a directory with multiple datasets')
-    print('\t-t: index a single thumbnail (no argument, require -i or -d)')
-    print('\t-n: do not index thumbnail (since it normally does if WMS is present)')
-    print('\t-f: index a single feature type (no argument, require -i or -d)')
-    print('\t-r: remove dataset with specified metadata_identifier')
-    print('')
-    sys.exit(2)
+    if args.cfgfile is None:
+        parser.print_help()
+        parser.exit()
+    if not args.input_file and not args.directory and not args.list_file and not args.remove:
+        parser.print_help()
+        parser.exit()
 
+    return args
+
+def parse_cfg(cfgfile):
+    # Read config file
+    print("Reading", cfgfile)
+    with open(cfgfile, 'r') as ymlfile:
+        cfgstr = yaml.full_load(ymlfile)
+
+    return cfgstr
 
 class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
@@ -61,8 +75,12 @@ class MMD4SolR:
     def __init__(self, filename):
         """ set variables in class """
         self.filename = filename
-        with open(self.filename, encoding='utf-8') as fd:
-            self.mydoc = xmltodict.parse(fd.read())
+        try:
+            with open(self.filename, encoding='utf-8') as fd:
+                self.mydoc = xmltodict.parse(fd.read())
+        except Exception as e:
+            print('Could not open file:',self.filename)
+            raise
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
@@ -488,15 +506,16 @@ class MMD4SolR:
                     )
                     i += 1
             else:
-                mydict['mmd_data_access_resource'] = [
-                    '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
-                    '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
-                    ',\"description\":' + '\"'
-                    ]
-                mydict['mmd_data_access_type'] = [
-                    '\"' +
-                    self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
-                    '\"' ]
+                if self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] != None and self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] != None:
+                    mydict['mmd_data_access_resource'] = [
+                        '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
+                        '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
+                        ',\"description\":' + '\"'
+                        ]
+                    mydict['mmd_data_access_type'] = [
+                        '\"' +
+                        self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
+                        '\"' ]
 
                 #print(mydict['mmd_data_access_resource'])
         """ Related information """
@@ -1077,46 +1096,19 @@ def main(argv):
     except OSError as e:
         print(e)
 
-    cflg = iflg = dflg = tflg = fflg = lflg = l2flg = rflg = nflg = False
+    # Parse command line arguments
     try:
-        opts, args = getopt.getopt(argv, "hi:d:c:l:r:ntf2", ["ifile=", "ddir=", "core=", "list=", "remove="])
-    except getopt.GetoptError:
-        print(sys.argv[0] + ' -i <inputfile>')
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            usage()
-            sys.exit()
-        elif opt in ("-i", "--ifile"):
-            infile = arg
-            iflg = True
-        elif opt in ("-d", "--ddir"):
-            ddir = arg
-            dflg = True
-        elif opt in ("-c", "--cfg"):
-            cfgfile = arg
-            cflg = True
-        elif opt in ("-l"):
-            infile = arg
-            lflg = True
-        elif opt in ("-2"):
-            l2flg = True
-        elif opt in ("-t"):
-            tflg = True
-        elif opt in ("-n"):
-            nflg = True
-        elif opt in ("-f"):
-            fflg = True
-        elif opt in ("-r"):
-            deleteid = arg
-            rflg = True
+        args = parse_arguments()
+    except:
+        raise SystemExit('Command line arguments didn\'t parse correctly.')
 
-    if not cflg or (not iflg and not dflg and not lflg and not rflg):
-        usage()
+    # Parse configuration file
+    cfgstr = parse_cfg(args.cfgfile)
+
+    tflg = l2flg = fflg = False
 
     # Read config file
-    print("Reading", cfgfile)
-    with open(cfgfile, 'r') as ymlfile:
+    with open(args.cfgfile, 'r') as ymlfile:
         cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
     # Specify map projection
@@ -1135,27 +1127,31 @@ def main(argv):
     mySolRc = SolrServer+myCore+'-l1'
 
     # Find files to process
-    if iflg:
-        myfiles = [infile]
-    elif lflg:
-        f2 = open(infile, "r")
+    if args.input_file:
+        myfiles = [args.input_file]
+    elif args.list_file:
+        try:
+            f2 = open(args.list_file, "r")
+        except IOError as e:
+            print('Could not open file:', args.list_file, e)
+            sys.exit()
         myfiles = f2.readlines()
         f2.close()
-    elif rflg:
+    elif args.remove:
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level1(deleteid)
+        mysolr.delete_level1(args.remove)
         sys.exit()
-    elif rflg and l2flg:
+    elif args.remove and args.level2:
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level2(deleteid)
+        mysolr.delete_level2(args.remove)
         sys.exit()
-    elif rflg:
+    elif args.remove and args.thumbnail:
         mysolr = IndexMMD(mySolRc)
-        mysolr.delete_level(deleteid)
+        mysolr.delete_thumbnail(deleteid)
         sys.exit()
-    elif dflg:
+    elif args.directory:
         try:
-            myfiles = os.listdir(ddir)
+            myfiles = os.listdir(args.directory)
         except Exception as e:
             print("Something went wrong in decoding cmd arguments: " + str(e))
             sys.exit(1)
@@ -1167,15 +1163,19 @@ def main(argv):
         # Decide files to operate on
         if not myfile.endswith('.xml'):
             continue
-        if lflg:
+        if args.list_file:
             myfile = myfile.rstrip()
-        if dflg:
-            myfile = os.path.join(ddir, myfile)
+        if args.directory:
+            myfile = os.path.join(args.directory, myfile)
 
         # Index files
         print('\nProcessing file',fileno, myfile)
 
-        mydoc = MMD4SolR(myfile) 
+        try:
+            mydoc = MMD4SolR(myfile) 
+        except Exception as e:
+            print('Could not handle file:',e)
+            continue
         mydoc.check_mmd()
         fileno += 1
         mysolr = IndexMMD(mySolRc)
@@ -1189,7 +1189,7 @@ def main(argv):
         #print('>>>>>',newdoc['mmd_metadata_status'])
         if (newdoc['mmd_metadata_status'] == "Inactive"):
             continue
-        if (not nflg) and ('mmd_data_access_resource' in newdoc):
+        if (not args.no_thumbnail) and ('mmd_data_access_resource' in newdoc):
             for e in newdoc['mmd_data_access_resource']: 
                 #print(type(e))
                 if "OGC WMS" in str(e): 
@@ -1226,7 +1226,11 @@ def main(argv):
     fileno = 0
     for myfile in myfiles2:
         print('\nProcessing L2 file',fileno, myfile)
-        mydoc = MMD4SolR(myfile) 
+        try:
+            mydoc = MMD4SolR(myfile) 
+        except Exception as e:
+            print('Could not handle file:', e)
+            continue
         mydoc.check_mmd()
         fileno += 1
         mysolr = IndexMMD(mySolRc)
