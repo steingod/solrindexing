@@ -697,6 +697,9 @@ class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
 
     def __init__(self, mysolrserver):
+        # Set up logging
+        self.logger = logging.getLogger('indexdata')
+        self.logger.info('Creating an instance of IndexMMD')
         """
         Connect to SolR cores
 
@@ -709,24 +712,24 @@ class IndexMMD:
         try:
             self.solr1 = pysolr.Solr(mysolrserver, always_commit=True)
         except Exception as e:
-            print("Something failed in SolR init", str(e))
-        print("Connection established to: " + str(mysolrserver))
+            self.logger.error("Something failed in SolR init: %s", str(e))
+        self.logger.info("Connection established to: %s", str(mysolrserver))
 
         # Connect to L2
         mysolrserver2 = mysolrserver.replace('-l1', '-l2')
         try:
             self.solr2 = pysolr.Solr(mysolrserver2, always_commit=True)
         except Exception as e:
-            print("Something failed in SolR init", str(e))
-        print("Connection established to: " + str(mysolrserver2))
+            self.logger.error("Something failed in SolR init: %s", str(e))
+        self.logger.info("Connection established to: %s", str(mysolrserver2))
 
         # Connect to thumbnail
         mysolrservert = mysolrserver.replace('-l1', '-thumbnail')
         try:
             self.solrt = pysolr.Solr(mysolrservert, always_commit=True)
         except Exception as e:
-            print("Something failed in SolR init", str(e))
-        print("Connection established to: " + str(mysolrservert))
+            self.logger.error("Something failed in SolR init: %s", str(e))
+        self.logger.info("Connection established to: %s", str(mysolrservert))
 
     def add_level1(self, myrecord, addThumbnail=False, addFeature=False,
             mapprojection=ccrs.Mercator(),wmstimeout=120):
