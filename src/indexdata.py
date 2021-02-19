@@ -37,6 +37,8 @@ import matplotlib.pyplot as plt
 from owslib.wms import WebMapService
 import base64
 import netCDF4
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -68,6 +70,35 @@ def parse_cfg(cfgfile):
         cfgstr = yaml.full_load(ymlfile)
 
     return cfgstr
+
+def initialise_logger(outputfile, name):
+    # Check that logfile exists
+    logdir = os.path.dirname(outputfile)
+    if not os.path.exists(logdir):
+        try:
+            os.makedirs(logdir)
+        except:
+            raise IOError
+    # Set up logging
+    mylog = logging.getLogger(name)
+    mylog.setLevel(logging.INFO)
+    #logging.basicConfig(level=logging.INFO, 
+    #        format='%(asctime)s - %(levelname)s - %(message)s')
+    myformat = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(myformat)
+    mylog.addHandler(console_handler)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+            outputfile,
+            when='w0',
+            interval=1,
+            backupCount=7)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(myformat)
+    mylog.addHandler(file_handler)
+
+    return(mylog)
 
 class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
@@ -1088,13 +1119,7 @@ class IndexMMD:
 
         return (mylinks)
 
-
 def main(argv):
-    mylog = "mylogfile.txt"
-    try:
-        f = open(mylog, "w")
-    except OSError as e:
-        print(e)
 
     # Parse command line arguments
     try:
@@ -1104,6 +1129,10 @@ def main(argv):
 
     # Parse configuration file
     cfgstr = parse_cfg(args.cfgfile)
+
+    # Initialise logging
+    mylog = initialise_logger(cfgstr['logfile'], 'indexdata')
+    mylog.info('Configuration of logging is finished.')
 
     tflg = l2flg = fflg = False
 
@@ -1133,7 +1162,7 @@ def main(argv):
         try:
             f2 = open(args.list_file, "r")
         except IOError as e:
-            print('Could not open file:', args.list_file, e)
+            mylog.error('Could not open file: %s %e', args.list_file, e)
             sys.exit()
         myfiles = f2.readlines()
         f2.close()
@@ -1153,11 +1182,11 @@ def main(argv):
         try:
             myfiles = os.listdir(args.directory)
         except Exception as e:
-            print("Something went wrong in decoding cmd arguments: " + str(e))
+            mylog.error("Something went wrong in decoding cmd arguments: %s", e)
             sys.exit(1)
 
     fileno = 0
-    myfiles2 = []
+    myfiles_pending = []
     for myfile in myfiles:
         myfile = myfile.strip()
         # Decide files to operate on
@@ -1169,24 +1198,18 @@ def main(argv):
             myfile = os.path.join(args.directory, myfile)
 
         # Index files
-        print('\nProcessing file',fileno, myfile)
+        mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
 
         try:
             mydoc = MMD4SolR(myfile) 
         except Exception as e:
-            print('Could not handle file:',e)
+            mylog.warn('Could not handle file: %s',e)
             continue
         mydoc.check_mmd()
         fileno += 1
         mysolr = IndexMMD(mySolRc)
         """ Do not search for mmd_metadata_identifier, always used id...  """
         newdoc = mydoc.tosolr()
-        #print(newdoc)
-        #print(type(newdoc['mmd_data_access_resource']))
-        #print(len(newdoc['mmd_data_access_resource']))
-        #print((newdoc['mmd_data_access_resource']))
-        #print(newdoc)
-        #print('>>>>>',newdoc['mmd_metadata_status'])
         if (newdoc['mmd_metadata_status'] == "Inactive"):
             continue
         if (not args.no_thumbnail) and ('mmd_data_access_resource' in newdoc):
@@ -1206,11 +1229,11 @@ def main(argv):
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
-                print("No parent found")
-                myfiles2.append(myfile)
+                mylog.warn("No parent found. Staging for second run.")
+                myfiles_pending.append(myfile)
                 continue
             l2flg = True
-        print("Indexing dataset " + myfile)
+        mylog.info("Indexing dataset: %s", myfile)
         if l2flg:
             mysolr.add_level2(mydoc.tosolr(), tflg,
                     fflg,mapprojection,cfg['wms-timeout'])
@@ -1224,12 +1247,14 @@ def main(argv):
     # sequence. If the Level 1 dataset is not available, this will fail at
     # level 2. Meaning, the section below only ingests at level 2.
     fileno = 0
-    for myfile in myfiles2:
-        print('\nProcessing L2 file',fileno, myfile)
+    if len(myfiles_pending)>0:
+        mylog.info('Processing files that were not possible to process in first take.')
+    for myfile in myfiles_pending:
+        mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
         try:
             mydoc = MMD4SolR(myfile) 
         except Exception as e:
-            print('Could not handle file:', e)
+            mylog.warn('Could not handle file: %s', e)
             continue
         mydoc.check_mmd()
         fileno += 1
@@ -1239,21 +1264,20 @@ def main(argv):
         newdoc = mydoc.tosolr()
         if 'mmd_data_access_resource' in newdoc.keys():
             for e in newdoc['mmd_data_access_resource']: 
-                print('>>>>>e', e)
+                #print('>>>>>e', e)
                 if (not nflg) and "OGC WMS" in (''.join(e)): 
                     tflg = True
         # Skip file if not a level 2 file
         if 'mmd_related_dataset' not in newdoc:
             continue
-        print("Indexing dataset " + myfile)
+        mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
         mysolr.add_level2(mydoc.tosolr(), tflg,
                 fflg,mapprojection,cfg['wms-timeout'])
         tflg = False
 
     # Report status
-    f.write("Number of files processed were:" + str(len(myfiles)))
-    f.close()
+    mylog.info("Number of files processed were: %d", len(myfiles))
 
 
 if __name__ == "__main__":
