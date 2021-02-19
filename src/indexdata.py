@@ -1233,10 +1233,11 @@ def main(argv):
         """ Do not search for mmd_metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
-        for e in newdoc['mmd_data_access_resource']: 
-            print('>>>>>e', e)
-            if (not nflg) and "OGC WMS" in (''.join(e)): 
-                tflg = True
+        if 'mmd_data_access_resource' in newdoc.keys():
+            for e in newdoc['mmd_data_access_resource']: 
+                print('>>>>>e', e)
+                if (not nflg) and "OGC WMS" in (''.join(e)): 
+                    tflg = True
         # Skip file if not a level 2 file
         if 'mmd_related_dataset' not in newdoc:
             continue
