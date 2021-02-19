@@ -157,11 +157,12 @@ def main(argv):
     # Search for records
     mysolr = IndexMMD(mySolRc)
     myresults = mysolr.search(args)
-    print(dir(myresults))
-    print(myresults.hits)
+    #print(dir(myresults))
+    print('Found %d matches' % myresults.hits)
+    print('Looping through matches:')
     i=0
     for doc in myresults:
-        print(i, doc['id'])
+        print('\t', i, doc['id'])
         deleteid = doc['id']
         if args.delete:
             if args.thumbnail:
