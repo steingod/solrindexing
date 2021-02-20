@@ -104,6 +104,9 @@ class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
 
     def __init__(self, filename):
+        # Set up logging
+        self.logger = logging.getLogger('indexdata.MMD4SolR')
+        self.logger.info('Creating an instance of IndexMMD')
         """ set variables in class """
         self.filename = filename
         try:
@@ -698,7 +701,7 @@ class IndexMMD:
 
     def __init__(self, mysolrserver):
         # Set up logging
-        self.logger = logging.getLogger('indexdata')
+        self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
         """
         Connect to SolR cores
