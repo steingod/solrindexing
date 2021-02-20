@@ -113,7 +113,7 @@ class MMD4SolR:
             with open(self.filename, encoding='utf-8') as fd:
                 self.mydoc = xmltodict.parse(fd.read())
         except Exception as e:
-            print('Could not open file:',self.filename)
+            self.logger.error('Could not open file: %s',self.filename)
             raise
 
     def check_mmd(self):
@@ -146,18 +146,16 @@ class MMD4SolR:
         """
         for requirement in mmd_requirements.keys():
             if requirement in self.mydoc['mmd:mmd']:
-                print('\tChecking for',requirement)
+                self.logger.info('\n\tChecking for: %s',requirement)
                 if requirement in self.mydoc['mmd:mmd']:
                     if self.mydoc['mmd:mmd'][requirement] != None:
-                        print('\t\t' + requirement + ' is present and non empty')
+                        self.logger.info('\n\t%s is present and non empty',requirement)
                         mmd_requirements[requirement] = True
                     else:
-                        print('\tRequired element',requirement,
-                            'is missing, setting it to unknown')
+                        self.logger.warn('\n\tRequired element %s is missing, setting it to unknown',requirement)
                         self.mydoc['mmd:mmd'][requirement] = 'Unknown'
                 else:
-                    print('\tRequired element',requirement,
-                            'is missing, setting it to unknown')
+                    self.logger.warn('\n\tRequired element %s is missing, setting it to unknown.',requirement)
                     self.mydoc['mmd:mmd'][requirement] = 'Unknown'
 
         """
@@ -207,8 +205,7 @@ class MMD4SolR:
                                               'Obsolete'],
         }
         for element in mmd_controlled_elements.keys():
-            print('\tChecking ' + element + 
-                '\n\t\tfor compliance with controlled vocabulary')
+            self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
             if element in self.mydoc['mmd:mmd']:
                 #print('Found',element,'in document')
                 if isinstance(self.mydoc['mmd:mmd'][element], list):
@@ -220,18 +217,16 @@ class MMD4SolR:
                             myvalue = elem
                         if myvalue not in mmd_controlled_elements[element]:
                             if myvalue is not None:
-                                print('\t\t' + element + ' contains non valid content' + myvalue)
+                                self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
                             else:
-                                print('Discovered an empty element.')
+                                self.logger.warn('Discovered an empty element.')
                 else:
                     if isinstance(self.mydoc['mmd:mmd'][element],dict):
                         myvalue = self.mydoc['mmd:mmd'][element]['#text']
                     else:
                         myvalue = self.mydoc['mmd:mmd'][element]
                     if myvalue not in mmd_controlled_elements[element]:
-                        print('\t\t' + element + 
-                            ' contains non valid content' + 
-                            myvalue)
+                        self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
 
         """
         Check that keywords also contain GCMD keywords
@@ -250,11 +245,11 @@ class MMD4SolR:
                     break
                 i += 1
             if not gcmd:
-                print('\tKeywords in GCMD are not available')
+                self.logger.warn('\n\tKeywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
                 # warnings.warn('Keywords in GCMD are not available')
-                print('\tKeywords in GCMD are not available')
+                self.logger.warn('\n\tKeywords in GCMD are not available')
 
         """ 
         Modify dates if necessary 
@@ -469,7 +464,7 @@ class MMD4SolR:
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
-                print('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
+                self.logger.warn('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
                 latvals = []
                 lonvals = []
                 for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
@@ -481,8 +476,8 @@ class MMD4SolR:
                         lonvals.append(float(e['mmd:rectangle']['mmd:east']))
                     if e['mmd:rectangle']['mmd:west'] != None:
                         lonvals.append(float(e['mmd:rectangle']['mmd:west']))
-                print(len(latvals))
-                print(latvals)
+                #print(len(latvals))
+                #print(latvals)
                 if len(latvals) > 0 and len(lonvals) > 0:
                     mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
                     mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
@@ -521,7 +516,7 @@ class MMD4SolR:
             mydict['mmd_data_access_resource'] = []
             mydict['mmd_data_access_type'] = []
             if self.mydoc['mmd:mmd']['mmd:data_access']==None:
-                print("data_access element is empty")
+                self.logger.warn("data_access element is empty")
             elif isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
@@ -586,7 +581,7 @@ class MMD4SolR:
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
                     list):
-                print('Too many fields in related_dataset...')
+                self.logger.warn('Too many fields in related_dataset...')
                 for e in self.mydoc['mmd:mmd']['mmd:related_dataset']:
                     if '@mmd:relation_type' in e:
                         if e['@mmd:relation_type'] == 'parent':
@@ -741,7 +736,7 @@ class IndexMMD:
             return
 
         """ Add a level 1 dataset """
-        print("Adding records to Level 1 core...")
+        self.logger.info("Adding records to Level 1 core...")
         mylist = list()
         # print(myrecord)
         #print(json.dumps(myrecord, indent=4))
@@ -751,13 +746,13 @@ class IndexMMD:
             self.solr1.add(mylist)
             #self.solr1.add([myrecord])
         except Exception as e:
-            print("Something failed in SolR add Level 1", str(e))
-        print("Level 1 record successfully added.")
+            self.logger.error("Something failed in SolR add Level 1: %s", str(e))
+        self.logger.info("Level 1 record successfully added.")
 
         # print(mylist[0]['mmd_data_access_resource'])
         # Remove flag later, do automatically if WMS is available...
         if addThumbnail:
-            print("Checking thumbnails...")
+            saelf.logger.info("Checking thumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
             try:
                 if 'OGC WMS' in darlist:
@@ -774,15 +769,15 @@ class IndexMMD:
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
-                    print('')
+                    self.logger.info('OPeNDAP is not automatically parsed yet, to be added.')
             except Exception as e:
-                print("Something failed in adding thumbnail, " + str(e))
+                self.logger.error("Something failed in adding thumbnail: %s", str(e))
                 raise Warning("Couldn't add thumbnail.")
         elif addFeature:
             try:
                 self.set_feature_type(mylist)
             except Exception as e:
-                print("Something failed in adding feature type, " + str(e))
+                self.logger.error("Something failed in adding feature type: %s", str(e))
 
     def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
             mapprojection=ccrs.Mercator(),wmstimeout=120):
@@ -817,9 +812,9 @@ class IndexMMD:
             if myl2record['mmd_metadata_identifier'].replace(':','_') not in myresults['mmd_related_dataset']:
                 myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         else:
-            print('mmd_related_dataset not found in parent, creating it...')
+            self.logger.warn('mmd_related_dataset not found in parent, creating it...')
             myresults['mmd_related_dataset'] = []
-            print('Adding ', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
+            self.logger.info('Adding dataset with identifier %s to parent', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
             myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         mylist1 = list()
         mylist1.append(myresults)
@@ -829,17 +824,17 @@ class IndexMMD:
             self.solr2.add(mylist2)
         except Exception as e:
             raise Exception("Something failed in SolR add level 2", str(e))
-        print("Level 2 record successfully added.")
+        self.logger.info("Level 2 record successfully added.")
 
         """ Update level 1 record with id of this dataset """
         try:
             self.solr1.add(mylist1)
         except Exception as e:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
-        print("Level 1 record successfully updated.")
+        self.logger.info("Level 1 record successfully updated.")
 
         if addThumbnail:
-            print("Checking tumbnails...")
+            self.logger.info("Checking tumbnails...")
             darlist = self.darextract(mylist2[0]['mmd_data_access_resource'])
             try:
                 if 'OGC WMS' in darlist:
@@ -854,19 +849,19 @@ class IndexMMD:
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
-                    print('')
+                    self.logger.warn('OPeNDAP is not parsed automatically yet, to be added.')
             except Exception as e:
-                print("Something failed in adding thumbnail, " + str(e))
+                self.logger.error("Something failed in adding thumbnail: %s", str(e)) 
                 raise Warning("Couldn't add thumbnail.")
         elif addFeature:
             try:
                 self.set_feature_type(mylist2)
             except Exception as e:
-                print("Something failed in adding feature type, " + str(e))
+                self.logger.error("Something failed in adding feature type: %s", str(e))
 
 
     def add_thumbnail(self, url, identifier, layer, zoom_level,
-            projection, wmstimeout, type='wms', style=None):
+            projection, wmstimeout, mytype='wms', style=None):
         """ Add thumbnail to SolR
 
             Args:
@@ -880,17 +875,17 @@ class IndexMMD:
             Returns:
                 boolean
         """
-        if type == 'wms':
+        if mytype == 'wms':
             try:
                 thumbnail = self.create_wms_thumbnail(url, layer, zoom_level,
                     projection, wmstimeout, style=style)
             except Exception as e:
-                print("Message:",e)
+                self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
                 return
-        elif type == 'ts': #time_series
+        elif mytype == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
         else:
-            print('Invalid thumbnail type: {}').format(type)
+            self.logger.error('Invalid thumbnail type: %s', type)
             sys.exit(2)
 
         # Prepare input to SolR
@@ -907,7 +902,7 @@ class IndexMMD:
         except Exception as e:
             raise Exception("Something failed in SolR add thumbnail", str(e))
 
-        print("Thumbnail record successfully added.")
+        self.logger.info("Thumbnail record successfully added.")
 
     def create_wms_thumbnail(self, url, layer, zoom_level=0,
             projection=ccrs.PlateCarree(),wmstimeout=120,**kwargs):
@@ -928,7 +923,7 @@ class IndexMMD:
         available_layers = list(wms.contents.keys())
         if layer not in available_layers:
             layer = available_layers[0]
-            print(layer)
+            self.logger.info('creating WMS thumbnail for layer: %s',layer)
 
         if 'style' in kwargs.keys():
             style = kwargs['style']
@@ -1019,7 +1014,7 @@ class IndexMMD:
 
     def set_feature_type(self, mymd):
         """ Set feature type from OPeNDAP """
-        print("Now in set_feature_type")
+        self.logger.info("Now in set_feature_type")
         mylinks = self.darextract(mymd[0]['mmd_data_access_resource'])
         """
         for i in range(len(mymd[0]['mmd_data_access_resource'])):
@@ -1040,13 +1035,13 @@ class IndexMMD:
         try:
             ds = netCDF4.Dataset(mylinks['OPeNDAP'])
         except Exception as e:
-            print("Something failed reading dataset", str(e))
+            self.logger.error("Something failed reading dataset: %s", str(e))
 
         # Try to get the global attribute featureType
         try:
             featureType = ds.getncattr('featureType')
         except Exception as e:
-            print("Something failed reading dataset", str(e))
+            self.logger.error("Something failed reading dataset: %s", str(e))
             raise Warning('Could not find featureType')
         ds.close()
 
@@ -1061,50 +1056,50 @@ class IndexMMD:
         try:
             self.solrt.add(mylist)
         except Exception as e:
-            print("Something failed in SolR add", str(e))
+            self.logger.error("Something failed in SolR add: %s", str(e))
             raise Warning("Something failed in SolR add" + str(e))
 
-        print("Successfully added feature type for OPeNDAP.")
+        self.logger.info("Successfully added feature type for OPeNDAP.")
 
     def delete_level1(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
-        print("Deleting ", datasetid, " from Level 1")
+        self.logger.info("Deleting %s from level 1.", datasetid)
         try:
             self.solr1.delete(id=datasetid)
         except Exception as e:
-            print("Something failed in SolR delete", str(e))
+            self.logger.error("Something failed in SolR delete: %s", str(e))
 
-        print("Records successfully deleted from Level 1 core")
+        self.logger.info("Record successfully deleted from Level 1 core")
 
     def delete_level2(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
-        print("Deleting ", datasetid, " from Level 2")
+        self.logger.info("Deleting %s from level 2.", datasetid)
         try:
             self.solr2.delete(id=datasetid)
         except Exception as e:
-            print("Something failed in SolR delete", str(e))
+            self.logger.error("Something failed in SolR delete: %s", str(e))
 
-        print("Records successfully deleted from Level 2 core")
+        self.logger.info("Records successfully deleted from Level 2 core")
 
     def delete_thumbnail(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
-        print("Deleting ", datasetid, " from thumbnail")
+        self.logger.info("Deleting %s from thumbnail core.", datasetid)
         try:
             self.solrt.delete(id=datasetid)
         except Exception as e:
-            print("Something failed in SolR delete", str(e))
+            self.logger.error("Something failed in SolR delete: %s", str(e))
 
-        print("Records successfully deleted from thumbnail core")
+        self.logger.info("Records successfully deleted from thumbnail core")
 
     def search(self):
         """ Require Id as input """
         try:
             results = solr.search('mmd_title:Sea Ice Extent', df='text_en', rows=100)
         except Exception as e:
-            print("Something failed: ", str(e))
+            self.logger.error("Something failed during search: %s", str(e))
 
         return results
 
