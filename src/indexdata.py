@@ -752,7 +752,7 @@ class IndexMMD:
         # print(mylist[0]['mmd_data_access_resource'])
         # Remove flag later, do automatically if WMS is available...
         if addThumbnail:
-            saelf.logger.info("Checking thumbnails...")
+            self.logger.info("Checking thumbnails...")
             darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
             try:
                 if 'OGC WMS' in darlist:
