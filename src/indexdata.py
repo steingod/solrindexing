@@ -152,10 +152,10 @@ class MMD4SolR:
                         self.logger.info('\n\t%s is present and non empty',requirement)
                         mmd_requirements[requirement] = True
                     else:
-                        self.logger.warn('\n\tRequired element %s is missing, setting it to unknown',requirement)
+                        self.logger.warning('\n\tRequired element %s is missing, setting it to unknown',requirement)
                         self.mydoc['mmd:mmd'][requirement] = 'Unknown'
                 else:
-                    self.logger.warn('\n\tRequired element %s is missing, setting it to unknown.',requirement)
+                    self.logger.warning('\n\tRequired element %s is missing, setting it to unknown.',requirement)
                     self.mydoc['mmd:mmd'][requirement] = 'Unknown'
 
         """
@@ -217,16 +217,16 @@ class MMD4SolR:
                             myvalue = elem
                         if myvalue not in mmd_controlled_elements[element]:
                             if myvalue is not None:
-                                self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
+                                self.logger.warning('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
                             else:
-                                self.logger.warn('Discovered an empty element.')
+                                self.logger.warning('Discovered an empty element.')
                 else:
                     if isinstance(self.mydoc['mmd:mmd'][element],dict):
                         myvalue = self.mydoc['mmd:mmd'][element]['#text']
                     else:
                         myvalue = self.mydoc['mmd:mmd'][element]
                     if myvalue not in mmd_controlled_elements[element]:
-                        self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
+                        self.logger.warning('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
 
         """
         Check that keywords also contain GCMD keywords
@@ -245,11 +245,11 @@ class MMD4SolR:
                     break
                 i += 1
             if not gcmd:
-                self.logger.warn('\n\tKeywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
-                # warnings.warn('Keywords in GCMD are not available')
-                self.logger.warn('\n\tKeywords in GCMD are not available')
+                # warnings.warning('Keywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available')
 
         """ 
         Modify dates if necessary 
@@ -464,7 +464,7 @@ class MMD4SolR:
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
-                self.logger.warn('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
+                self.logger.warning('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
                 latvals = []
                 lonvals = []
                 for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
@@ -516,7 +516,7 @@ class MMD4SolR:
             mydict['mmd_data_access_resource'] = []
             mydict['mmd_data_access_type'] = []
             if self.mydoc['mmd:mmd']['mmd:data_access']==None:
-                self.logger.warn("data_access element is empty")
+                self.logger.warning("data_access element is empty")
             elif isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
                 i = 0
                 for e in self.mydoc['mmd:mmd']['mmd:data_access']:
@@ -581,7 +581,7 @@ class MMD4SolR:
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
                     list):
-                self.logger.warn('Too many fields in related_dataset...')
+                self.logger.warning('Too many fields in related_dataset...')
                 for e in self.mydoc['mmd:mmd']['mmd:related_dataset']:
                     if '@mmd:relation_type' in e:
                         if e['@mmd:relation_type'] == 'parent':
@@ -812,7 +812,7 @@ class IndexMMD:
             if myl2record['mmd_metadata_identifier'].replace(':','_') not in myresults['mmd_related_dataset']:
                 myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         else:
-            self.logger.warn('mmd_related_dataset not found in parent, creating it...')
+            self.logger.warning('mmd_related_dataset not found in parent, creating it...')
             myresults['mmd_related_dataset'] = []
             self.logger.info('Adding dataset with identifier %s to parent', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
             myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
@@ -849,7 +849,7 @@ class IndexMMD:
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
-                    self.logger.warn('OPeNDAP is not parsed automatically yet, to be added.')
+                    self.logger.warning('OPeNDAP is not parsed automatically yet, to be added.')
             except Exception as e:
                 self.logger.error("Something failed in adding thumbnail: %s", str(e)) 
                 raise Warning("Couldn't add thumbnail.")
@@ -1204,7 +1204,7 @@ def main(argv):
         try:
             mydoc = MMD4SolR(myfile) 
         except Exception as e:
-            mylog.warn('Could not handle file: %s',e)
+            mylog.warning('Could not handle file: %s',e)
             continue
         mydoc.check_mmd()
         fileno += 1
@@ -1230,7 +1230,7 @@ def main(argv):
             myresults = mysolr.solr1.search('id:' +
                     newdoc['mmd_related_dataset'], df='', rows=100)
             if len(myresults) == 0:
-                mylog.warn("No parent found. Staging for second run.")
+                mylog.warning("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
                 continue
             l2flg = True
@@ -1255,7 +1255,7 @@ def main(argv):
         try:
             mydoc = MMD4SolR(myfile) 
         except Exception as e:
-            mylog.warn('Could not handle file: %s', e)
+            mylog.warning('Could not handle file: %s', e)
             continue
         mydoc.check_mmd()
         fileno += 1
