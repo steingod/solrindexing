@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 """
 PURPOSE:
-    This is designed to simplify the process of indexing single or multiple datasets. 
+    This is designed to simplify the process of indexing single or multiple datasets.
 
 AUTHOR:
     Øystein Godøy, METNO/FOU, 2017-11-09
@@ -42,7 +42,7 @@ from logging.handlers import TimedRotatingFileHandler
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument('-c','--cfg',dest='cfgfile', help='Configuration file', required=True)
     parser.add_argument('-i','--input_file',help='Individual file to be ingested.')
     parser.add_argument('-l','--list_file',help='File with datasets to be ingested specified.')
@@ -52,6 +52,21 @@ def parse_arguments():
     parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
     parser.add_argument('-r','--remove',help='Remove the dataset with the specified identifier (to be replaced by searchindex).')
     parser.add_argument('-2','--level2',help='Operate on child core.')
+
+    ### Thumbnail parameters
+    parser.add_argument('-t_layer','--thumbnail_layer',help='Specify wms_layer for thumbnail.',
+                        required=False)
+    parser.add_argument('-t_style','--thumbnail_style',help='Specify the style (colorscheme) for the thumbnail.',
+                        required=False)
+    parser.add_argument('-t_zl','--thumbnail_zoom_level',help='Specify the zoom level for the thumbnail.',
+                        type=float,required=False)
+    parser.add_argument('-ac','--add_coastlines',help='Add coastlines too the thumbnail (True/False). Default True',
+                        const=True,nargs='?', required=False)
+    parser.add_argument('-t_type','--thumbnail_type',help='Type of data. E.g. WMS or timeseries. Supports "wms" and "ts".',
+                        required=False)
+    parser.add_argument('-t_extent','--thumbnail_extent',help='Spatial extent of thumbnail in lat/lon degrees like "x0 x1 y0 y1"',
+                        required=False, nargs='+')
+
     args = parser.parse_args()
 
     if args.cfgfile is None:
@@ -82,7 +97,7 @@ def initialise_logger(outputfile, name):
     # Set up logging
     mylog = logging.getLogger(name)
     mylog.setLevel(logging.INFO)
-    #logging.basicConfig(level=logging.INFO, 
+    #logging.basicConfig(level=logging.INFO,
     #        format='%(asctime)s - %(levelname)s - %(message)s')
     myformat = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler = logging.StreamHandler(sys.stdout)
@@ -197,7 +212,7 @@ class MMD4SolR:
                                'SIOS',
                                'SESS_2018',
                                'SESS_2019',
-                               'SIOS_access_programme', 
+                               'SIOS_access_programme',
                                'YOPP'],
             'mmd:dataset_production_status': ['Planned',
                                               'In Work',
@@ -207,10 +222,9 @@ class MMD4SolR:
         for element in mmd_controlled_elements.keys():
             self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
             if element in self.mydoc['mmd:mmd']:
-                #print('Found',element,'in document')
+
                 if isinstance(self.mydoc['mmd:mmd'][element], list):
                     for elem in self.mydoc['mmd:mmd'][element]:
-                        #print('>>>',elem)
                         if isinstance(elem,dict):
                             myvalue = elem['#text']
                         else:
@@ -235,8 +249,6 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
             i = 0
             gcmd = False
-            ##print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
-            ##print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
@@ -251,8 +263,8 @@ class MMD4SolR:
                 # warnings.warn('Keywords in GCMD are not available')
                 self.logger.warn('\n\tKeywords in GCMD are not available')
 
-        """ 
-        Modify dates if necessary 
+        """
+        Modify dates if necessary
         Adapted for the new MMD specification, but not all information is
         extracted as SolR is not adapted.
         """
@@ -277,9 +289,10 @@ class MMD4SolR:
             else:
                 # To be removed when all records are transformed into the
                 # new format
+                self.logger.warning('Removed D7 format in last_metadata_update')
                 myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
             mydate = dateutil.parser.parse(myvalue)
-            self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+            #self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
                 #print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
@@ -299,7 +312,7 @@ class MMD4SolR:
                 for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
                     if mykey == '@xmlns:gml':
                         continue
-                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'): 
+                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'):
                         mydate = ''
                         self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
                     else:
@@ -310,28 +323,82 @@ class MMD4SolR:
                             self.logger.error('Date format could not be parsed: %s', e)
 
     def tosolr(self):
-        """ 
-        Collect required elements 
         """
+        Method for creating document with SolR representation of MMD according
+        to the XSD.
+        """
+
+        # Defining Look Up Tables
+        personnel_role_LUT = {'Investigator':'investigator',
+                              'Technical contact': 'technical',
+                              'Metadata author': 'metadata_author',
+                              'Data center contact':'datacenter'
+                             }
+        related_information_LUT = {'Dataset landing page':'landing_page',
+                              'Users guide': 'user_guide',
+                              'Project home page': 'home_page',
+                              'Observation facility': 'obs_facility',
+                              'Extended metadata':'ext_metadata'
+                             }
+
+        # Create OrderedDict which will contain all elements for SolR
         mydict = OrderedDict()
 
-        # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : by _ in the id field, let mmd_metadata_identifier be the correct one.
+        # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : by _ in the id field, let metadata_identifier be the correct one.
 
         """ Identifier """
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
             mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text'].replace(':','_')
-            mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
+            mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
         else:
             mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier'].replace(':','_')
-            mydict['mmd_metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
-        
+            mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
+
+        """ Last metadata update """
+        if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
+            last_metadata_update = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
+
+            lmu_datetime = []
+            lmu_type = []
+            lmu_note = []
+            if isinstance(last_metadata_update['mmd:update'], dict): #Only one last_metadata_update element
+                    lmu_datetime.append(str(last_metadata_update['mmd:update']['mmd:datetime']))
+                    lmu_type.append(last_metadata_update['mmd:update']['mmd:type'])
+                    lmu_note.append(last_metadata_update['mmd:update']['mmd:note'])
+
+            else: # multiple last_metadata_update elements
+                for i,e in enumerate(last_metadata_update['mmd:update']):
+                    lmu_datetime.append(str(e['mmd:datetime']))
+                    lmu_type.append(e['mmd:type'])
+                    lmu_note.append(e['mmd:note'])
+
+            mydict['last_metadata_update_datetime'] = lmu_datetime
+            mydict['last_metadata_update_type'] = lmu_type
+            mydict['last_metadata_update_note'] = lmu_note
+
+
         """ Metadata status """
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_status'],dict):
-            mydict['mmd_metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']['#text']
+            mydict['metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']['#text']
         else:
-            mydict['mmd_metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']
+            mydict['metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']
         # TODO: the string below [title, abstract, etc ...]
         #  should be comments or some sort of logging statments
+
+        """ Collection """
+        if 'mmd:collection' in self.mydoc['mmd:mmd']:
+            mydict['collection'] = []
+            if isinstance(self.mydoc['mmd:mmd']['mmd:collection'], list):
+                i = 0
+                for e in self.mydoc['mmd:mmd']['mmd:collection']:
+                    if isinstance(e,dict):
+                        mydict['collection'].append(e['#text'])
+                    else:
+                        mydict['collection'].append(e)
+                    i += 1
+            else:
+                mydict['collection'] = self.mydoc['mmd:mmd']['mmd:collection']
+
         """ title """
         if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
             i = 0
@@ -339,97 +406,31 @@ class MMD4SolR:
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:title']:
                 if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
-                    mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text'].encode('utf-8')
+                    mydict['title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
                 if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
-                    mydict['mmd_title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+                    mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
 
             else:
-                mydict['mmd_title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
+                mydict['title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
                 if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
-                    mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text'].encode('utf-8')
+                    mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
                 if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
-                    mydict['mmd_abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+                    mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
 
             else:
-                mydict['mmd_abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
+                mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
-        """ Last metadata update """
-        if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
-            mydict['mmd_last_metadata_update'] = str(self.mydoc['mmd:mmd']['mmd:last_metadata_update'])
-
-        """ Dataset production status """
-        if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
-            if isinstance(self.mydoc['mmd:mmd']['mmd:dataset_production_status'],
-                    dict):
-                mydict['mmd_dataset_production_status'] = self.mydoc['mmd:mmd']['mmd:dataset_production_status']['#text']
-            else:
-                mydict['mmd_dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
-
-        """ Collection """
-        if 'mmd:collection' in self.mydoc['mmd:mmd']:
-            mydict['mmd_collection'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:collection'], list):  # Does not work on single collection
-                i = 0
-                for e in self.mydoc['mmd:mmd']['mmd:collection']:
-                    if isinstance(e,dict):
-                        mydict['mmd_collection'].append(e['#text'])
-                    else:
-                        mydict['mmd_collection'].append(e)
-                    i += 1
-            else:
-                #mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection'].encode('utf-8')
-                mydict['mmd_collection'] = self.mydoc['mmd:mmd']['mmd:collection']
-
-        """ 
-        ISO TopicCategory 
-
-        Need to fix the possibility for multiple values, but not
-        prioritised now
-        """
-        if 'mmd:iso_topic_category' in self.mydoc['mmd:mmd']:
-            mydict['mmd_iso_topic_category'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:iso_topic_category'],dict):
-                mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category']['#text'])
-            else:
-                mydict['mmd_iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
-
-        """ Keywords """
-        """ Should structure this on GCMD only at some point """
-        """ Need to support multiple sets of keywords... """
-        if 'mmd:keywords' in self.mydoc['mmd:mmd']:
-            mydict['mmd_keywords_keyword'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
-                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
-                    mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                else:
-                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
-                            mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
-            elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
-                        if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
-                            continue
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
-                            for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
-                                mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
-
-                        else:
-                            mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
-
-            else:
-                mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
@@ -437,25 +438,21 @@ class MMD4SolR:
                 maxtime = dateutil.parser.parse('1000-01-01T00:00:00Z')
                 mintime = dateutil.parser.parse('2099-01-01T00:00:00Z')
                 for item in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                    #print(item)
                     for mykey in item:
-                        #print(item[mykey])
                         if item[mykey] != '':
                             mytime = dateutil.parser.parse(item[mykey])
                         if mytime < mintime:
                             mintime = mytime
                         if mytime > maxtime:
                             maxtime = mytime
-                #print('max',maxtime.strftime('%Y-%m-%dT%H:%M:%SZ'))
-                #print('min',mintime.strftime('%Y-%m-%dT%H:%M:%SZ'))
-                mydict['mmd_temporal_extent_start_date'] = mintime.strftime('%Y-%m-%dT%H:%M:%SZ')
-                mydict['mmd_temporal_extent_end_date'] = maxtime.strftime('%Y-%m-%dT%H:%M:%SZ')
+                mydict['temporal_extent_start_date'] = mintime.strftime('%Y-%m-%dT%H:%M:%SZ')
+                mydict['temporal_extent_end_date'] = maxtime.strftime('%Y-%m-%dT%H:%M:%SZ')
             else:
-                mydict["mmd_temporal_extent_start_date"] = str(
+                mydict["temporal_extent_start_date"] = str(
                     self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
                 if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
                     if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
-                        mydict["mmd_temporal_extent_end_date"] = str(
+                        mydict["temporal_extent_end_date"] = str(
                             self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
 
         """ Geographical extent """
@@ -476,101 +473,134 @@ class MMD4SolR:
                         lonvals.append(float(e['mmd:rectangle']['mmd:east']))
                     if e['mmd:rectangle']['mmd:west'] != None:
                         lonvals.append(float(e['mmd:rectangle']['mmd:west']))
-                #print(len(latvals))
-                #print(latvals)
+
                 if len(latvals) > 0 and len(lonvals) > 0:
-                    mydict['mmd_geographic_extent_rectangle_north'] = max(latvals)
-                    mydict['mmd_geographic_extent_rectangle_south'] = min(latvals)
-                    mydict['mmd_geographic_extent_rectangle_west'] = min(lonvals)
-                    mydict['mmd_geographic_extent_rectangle_east'] = max(lonvals)
+                    mydict['geographic_extent_rectangle_north'] = max(latvals)
+                    mydict['geographic_extent_rectangle_south'] = min(latvals)
+                    mydict['geographic_extent_rectangle_west'] = min(lonvals)
+                    mydict['geographic_extent_rectangle_east'] = max(lonvals)
                     mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
                 else:
-                    mydict['mmd_geographic_extent_rectangle_north'] = 90.
-                    mydict['mmd_geographic_extent_rectangle_south'] = -90.
-                    mydict['mmd_geographic_extent_rectangle_west'] = -180.
-                    mydict['mmd_geographic_extent_rectangle_east'] = 180.
+                    mydict['geographic_extent_rectangle_north'] = 90.
+                    mydict['geographic_extent_rectangle_south'] = -90.
+                    mydict['geographic_extent_rectangle_west'] = -180.
+                    mydict['geographic_extent_rectangle_east'] = 180.
             else:
                 for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
                     #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
                     if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item] == None:
                         Warning('Missing geographical element')
-                        mydict['mmd_metadata_status'] = 'Inactive'
+                        mydict['metadata_status'] = 'Inactive'
                         return mydict
 
-                mydict['mmd_geographic_extent_rectangle_north'] = float(
+                mydict['geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-                mydict['mmd_geographic_extent_rectangle_south'] = float(
+                mydict['geographic_extent_rectangle_south'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-                mydict['mmd_geographic_extent_rectangle_east'] = float(
+                mydict['geographic_extent_rectangle_east'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-                mydict['mmd_geographic_extent_rectangle_west'] = float(
+                mydict['geographic_extent_rectangle_west'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
-        """ Data access """
-        """ Double check this ØG """
-        """ Especially description """
-        """ Revisit when SolR core is modified, duplicated information is
-        used now """
-        if 'mmd:data_access' in self.mydoc['mmd:mmd']:
-            mydict['mmd_data_access_resource'] = []
-            mydict['mmd_data_access_type'] = []
-            if self.mydoc['mmd:mmd']['mmd:data_access']==None:
-                self.logger.warn("data_access element is empty")
-            elif isinstance(self.mydoc['mmd:mmd']['mmd:data_access'], list):
-                i = 0
-                for e in self.mydoc['mmd:mmd']['mmd:data_access']:
-                    if e['mmd:type'] == None:
-                        continue
-                    #print('>>>>>> '+str(e))
-                    mydict['mmd_data_access_resource'].append(
-                        '\"' +
-                        e['mmd:type'] +
-                        '\":\"' +
-                        e['mmd:resource'] +
-                        '\",\"description\":\"\"'
-                    )
-                    mydict['mmd_data_access_type'].append(
-                        e['mmd:type']
-                    )
-                    i += 1
-            else:
-                if self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] != None and self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] != None:
-                    mydict['mmd_data_access_resource'] = [
-                        '\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
-                        '\":\"' + self.mydoc['mmd:mmd']['mmd:data_access']['mmd:resource'] + '\"'
-                        ',\"description\":' + '\"'
-                        ]
-                    mydict['mmd_data_access_type'] = [
-                        '\"' +
-                        self.mydoc['mmd:mmd']['mmd:data_access']['mmd:type'] +
-                        '\"' ]
+        self.logger.info('Add location element?')
 
-                #print(mydict['mmd_data_access_resource'])
-        """ Related information """
-        """ Must be updated to hold mutiple ØG """
-        mydict['mmd_related_information_resource'] = []
-        if 'mmd:related_information' in self.mydoc['mmd:mmd']:
-            # There can be several related_information sections.
-            # Need to fix handling of this elsewhere in the software
-            # For now only Dataset landing page is extracted for SolR
-            # Assumes all child elements are present if parent is found
-            # Check if required children are present
-            if isinstance(self.mydoc['mmd:mmd']['mmd:related_information'],list):
-                for e in self.mydoc['mmd:mmd']['mmd:related_information']:
-                    #print('>>>', e)
-                    if 'mmd:type' in e:
-                        #print('#### ',e['mmd:type'])
-                        if 'Dataset landing page' in e['mmd:type'] and e['mmd:resource'] != None:
-                            mystring = '\"' + e['mmd:type'] + '\":\"' + \
-                                e['mmd:resource'] + '\",\"description\":'
-                            mydict['mmd_related_information_resource'].append(mystring)
+        """ Dataset production status """
+        if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:dataset_production_status'],
+                    dict):
+                mydict['dataset_production_status'] = self.mydoc['mmd:mmd']['mmd:dataset_production_status']['#text']
             else:
-                if 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:related_information'] and (self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] != None):
-                    if 'mmd:type' in self.mydoc['mmd:mmd']['mmd:related_information']:
-                        mystring = '\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:type'] + '\":\"' + self.mydoc['mmd:mmd']['mmd:related_information']['mmd:resource'] + '\",\"description\":'
-                    mydict['mmd_related_information_resource'].append(mystring)
-        #print(mydict['mmd_related_information_resource'])
+                mydict['dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
+
+        """ Dataset language """
+        if 'mmd:dataset_language' in self.mydoc['mmd:mmd']:
+            mydict['dataset_language'] = str(self.mydoc['mmd:mmd']['mmd:dataset_language'])
+
+        """ Operational status """
+        if 'mmd:operational_status' in self.mydoc['mmd:mmd']:
+            mydict['operational_status'] = str(self.mydoc['mmd:mmd']['mmd:operational_status'])
+
+        """ Access constraints """
+        if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
+            mydict['access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
+
+        """ Use constraint """
+        if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
+            mydict['use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
+
+        """ Personnel """
+
+        if 'mmd:personnel' in self.mydoc['mmd:mmd']:
+            personnel_elements = self.mydoc['mmd:mmd']['mmd:personnel']
+
+            if isinstance(personnel_elements, dict): #Only one element
+                personnel_elements = [personnel_elements] # make it an iterable list
+
+            for personnel in personnel_elements:
+                role = personnel['mmd:role']
+                mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_name'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_email'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_phone'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_fax'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_organisation'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_address'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_city'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_province_or_state'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
+                for entry in personnel:
+                    entry_type = entry.split(':')[-1]
+                    if entry_type == role:
+                        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
+                    else:
+                        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+
+        """ Data center """
+        if 'mmd:data_center' in self.mydoc['mmd:mmd']:
+
+            data_center_elements = self.mydoc['mmd:mmd']['mmd:data_center']
+
+            if isinstance(data_center_elements, dict): #Only one element
+                data_center_elements = [data_center_elements] # make it an iterable list
+
+            for data_center in data_center_elements: #elf.mydoc['mmd:mmd']['mmd:data_center']: #iterate over all data_center elements
+                for key,value in data_center.items():
+                    if isinstance(value,dict): # if sub element is ordered dict
+                        for kkey, vvalue in value.items():
+                            element_name = 'data_center_{}'.format(kkey.split(':')[-1])
+                            if not element_name in mydict.keys(): # create key in mydict
+                                mydict[element_name] = []
+                                mydict[element_name].append(vvalue)
+                            else:
+                                mydict[element_name].append(vvalue)
+                    else: #sub element is not ordered dicts
+                        element_name = '{}'.format(key.split(':')[-1])
+                        if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
+                            mydict[element_name] = []
+                            mydict[element_name].append(value)
+                        else:
+                            mydict[element_name].append(value)
+
+        """ Data access """
+        # NOTE: This is identical to method above. Should in future versions be implified as a method
+        if 'mmd:data_access' in self.mydoc['mmd:mmd']:
+            data_access_elements = self.mydoc['mmd:mmd']['mmd:data_access']
+
+            if isinstance(data_access_elements, dict): #Only one element
+                data_access_elements = [data_access_elements] # make it an iterable list
+
+            for data_access in data_access_elements: #iterate over all data_center elements
+                data_access_type = data_access['mmd:type'].replace(" ","_").lower()
+                mydict['data_access_url_{}'.format(data_access_type)] = data_access['mmd:resource']
+
+                if 'mmd:wms_layers' in data_access and data_access_type == 'ogc_wms':
+                    data_access_wms_layers_string = 'data_access_wms_layers'
+                    data_access_wms_layers = data_access['mmd:wms_layers']
+                    mydict[data_access_wms_layers_string] = [ i for i in data_access_wms_layers.values()][0]
 
         """ Related dataset """
         """ TODO """
@@ -586,210 +616,296 @@ class MMD4SolR:
                     if '@mmd:relation_type' in e:
                         if e['@mmd:relation_type'] == 'parent':
                             if '#text' in dict(e):
-                                mydict['mmd_related_dataset'] = e['#text']
+                                mydict['related_dataset'] = e['#text']
             else:
                 """ Not sure if this is used?? """
                 if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
-                    mydict['mmd_related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+                    mydict['related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+
+        """ Storage information """
+        self.logger.info('Storage information not implemented yet.')
+
+        """ Related information """
+        if 'mmd:related_information' in self.mydoc['mmd:mmd']:
+
+            related_information_elements = self.mydoc['mmd:mmd']['mmd:related_information']
+
+            if isinstance(related_information_elements, dict): #Only one element
+                related_information_elements = [related_information_elements] # make it an iterable list
+
+            for related_information in related_information_elements:
+                for key, value in related_information.items():
+                    element_name = 'related_information_{}'.format(key.split(':')[-1])
+
+                    if value in related_information_LUT.keys():
+                        mydict['related_url_{}'.format(related_information_LUT[value])] = related_information['mmd:resource']
+                        mydict['related_url_{}_desc'.format(related_information_LUT[value])] = related_information['mmd:description']
+
+        """
+        ISO TopicCategory
+        """
+        if 'mmd:iso_topic_category' in self.mydoc['mmd:mmd']:
+            mydict['iso_topic_category'] = []
+            if isinstance(self.mydoc['mmd:mmd']['mmd:iso_topic_category'], list):
+                for iso_topic_category in self.mydoc['mmd:mmd']['mmd:iso_topic_category']:
+                    mydict['iso_topic_category'].append(iso_topic_category)
+            else:
+                mydict['iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
+
+
+        """ Keywords """
+        """ Should structure this on GCMD only at some point """
+        """ Need to support multiple sets of keywords... """
+        if 'mmd:keywords' in self.mydoc['mmd:mmd']:
+            mydict['keywords_keyword'] = []
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
+                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
+                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                else:
+                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+            elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
+                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
+                        if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
+                            continue
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
+                            for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
+
+                        else:
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
+
+            else:
+                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+
 
         """ Project """
-        mydict['mmd_project_short_name'] = []
-        mydict['mmd_project_long_name'] = []
+        mydict['project_short_name'] = []
+        mydict['project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
             if self.mydoc['mmd:mmd']['mmd:project'] == None:
-                mydict['mmd_project_short_name'].append('Not provided')
-                mydict['mmd_project_long_name'].append('Not provided')
+                mydict['project_short_name'].append('Not provided')
+                mydict['project_long_name'].append('Not provided')
             elif isinstance(self.mydoc['mmd:mmd']['mmd:project'], list):
             # Check if multiple nodes are present
                 for e in self.mydoc['mmd:mmd']['mmd:project']:
-                    mydict['mmd_project_short_name'].append(e['mmd:short_name'])
-                    mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+                    mydict['project_short_name'].append(e['mmd:short_name'])
+                    mydict['project_long_name'].append(e['mmd:long_name'])
             else:
                 # Extract information as appropriate
                 e = self.mydoc['mmd:mmd']['mmd:project']
                 if 'mmd:short_name' in e:
-                    mydict['mmd_project_short_name'].append(e['mmd:short_name'])
+                    mydict['project_short_name'].append(e['mmd:short_name'])
                 else:
-                    mydict['mmd_project_short_name'].append('Not provided')
-                    
+                    mydict['project_short_name'].append('Not provided')
+
                 if 'mmd:long_name' in e:
-                    mydict['mmd_project_long_name'].append(e['mmd:long_name'])
+                    mydict['project_long_name'].append(e['mmd:long_name'])
                 else:
-                    mydict['mmd_project_long_name'].append('Not provided')
+                    mydict['project_long_name'].append('Not provided')
 
-        """ Access constraints """
-        if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
-            mydict['mmd_access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
 
-        """ Use constraint """
-        if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
-            mydict['mmd_use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
+        """ Platform """
+        if 'mmd:platform' in self.mydoc['mmd:mmd']:
+            for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
+                if isinstance(platform_value,dict): # if sub element is ordered dict
+                    for kkey, vvalue in platform_value.items():
+                        element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
+                        if not element_name in mydict.keys(): # create key in mydict
+                            mydict[element_name] = []
+                            mydict[element_name].append(vvalue)
+                        else:
+                            mydict[element_name].append(vvalue)
+                else: #sub element is not ordered dicts
+                    element_name = 'platform_{}'.format(platform_key.split(':')[-1])
+                    if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
+                        mydict[element_name] = []
+                        mydict[element_name].append(platform_value)
+                    else:
+                        mydict[element_name].append(platform_value)
 
-        """ Data center """
-        """ Need to revisit this when SolR is reimplemented """
-        if 'mmd:data_center' in self.mydoc['mmd:mmd']:
-            if isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],list):
-                dsselected = False
-                for item in self.mydoc['mmd:mmd']['mmd:data_center']:
-                    #print(item['mmd:data_center_name'])
-                    if "mmd:long_name" in item['mmd:data_center_name'] and "Norwegian" in item['mmd:data_center_name']['mmd:long_name']:
-                        myds = item
-                        dsselected = True
-                        break
-                if not dsselected:
-                    myds = self.mydoc['mmd:mmd']['mmd:data_center'][0]
-            elif isinstance(self.mydoc['mmd:mmd']['mmd:data_center'],dict):
-                myds = self.mydoc['mmd:mmd']['mmd:data_center']
-            #print(myds)
-            if 'mmd:long_name' in myds['mmd:data_center_name']:
-                mydict['mmd_data_center_data_center_name_long_name'] = str(myds['mmd:data_center_name']['mmd:long_name'])
-            if 'mmd:short_name' in myds['mmd:data_center_name']:
-                mydict['mmd_data_center_data_center_name_short_name'] = str(myds['mmd:data_center_name']['mmd:short_name'])
-            if 'mmd:data_center_url' in myds:
-                mydict['mmd_data_center_data_center_url'] = str(myds['mmd:data_center_url'])
-            if 'mmd:contact' in myds:
-                mydict['mmd_data_center_contact_name'] = str(myds['mmd:contact']['mmd:name'])
-                mydict['mmd_data_center_contact_role'] = str(myds['mmd:contact']['mmd:role'])
-                mydict['mmd_data_center_contact_email'] = str(myds['mmd:contact']['mmd:email'])
+            # Add platform_sentinel for NBS
+            initial_platform = mydict['platform_long_name'][0]
+            if initial_platform.startswith('Sentinel'):
+                mydict['platform_sentinel'] = initial_platform[:-1]
 
-        """ Personnel """
-        """ Need to check this again, should restructure cores ØG """
-        mydict['mmd_personnel_name'] = []
-        mydict['mmd_personnel_email'] = []
-        mydict['mmd_personnel_organisation'] = []
-        mydict['mmd_personnel_role'] = []
-        if 'mmd:personnel' in self.mydoc['mmd:mmd']:
-            if isinstance(self.mydoc['mmd:mmd']['mmd:personnel'], list):
-                for e in self.mydoc['mmd:mmd']['mmd:personnel']:
-                    if 'mmd:name' in e and e['mmd:name'] != None:
-                        mydict['mmd_personnel_name'].append(e['mmd:name'])
-                    if 'mmd:role' in e and e['mmd:role'] != None:
-                        mydict['mmd_personnel_role'].append(e['mmd:role'])
-                    if 'mmd:organisation' in e and e['mmd:organisation'] != None:
-                        mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
-                    if 'mmd:email' in e and e['mmd:email'] != None:
-                        mydict['mmd_personnel_email'].append(e['mmd:email'])
-            else:
-                e = self.mydoc['mmd:mmd']['mmd:personnel']
-                if 'mmd:name' in e and e['mmd:name'] != None:
-                    mydict['mmd_personnel_name'].append(e['mmd:name'])
-                if 'mmd:role' in e and e['mmd:role'] != None:
-                    mydict['mmd_personnel_role'].append(e['mmd:role'])
-                if 'mmd:organisation' in e and e['mmd:organisation'] != None:
-                    mydict['mmd_personnel_organisation'].append(e['mmd:organisation'])
-                if 'mmd:email' in e and e['mmd:email'] != None:
-                    mydict['mmd_personnel_email'].append(e['mmd:email'])
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
-            #print(type(self.mydoc['mmd:mmd']['mmd:activity_type']))
-            if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'],dict):
-                mydict['mmd_activity_type'] = self.mydoc['mmd:mmd']['mmd:activity_type']['#text']
+            mydict['activity_type'] = []
+            if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'], list):
+                for activity_type in self.mydoc['mmd:mmd']['mmd:activity_type']:
+                    mydict['activity_type'].append(activity_type)
             else:
-                mydict['mmd_activity_type'] = str(self.mydoc['mmd:mmd']['mmd:activity_type'])
+                mydict['activity_type'].append(self.mydoc['mmd:mmd']['mmd:activity_type'])
+
+        """ Dataset citation """
+        if 'mmd:dataset_citation' in self.mydoc['mmd:mmd']:
+            dataset_citation_elements = self.mydoc['mmd:mmd']['mmd:dataset_citation']
+
+            if isinstance(dataset_citation_elements, dict): #Only one element
+                dataset_citation_elements = [dataset_citation_elements] # make it an iterable list
+
+            for dataset_citation in dataset_citation_elements:
+                for k, v in dataset_citation.items():
+                    element_suffix = k.split(':')[-1]
+                    mydict['dataset_citation_{}'.format(element_suffix)] = v
+                #for entry in personnel:
+                #    entry_type = entry.split(':')[-1]
+                #    if entry_type == role:
+                #        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
+                #    else:
+                #        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+
 
         return mydict
 
 
 class IndexMMD:
-    """ requires a list of dictionaries representing MMD as input """
+    """ Class for indexing SolR representation of MMD to SolR server. Requires
+    a list of dictionaries representing MMD as input.
+    """
 
     def __init__(self, mysolrserver):
         # Set up logging
         self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
-        """
-        Connect to SolR cores
 
-        The thumbnail core should be removed in the future and elements
-        added to the ordinary L1 and L2 cores. It could be that only one
-        core could be used eventually as parent/child relations are
-        supported by SolR.
-        """
-        # Connect to L1
+        # level variables
+
+        self.level = None
+
+        # Thumbnail variables
+        self.wms_layer = None
+        self.wms_style = None
+        self.wms_zoom_level = 0
+        self.wms_timeout = None
+        self.add_coastlines = None
+        self.projection = None
+        self.thumbnail_type = None
+        self.thumbnail_extent = None
+
+        # Connecting to core
         try:
             self.solr1 = pysolr.Solr(mysolrserver, always_commit=True)
+            self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
-        self.logger.info("Connection established to: %s", str(mysolrserver))
+            self.logger.info("Add a sys.exit?")
 
-        # Connect to L2
-        mysolrserver2 = mysolrserver.replace('-l1', '-l2')
-        try:
-            self.solr2 = pysolr.Solr(mysolrserver2, always_commit=True)
-        except Exception as e:
-            self.logger.error("Something failed in SolR init: %s", str(e))
-        self.logger.info("Connection established to: %s", str(mysolrserver2))
 
-        # Connect to thumbnail
-        mysolrservert = mysolrserver.replace('-l1', '-thumbnail')
-        try:
-            self.solrt = pysolr.Solr(mysolrservert, always_commit=True)
-        except Exception as e:
-            self.logger.error("Something failed in SolR init: %s", str(e))
-        self.logger.info("Connection established to: %s", str(mysolrservert))
+    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None,
+                   wms_zoom_level=0, add_coastlines=True,
+                   projection=ccrs.PlateCarree(), wms_timeout=120,
+                   thumbnail_type='wms', thumbnail_extent=None):
+        """ Add thumbnail to SolR
+            Args:
+                input_record() : input MMD file to be indexed in SolR
+                addThumbnail (bool): If thumbnail should be added or not
+                level (int): 1 or 2 depending if MMD is Level-1 or Level-2,
+                            respectively. If None, assume to be Level-1
+                wms_layer (str): WMS layer name
+                wms_style (str): WMS style name
+                wms_zoom_level (float): Negative zoom. Fixed value added in
+                                        all directions (E,W,N,S)
+                add_coastlines (bool): If coastlines should be added
+                projection (ccrs): Cartopy projection object or name (i.e. string)
+                wms_timeout (int): timeout for WMS service
+                thumbnail_type (str): Type of thumbnail. Supports "wms" (OGC WMS)
+                                      and "ts" (timeseries)
+                thumbnail_extent (list): Spatial extent of the thumbnail in
+                                      lat/lon [x0, x1, y0, y1]
+            Returns:
+                bool
+        """
+        if level == 1 or level == None:
+            input_record.update({'dataset_type':'Level-1'})
+        elif level == 2:
+            input_record.update({'dataset_type':'Level-2'})
+        else:
+            self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
 
-    def add_level1(self, myrecord, addThumbnail=False, addFeature=False,
-            mapprojection=ccrs.Mercator(),wmstimeout=120):
-        if myrecord['mmd_metadata_status'] == 'Inactive':
+
+
+        if input_record['metadata_status'] == 'Inactive':
             Warning('Skipping record')
-            return
+            return False
+        self.id = input_record['id']
 
-        """ Add a level 1 dataset """
-        self.logger.info("Adding records to Level 1 core...")
-        mylist = list()
-        # print(myrecord)
-        #print(json.dumps(myrecord, indent=4))
-        mylist.append(myrecord)
-        #print(mylist)
-        try:
-            self.solr1.add(mylist)
-            #self.solr1.add([myrecord])
-        except Exception as e:
-            self.logger.error("Something failed in SolR add Level 1: %s", str(e))
-        self.logger.info("Level 1 record successfully added.")
+        self.logger.info("Adding records to core...")
 
-        # print(mylist[0]['mmd_data_access_resource'])
-        # Remove flag later, do automatically if WMS is available...
-        if addThumbnail:
-            saelf.logger.info("Checking thumbnails...")
-            darlist = self.darextract(mylist[0]['mmd_data_access_resource'])
+
+        mmd_record = list()
+        mmd_record.append(input_record)
+
+        if not addThumbnail:
             try:
-                if 'OGC WMS' in darlist:
-                    getCapUrl = darlist['OGC WMS']
-                    #wms_layer = 'ice_conc'  # For S1 IW GRD data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
-                    #wms_style = 'boxfill/ncview'
-                    wms_style = 'boxfill/redblue'
-                    self.add_thumbnail(url=darlist['OGC WMS'],
-                            identifier=mylist[0]['mmd_metadata_identifier'],
-                            layer=wms_layer, zoom_level=0, 
-                            projection=mapprojection,wmstimeout=120,
-                            style=wms_style)
-                elif 'OPeNDAP' in darlist:
-                    # Thumbnail of timeseries to be added
-                    # Or better do this as part of set_feature_type?
-                    self.logger.info('OPeNDAP is not automatically parsed yet, to be added.')
+                self.solr1.add(mmd_record)
+                self.logger.info("Record successfully added.")
+                return True
             except Exception as e:
-                self.logger.error("Something failed in adding thumbnail: %s", str(e))
-                raise Warning("Couldn't add thumbnail.")
-        elif addFeature:
+                self.logger.error("Something failed in SolR adding document: %s", str(e))
+                return False
+        else:
+            self.wms_layer = wms_layer
+            self.wms_style = wms_style
+            self.wms_zoom_level = wms_zoom_level
+            self.add_coastlines = add_coastlines
+            self.projection = projection
+            self.wms_timeout = wms_timeout
+            self.thumbnail_type = thumbnail_type
+            self.thumbnail_extent = thumbnail_extent
+
+            self.logger.info("Checking thumbnails...")
+
+            if 'data_access_url_ogc_wms' in mmd_record[0]:
+                # Create thumbnail from WMS
+                getCapUrl = mmd_record[0]['data_access_url_ogc_wms']
+
+                thumbnail_data = self.add_thumbnail(url=getCapUrl)
+
+                if not thumbnail_data:
+                    self.logger.error('Could not find WMS GetCapabilities document')
+                    return False
+
+            elif 'data_access_url_opendap' in mmd_record[0]:
+                # Thumbnail of timeseries to be added
+                # Or better do this as part of set_feature_type?
+                self.logger.info('OPeNDAP is not automatically parsed yet, to be added.')
+
             try:
-                self.set_feature_type(mylist)
+                input_record.update({'thumbnail_data':thumbnail_data})
+                mmd_record = list()
+                mmd_record.append(input_record)
+                self.solr1.add(mmd_record)
+                self.logger.info("Level 1 record successfully added.")
+                return True
+                #self.solr1.add([input_record])
             except Exception as e:
-                self.logger.error("Something failed in adding feature type: %s", str(e))
+                self.logger.error("Something failed in SolR adding doc: %s", str(e))
+                return False
+
+
+        self.logger.warning('FIX ADD FEATURE.')
+        #elif addFeature:
+        #    try:
+        #        self.set_feature_type(mmd_record)
+        #    except Exception as e:
+        #        self.logger.error("Something failed in adding feature type: %s", str(e))
 
     def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
             mapprojection=ccrs.Mercator(),wmstimeout=120):
         """ Add a level 2 dataset, i.e. update level 1 as well """
-        mylist2 = list()
-        mylist2.append(myl2record)
+        mmd_record2 = list()
+        mmd_record2.append(myl2record)
         # Fix for NPI data...
-        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
-        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
-        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
-        myl2record['mmd_related_dataset'] = myl2record['mmd_related_dataset'].replace('.xml','')
-        #print('>>>>>>>',myl2record['mmd_related_dataset'])
+        myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://data.npolar.no/dataset/','')
+        myl2record['related_dataset'] = myl2record['related_dataset'].replace('https://data.npolar.no/dataset/','')
+        myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://api.npolar.no/dataset/','')
+        myl2record['related_dataset'] = myl2record['related_dataset'].replace('.xml','')
+        #print('>>>>>>>',myl2record[':wrelated_dataset'])
 
         """ Retrieve level 1 record """
         try:
@@ -816,34 +932,34 @@ class IndexMMD:
             myresults['mmd_related_dataset'] = []
             self.logger.info('Adding dataset with identifier %s to parent', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
             myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
-        mylist1 = list()
-        mylist1.append(myresults)
+        mmd_record1 = list()
+        mmd_record1.append(myresults)
 
         """ Index level 2 dataset """
         try:
-            self.solr2.add(mylist2)
+            self.solr2.add(mmd_record2)
         except Exception as e:
             raise Exception("Something failed in SolR add level 2", str(e))
         self.logger.info("Level 2 record successfully added.")
 
         """ Update level 1 record with id of this dataset """
         try:
-            self.solr1.add(mylist1)
+            self.solr1.add(mmd_record1)
         except Exception as e:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         self.logger.info("Level 1 record successfully updated.")
 
         if addThumbnail:
             self.logger.info("Checking tumbnails...")
-            darlist = self.darextract(mylist2[0]['mmd_data_access_resource'])
+            darlist = self.darextract(mmd_record2[0]['mmd_data_access_resource'])
             try:
                 if 'OGC WMS' in darlist:
                     getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_wms_layers_wms_layer
+                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_i_wms_layer
                     wms_style = 'boxfill/redblue'
                     self.add_thumbnail(url=darlist['OGC WMS'],
-                            identifier=mylist2[0]['mmd_metadata_identifier'],
-                            layer=wms_layer, zoom_level=0, 
+                            identifier=mmd_record2[0]['mmd_metadata_identifier'],
+                            layer=wms_layer, zoom_level=0,
                             projection=mapprojection,wmstimeout=120,
                             style=wms_style)
                 elif 'OPeNDAP' in darlist:
@@ -851,103 +967,89 @@ class IndexMMD:
                     # Or better do this as part of set_feature_type?
                     self.logger.warn('OPeNDAP is not parsed automatically yet, to be added.')
             except Exception as e:
-                self.logger.error("Something failed in adding thumbnail: %s", str(e)) 
+                self.logger.error("Something failed in adding thumbnail: %s", str(e))
                 raise Warning("Couldn't add thumbnail.")
         elif addFeature:
             try:
-                self.set_feature_type(mylist2)
+                self.set_feature_type(mmd_record2)
             except Exception as e:
                 self.logger.error("Something failed in adding feature type: %s", str(e))
 
 
-    def add_thumbnail(self, url, identifier, layer, zoom_level,
-            projection, wmstimeout, mytype='wms', style=None):
+    def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
-
             Args:
                 type: Thumbnail type. (wms, ts)
-                url: url to GetCapabilities document
-                layer: The layer name in GetCapabilities document
-                zoom_level: lat/lon number in degress for adjusting
-                              zoom level. Positive give zooms out, negative
-                              zooms in.
-                projection: Cartopy projection. Not configurable at the moment.
             Returns:
-                boolean
+                thumbnail: base64 string representation of image
         """
-        if mytype == 'wms':
+        if thumbnail_type == 'wms':
             try:
-                thumbnail = self.create_wms_thumbnail(url, layer, zoom_level,
-                    projection, wmstimeout, style=style)
+                thumbnail = self.create_wms_thumbnail(url)
+                return thumbnail
             except Exception as e:
                 self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
-                return
-        elif mytype == 'ts': #time_series
+                return None
+        elif thumbnail_type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
+            return thumbnail
         else:
-            self.logger.error('Invalid thumbnail type: %s', type)
-            sys.exit(2)
+            self.logger.error('Invalid thumbnail type: {}'.format(thumbnail_type))
+            return None
 
-        # Prepare input to SolR
-        myrecord = OrderedDict()
-        myrecord['id'] = identifier.replace(':','_')
-        myrecord['mmd_metadata_identifier'] = identifier
-        myrecord['thumbnail_data'] = str(thumbnail)
-        mylist = list()
-        mylist.append(myrecord)
-        #print(mylist)
 
-        try:
-            self.solrt.add(mylist)
-        except Exception as e:
-            raise Exception("Something failed in SolR add thumbnail", str(e))
-
-        self.logger.info("Thumbnail record successfully added.")
-
-    def create_wms_thumbnail(self, url, layer, zoom_level=0,
-            projection=ccrs.PlateCarree(),wmstimeout=120,**kwargs):
+    def create_wms_thumbnail(self, url):
         """ Create a base64 encoded thumbnail by means of cartopy.
 
             Args:
-                layer: The layer name in GetCapabilities document
-                zoom_level: lat/lon number in degress for adjusting
-                              zoom level. Positive give zooms out, negative
-                              zooms in.
-                projection: Cartopy projection. Not configurable at the moment.
+                url: wms GetCapabilities document
 
             Returns:
                 thumbnail_b64: base64 string representation of image
         """
 
-        wms = WebMapService(url,timeout=wmstimeout)
+        wms_layer = self.wms_layer
+        wms_style = self.wms_style
+        wms_zoom_level = self.wms_zoom_level
+        wms_timeout = self.wms_timeout
+        add_coastlines = self.add_coastlines
+        map_projection = self.projection
+        thumbnail_extent = self.thumbnail_extent
+
+        # map projection string to ccrs projection
+        if isinstance(map_projection,str):
+            map_projection = getattr(ccrs,map_projection)()
+
+        wms = WebMapService(url,timeout=wms_timeout)
         available_layers = list(wms.contents.keys())
-        if layer not in available_layers:
-            layer = available_layers[0]
-            self.logger.info('creating WMS thumbnail for layer: %s',layer)
 
-        if 'style' in kwargs.keys():
-            style = kwargs['style']
-            available_styles = list(wms.contents[layer].styles.keys())
+        if wms_layer not in available_layers:
+            wms_layer = available_layers[0]
+            self.logger.info('creating WMS thumbnail for layer: {}'.format(wms_layer))
 
-            if available_styles:
-                if style not in available_styles:
-                    style = [available_styles[0]]
-                else:
-                    style = [style]
+        ### Checking styles
+        available_styles = list(wms.contents[wms_layer].styles.keys())
+
+        if available_styles:
+            if wms_style not in available_styles:
+                wms_style = [available_styles[0]]
             else:
-                style = None
+                wms_style = None
         else:
-            style = None
+            wms_style = None
 
-        wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
-        cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
-        #print(cartopy_extent)
-        cartopy_extent_zoomed = [wms_extent[0] - zoom_level,
-                wms_extent[2] + zoom_level,
-                wms_extent[1] - zoom_level,
-                wms_extent[3] + zoom_level]
+        if not thumbnail_extent:
+            wms_extent = wms.contents[available_layers[0]].boundingBoxWGS84
+            cartopy_extent = [wms_extent[0], wms_extent[2], wms_extent[1], wms_extent[3]]
+
+            cartopy_extent_zoomed = [wms_extent[0] - wms_zoom_level,
+                    wms_extent[2] + wms_zoom_level,
+                    wms_extent[1] - wms_zoom_level,
+                    wms_extent[3] + wms_zoom_level]
+        else:
+            cartopy_extent_zoomed = thumbnail_extent
+
         max_extent = [-180.0, 180.0, -90.0, 90.0]
-        #print(cartopy_extent_zoomed)
 
         for i, extent in enumerate(cartopy_extent_zoomed):
             if i % 2 == 0:
@@ -957,16 +1059,10 @@ class IndexMMD:
                 if extent > max_extent[i]:
                     cartopy_extent_zoomed[i] = max_extent[i]
 
-        subplot_kw = dict(projection=projection)
+        subplot_kw = dict(projection=map_projection)
+        self.logger.info(subplot_kw)
+
         fig, ax = plt.subplots(subplot_kw=subplot_kw)
-        #ax.set_extent(cartopy_extent_zoomed, crs=projection)
-        #print(">>>>>", cartopy_extent_zoomed)
-        # There are issues with versions of cartopy and PROJ. The
-        # environment should be updated.
-        #try:
-        #    ax.set_extent(cartopy_extent_zoomed)
-        #except Exception as e:
-        #    raise Exception("Something failed on map projection", str(e))
 
         #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
         #                                                scale='50m',
@@ -985,29 +1081,31 @@ class IndexMMD:
         fig.set_dpi(100)
         ax.background_patch.set_alpha(1)
 
-        ax.add_wms(wms, layer,
+        ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
-                    'styles':style})
-                #print({'transparent': False,'styles':style})
-        ax.coastlines(resolution="50m",linewidth=0.5)
+                    'styles':wms_style})
 
-        fig.savefig('thumbnail.png', format='png', bbox_inches='tight')
-        #fig.savefig('thumbnail.png', format='png')
+        if add_coastlines:
+            ax.coastlines(resolution="50m",linewidth=0.5)
+        if map_projection == ccrs.PlateCarree():
+            ax.set_extent(cartopy_extent_zoomed)
+        else:
+            ax.set_extent(cartopy_extent_zoomed, ccrs.PlateCarree())
+
+        thumbnail_fname = 'thumbnail_{}.png'.format(self.id)
+        fig.savefig(thumbnail_fname, format='png', bbox_inches='tight')
         plt.close('all')
 
-        with open('thumbnail.png', 'rb') as infile:
+        with open(thumbnail_fname, 'rb') as infile:
             data = infile.read()
             encode_string = base64.b64encode(data)
 
         thumbnail_b64 = (b'data:image/png;base64,' +
                 encode_string).decode('utf-8')
 
-        # Keep thumbnails while testing...
-        #os.remove('thumbnail.png')
-
+        # Remove thumbnail
+        os.remove(thumbnail_fname)
         return thumbnail_b64
-    # with open('image_b64.txt','wb') as outimg:
-        #    outimg.write(b'data:image/png;base64,'+encode_string)
 
     def create_ts_thumbnail(self):
         """ Create a base64 encoded thumbnail """
@@ -1103,29 +1201,13 @@ class IndexMMD:
 
         return results
 
-    def darextract(self, mydar):
-        mylinks = {}
-        for i in range(len(mydar)):
-            if isinstance(mydar[i], bytes):
-                mystr = str(mydar[i], 'utf-8')
-            else:
-                mystr = mydar[i]
-            if mystr.find('description') != -1:
-                t1, t2 = mystr.split(',', 1)
-            else:
-                t1 = mystr
-            t2 = t1.replace('"', '')
-            proto, myurl = t2.split(':', 1)
-            mylinks[proto] = myurl
-
-        return (mylinks)
-
 def main(argv):
 
     # Parse command line arguments
     try:
         args = parse_arguments()
-    except:
+    except Exception as e:
+        print("Something failed in parsing arguments: %s", str(e))
         raise SystemExit('Command line arguments didn\'t parse correctly.')
 
     # Parse configuration file
@@ -1198,37 +1280,49 @@ def main(argv):
         if args.directory:
             myfile = os.path.join(args.directory, myfile)
 
+        wms_layer = args.thumbnail_layer
+        wms_style = args.thumbnail_style
+        wms_zoom_level = args.thumbnail_zoom_level
+        wms_coastlines = args.add_coastlines
+        thumbnail_type = args.thumbnail_type
+        thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
+        if not wms_zoom_level:
+            wms_zoom_level=0
+        if not wms_coastlines:
+            wms_coastlines=True
+
         # Index files
         mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
 
         try:
-            mydoc = MMD4SolR(myfile) 
+            mydoc = MMD4SolR(myfile)
         except Exception as e:
             mylog.warn('Could not handle file: %s',e)
             continue
         mydoc.check_mmd()
         fileno += 1
+
         mysolr = IndexMMD(mySolRc)
-        """ Do not search for mmd_metadata_identifier, always used id...  """
+        """ Do not search for :wmetadata_identifier, always used id...  """
         newdoc = mydoc.tosolr()
-        if (newdoc['mmd_metadata_status'] == "Inactive"):
+        if (newdoc['metadata_status'] == "Inactive"):
             continue
-        if (not args.no_thumbnail) and ('mmd_data_access_resource' in newdoc):
-            for e in newdoc['mmd_data_access_resource']: 
+        if (not args.no_thumbnail) and ('data_access_resource' in newdoc):
+            for e in newdoc['data_access_resource']:
                 #print(type(e))
-                if "OGC WMS" in str(e): 
+                if "OGC WMS" in str(e):
                     tflg = True
-        if 'mmd_related_dataset' in newdoc:
+        if 'related_dataset' in newdoc:
             # Special fix for NPI
-            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('https://data.npolar.no/dataset/','')
-            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://data.npolar.no/dataset/','')
-            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('http://api.npolar.no/dataset/','')
-            newdoc['mmd_related_dataset'] = newdoc['mmd_related_dataset'].replace('.xml','')
-            # Skip if DOI is used to refer to parent, taht isn't consistent.
-            if 'doi.org' in newdoc['mmd_related_dataset']:
+            newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
+            newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
+            newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
+            newdoc['related_dataset'] = newdoc['related_dataset'].replace('.xml','')
+            # Skip if DOI is used to refer to piarent, taht isn't consistent.
+            if 'doi.org' in newdoc['related_dataset']:
                 continue
             myresults = mysolr.solr1.search('id:' +
-                    newdoc['mmd_related_dataset'], df='', rows=100)
+                    newdoc['related_dataset'], df='', rows=100)
             if len(myresults) == 0:
                 mylog.warn("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
@@ -1239,8 +1333,12 @@ def main(argv):
             mysolr.add_level2(mydoc.tosolr(), tflg,
                     fflg,mapprojection,cfg['wms-timeout'])
         else:
-            mysolr.add_level1(mydoc.tosolr(), tflg,
-                    fflg,mapprojection,cfg['wms-timeout'])
+            print(tflg)
+            mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg,
+                    wms_layer=wms_layer,wms_style=wms_style,
+                    wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines,
+                    projection=mapprojection, thumbnail_type=thumbnail_type,
+                    wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
         l2flg = False
         tflg = False
 
@@ -1253,23 +1351,23 @@ def main(argv):
     for myfile in myfiles_pending:
         mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
         try:
-            mydoc = MMD4SolR(myfile) 
+            mydoc = MMD4SolR(myfile)
         except Exception as e:
             mylog.warn('Could not handle file: %s', e)
             continue
         mydoc.check_mmd()
         fileno += 1
         mysolr = IndexMMD(mySolRc)
-        """ Do not search for mmd_metadata_identifier, always used id...  """
+        """ Do not search for metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
-        if 'mmd_data_access_resource' in newdoc.keys():
-            for e in newdoc['mmd_data_access_resource']: 
+        if 'data_access_resource' in newdoc.keys():
+            for e in newdoc['data_access_resource']:
                 #print('>>>>>e', e)
-                if (not nflg) and "OGC WMS" in (''.join(e)): 
+                if (not nflg) and "OGC WMS" in (''.join(e)):
                     tflg = True
         # Skip file if not a level 2 file
-        if 'mmd_related_dataset' not in newdoc:
+        if 'related_dataset' not in newdoc:
             continue
         mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
