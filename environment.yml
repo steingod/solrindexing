@@ -1,0 +1,18 @@
+name: solrindexing
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.7
+  - matplotlib>=3.1
+  - numpy>=1.17
+  - scipy>=1.2
+  - netcdf4
+  - pyproj>=2.3
+  - cartopy
+  - pip
+  - pysolr
+  - xmltodict
+  - python-dateutil
+  - yaml
+  - owslib
+  - ipython
