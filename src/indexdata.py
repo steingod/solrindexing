@@ -281,7 +281,7 @@ class MMD4SolR:
                 myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
             mydate = dateutil.parser.parse(myvalue)
             self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
-        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
+        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:temporal_extent'] != None:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
                 #print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
                 i=0
@@ -433,7 +433,7 @@ class MMD4SolR:
                 mydict['mmd_keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Temporal extent """
-        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
+        if 'mmd:temporal_extent' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:temporal_extent'] != None:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
                 maxtime = dateutil.parser.parse('1000-01-01T00:00:00Z')
                 mintime = dateutil.parser.parse('2099-01-01T00:00:00Z')
@@ -815,7 +815,7 @@ class IndexMMD:
         else:
             self.logger.warning('mmd_related_dataset not found in parent, creating it...')
             myresults['mmd_related_dataset'] = []
-            self.logger.info('Adding dataset with identifier %s to parent', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
+            self.logger.info('Adding dataset with identifier %s to parent %s', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
             myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
         mylist1 = list()
         mylist1.append(myresults)
