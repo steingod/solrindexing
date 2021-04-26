@@ -232,24 +232,25 @@ class MMD4SolR:
         Check that keywords also contain GCMD keywords
         Need to check contents more specifically...
         """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-            i = 0
-            gcmd = False
-            ##print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
-            ##print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
-            # TODO: remove unused for loop
-            # Switch to using e instead of self.mydoc...
-            for e in self.mydoc['mmd:mmd']['mmd:keywords']:
-                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
-                    gcmd = True
-                    break
-                i += 1
-            if not gcmd:
-                self.logger.warning('\n\tKeywords in GCMD are not available')
-        else:
-            if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
-                # warnings.warning('Keywords in GCMD are not available')
-                self.logger.warning('\n\tKeywords in GCMD are not available')
+        if 'mmd:keywords' in self.mydoc['mmd:mmd']:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                i = 0
+                gcmd = False
+                ##print(type(self.mydoc['mmd:mmd']['mmd:keywords']))
+                ##print(len(self.mydoc['mmd:mmd']['mmd:keywords']))
+                # TODO: remove unused for loop
+                # Switch to using e instead of self.mydoc...
+                for e in self.mydoc['mmd:mmd']['mmd:keywords']:
+                    if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
+                        gcmd = True
+                        break
+                    i += 1
+                if not gcmd:
+                    self.logger.warning('\n\tKeywords in GCMD are not available')
+            else:
+                if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
+                    # warnings.warning('Keywords in GCMD are not available')
+                    self.logger.warning('\n\tKeywords in GCMD are not available')
 
         """ 
         Modify dates if necessary 
