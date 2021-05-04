@@ -462,7 +462,7 @@ class MMD4SolR:
         """ Geographical extent """
         """ Assumes longitudes positive eastwards and in the are -180:180
         """
-        if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
+        if 'mmd:geographic_extent' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:geographic_extent'] != None:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
                 self.logger.warning('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
@@ -491,22 +491,23 @@ class MMD4SolR:
                     mydict['mmd_geographic_extent_rectangle_west'] = -180.
                     mydict['mmd_geographic_extent_rectangle_east'] = 180.
             else:
-                for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
-                    #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
-                    if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item] == None:
-                        Warning('Missing geographical element')
-                        mydict['mmd_metadata_status'] = 'Inactive'
-                        return mydict
+                if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'] != None:
+                    for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
+                        #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
+                        if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item] == None:
+                            Warning('Missing geographical element')
+                            mydict['mmd_metadata_status'] = 'Inactive'
+                            return mydict
 
-                mydict['mmd_geographic_extent_rectangle_north'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
-                mydict['mmd_geographic_extent_rectangle_south'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-                mydict['mmd_geographic_extent_rectangle_east'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-                mydict['mmd_geographic_extent_rectangle_west'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
-                mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                    mydict['mmd_geographic_extent_rectangle_north'] = float(
+                        self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                    mydict['mmd_geographic_extent_rectangle_south'] = float(
+                        self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+                    mydict['mmd_geographic_extent_rectangle_east'] = float(
+                        self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+                    mydict['mmd_geographic_extent_rectangle_west'] = float(
+                        self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                    mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
         """ Data access """
         """ Double check this ØG """
