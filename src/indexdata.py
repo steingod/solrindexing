@@ -556,12 +556,26 @@ class MMD4SolR:
 
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
+                mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_name'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_email'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_phone'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_fax'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_organisation'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_address'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_city'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_province_or_state'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
+                mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
                 for entry in personnel:
                     entry_type = entry.split(':')[-1]
                     if entry_type == role:
                         mydict['personnel_role'].append(personnel[entry])
+                        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                     else:
                         mydict['personnel_{}'.format(entry_type)].append(personnel[entry])
+                        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
         """ Data center """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
