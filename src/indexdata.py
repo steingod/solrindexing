@@ -528,11 +528,27 @@ class MMD4SolR:
 
         """ Use constraint """
         if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
-            mydict['use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
+            use_contraint_element = self.mydoc['mmd:mmd']['mmd:use_constraint']
+            for key, value in use_contraint_element.items():
+                entry = key.split('@')[-1].split(':')[-1]
+                mydict['use_constraint_{}'.format(entry)] = value
 
         """ Personnel """
 
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
+            mydict['personnel_role'] = []
+            mydict['personnel_name'] = []
+            mydict['personnel_email'] = []
+            mydict['personnel_phone'] = []
+            mydict['personnel_fax'] = []
+            mydict['personnel_organisation'] = []
+            mydict['personnel_address'] = []
+            mydict['personnel_address_address'] = []
+            mydict['personnel_address_city'] = []
+            mydict['personnel_address_province_or_state'] = []
+            mydict['personnel_address_postal_code'] = []
+            mydict['personnel_address_country'] = []
+            mydict['personnel_address_country'] = []
             personnel_elements = self.mydoc['mmd:mmd']['mmd:personnel']
 
             if isinstance(personnel_elements, dict): #Only one element
@@ -540,24 +556,12 @@ class MMD4SolR:
 
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
-                mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_name'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_email'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_phone'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_fax'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_organisation'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_address'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_city'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_province_or_state'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
                 for entry in personnel:
                     entry_type = entry.split(':')[-1]
                     if entry_type == role:
-                        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
+                        mydict['personnel_role'].append(personnel[entry])
                     else:
-                        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+                        mydict['personnel_{}'.format(entry_type)].append(personnel[entry])
 
         """ Data center """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
@@ -657,8 +661,26 @@ class MMD4SolR:
         """ Should structure this on GCMD only at some point """
         """ Need to support multiple sets of keywords... """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
+            kw_elements = self.mydoc['mmd:mmd']['mmd:keywords']
             mydict['keywords_keyword'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
+            mydict['keywords_vocabulary'] = []
+            mydict['keywords_resource'] = []
+            mydict['keywords_separator'] = []
+            
+            if isinstance(kw_elements , dict): #only one element
+                kw_elements = [kw_elements] # make it an iterable list
+
+            for kw in kw_elements:
+                for key, value in kw.items():
+                    entry = key.split('@')[-1].split(':')[-1]
+                    if isinstance(value,list):
+                        for kkw in value:                        
+                            mydict['keywords_{}'.format(entry)].append(kkw)
+                    else: 
+                        mydict['keywords_{}'.format(entry)].append(value) 
+                        
+                    
+            """           
                 if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
                     mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
                 else:
@@ -666,6 +688,7 @@ class MMD4SolR:
                         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
                             mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
             elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                self.logger.info(self.mydoc['mmd:mmd']['mmd:keywords'])
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
                     if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
                         if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
@@ -679,7 +702,7 @@ class MMD4SolR:
 
             else:
                 mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-
+            """
 
         """ Project """
         mydict['project_short_name'] = []
