@@ -38,6 +38,7 @@ from owslib.wms import WebMapService
 import base64
 import netCDF4
 import logging
+import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 
 def parse_arguments():
@@ -327,7 +328,6 @@ class MMD4SolR:
         Method for creating document with SolR representation of MMD according
         to the XSD.
         """
-
         # Defining Look Up Tables
         personnel_role_LUT = {'Investigator':'investigator',
                               'Technical contact': 'technical',
@@ -345,7 +345,6 @@ class MMD4SolR:
         mydict = OrderedDict()
 
         # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : by _ in the id field, let metadata_identifier be the correct one.
-
         """ Identifier """
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
             mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text'].replace(':','_')
@@ -795,7 +794,12 @@ class MMD4SolR:
                 #        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                 #    else:
                 #        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
-
+        """ Adding MMD document as base64 string"""
+        xml_root = ET.parse(self.filename)
+        xml_string = ET.tostring(xml_root)
+        encoded_xml_string = base64.b64encode(xml_string)
+        xml_b64 = (encoded_xml_string).decode('utf-8')
+        mydict['mmd_xml_file'] = xml_b64
 
         return mydict
 
