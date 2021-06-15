@@ -795,7 +795,7 @@ class MMD4SolR:
                 #    else:
                 #        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
         """ Adding MMD document as base64 string"""
-        xml_root = ET.parse(self.filename)
+        xml_root = ET.parse(str(self.filename))
         xml_string = ET.tostring(xml_root)
         encoded_xml_string = base64.b64encode(xml_string)
         xml_b64 = (encoded_xml_string).decode('utf-8')
