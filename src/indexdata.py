@@ -830,7 +830,7 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solr1 = pysolr.Solr(mysolrserver, always_commit=True)
+            self.solr1 = pysolr.Solr(mysolrserver, always_commit=False)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
