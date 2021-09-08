@@ -522,7 +522,14 @@ class MMD4SolR:
 
         """ Use constraint """
         if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
-            mydict['use_constraint'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint'])
+            # Need both identifier and resource for use constraint
+            if 'mmd:identifier' in self.mydoc['mmd:mmd']['mmd:use_constraint'] and 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
+                mydict['use_constraint_identifier'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:identifier'])
+                mydict['use_constraint_resource'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:resource'])
+            else:
+                self.logger.warning('Both identifier and resource need to be present to index this in use_constraint')
+            if 'mmd:license_text' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
+                mydict['use_constraint_license_text'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:license_text'])
 
         """ Personnel """
 
