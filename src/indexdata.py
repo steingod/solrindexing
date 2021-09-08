@@ -54,18 +54,12 @@ def parse_arguments():
     parser.add_argument('-2','--level2',help='Operate on child core.')
 
     ### Thumbnail parameters
-    parser.add_argument('-t_layer','--thumbnail_layer',help='Specify wms_layer for thumbnail.',
-                        required=False)
-    parser.add_argument('-t_style','--thumbnail_style',help='Specify the style (colorscheme) for the thumbnail.',
-                        required=False)
-    parser.add_argument('-t_zl','--thumbnail_zoom_level',help='Specify the zoom level for the thumbnail.',
-                        type=float,required=False)
-    parser.add_argument('-ac','--add_coastlines',help='Add coastlines too the thumbnail (True/False). Default True',
-                        const=True,nargs='?', required=False)
-    parser.add_argument('-t_type','--thumbnail_type',help='Type of data. E.g. WMS or timeseries. Supports "wms" and "ts".',
-                        required=False)
-    parser.add_argument('-t_extent','--thumbnail_extent',help='Spatial extent of thumbnail in lat/lon degrees like "x0 x1 y0 y1"',
-                        required=False, nargs='+')
+    parser.add_argument('-t_layer','--thumbnail_layer',help='Specify wms_layer for thumbnail.', required=False)
+    parser.add_argument('-t_style','--thumbnail_style',help='Specify the style (colorscheme) for the thumbnail.', required=False)
+    parser.add_argument('-t_zl','--thumbnail_zoom_level',help='Specify the zoom level for the thumbnail.', type=float,required=False)
+    parser.add_argument('-ac','--add_coastlines',help='Add coastlines too the thumbnail (True/False). Default True', const=True,nargs='?', required=False)
+    parser.add_argument('-t_type','--thumbnail_type',help='Type of data. E.g. WMS or timeseries. Supports "wms" and "ts".', required=False)
+    parser.add_argument('-t_extent','--thumbnail_extent',help='Spatial extent of thumbnail in lat/lon degrees like "x0 x1 y0 y1"', required=False, nargs='+')
 
     args = parser.parse_args()
 
@@ -257,7 +251,7 @@ class MMD4SolR:
                     break
                 i += 1
             if not gcmd:
-                self.logger.warn('\n\tKeywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
                 # warnings.warn('Keywords in GCMD are not available')
@@ -547,7 +541,7 @@ class MMD4SolR:
                 mydict['personnel_{}_fax'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_organisation'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address'.format(personnel_role_LUT[role])] = []
-                mydict['personnel_{}_address_address'.format(personnel_role_LUT[role])] = []
+                # don't think this is needed Øystein Godøy, METNO/FOU, 2021-09-08 mydict['personnel_{}_address_address'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address_city'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address_province_or_state'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
@@ -557,7 +551,17 @@ class MMD4SolR:
                     if entry_type == role:
                         mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                     else:
-                        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+                        # Treat address specifically. 
+                        print('####',entry, personnel[entry])
+                        if entry_type == 'contact_address':
+                            for el in personnel[entry]:
+                                el_type = el.split(':')[-1]
+                                if el_type == 'address':
+                                    mydict['personnel_{}_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry])
+                                else:
+                                    mydict['personnel_{}_address_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry])
+                        else:
+                            print(entry_type, 'is not supported.')
 
         """ Data center """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
@@ -796,10 +800,7 @@ class IndexMMD:
             self.logger.info("Add a sys.exit?")
 
 
-    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None,
-                   wms_zoom_level=0, add_coastlines=True,
-                   projection=ccrs.PlateCarree(), wms_timeout=120,
-                   thumbnail_type='wms', thumbnail_extent=None):
+    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_type='wms', thumbnail_extent=None):
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
@@ -1239,6 +1240,7 @@ def main(argv):
     mySolRc = SolrServer+myCore+'-l1'
 
     # Find files to process
+    # FIXME remove l2 and thumbnail cores
     if args.input_file:
         myfiles = [args.input_file]
     elif args.list_file:
@@ -1280,16 +1282,17 @@ def main(argv):
         if args.directory:
             myfile = os.path.join(args.directory, myfile)
 
-        wms_layer = args.thumbnail_layer
-        wms_style = args.thumbnail_style
-        wms_zoom_level = args.thumbnail_zoom_level
-        wms_coastlines = args.add_coastlines
-        thumbnail_type = args.thumbnail_type
-        thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
-        if not wms_zoom_level:
-            wms_zoom_level=0
-        if not wms_coastlines:
-            wms_coastlines=True
+        if not args.no_thumbnail:
+            wms_layer = args.thumbnail_layer
+            wms_style = args.thumbnail_style
+            wms_zoom_level = args.thumbnail_zoom_level
+            wms_coastlines = args.add_coastlines
+            thumbnail_type = args.thumbnail_type
+            thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
+            if not wms_zoom_level:
+                wms_zoom_level=0
+            if not wms_coastlines:
+                wms_coastlines=True
 
         # Index files
         mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
@@ -1334,11 +1337,10 @@ def main(argv):
                     fflg,mapprojection,cfg['wms-timeout'])
         else:
             print(tflg)
-            mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg,
-                    wms_layer=wms_layer,wms_style=wms_style,
-                    wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines,
-                    projection=mapprojection, thumbnail_type=thumbnail_type,
-                    wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+            if tflg:
+                mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection, thumbnail_type=thumbnail_type, wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+            else:
+                mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
         l2flg = False
         tflg = False
 
