@@ -161,10 +161,10 @@ class MMD4SolR:
                         self.logger.info('\n\t%s is present and non empty',requirement)
                         mmd_requirements[requirement] = True
                     else:
-                        self.logger.warn('\n\tRequired element %s is missing, setting it to unknown',requirement)
+                        self.logger.warning('\n\tRequired element %s is missing, setting it to unknown',requirement)
                         self.mydoc['mmd:mmd'][requirement] = 'Unknown'
                 else:
-                    self.logger.warn('\n\tRequired element %s is missing, setting it to unknown.',requirement)
+                    self.logger.warning('\n\tRequired element %s is missing, setting it to unknown.',requirement)
                     self.mydoc['mmd:mmd'][requirement] = 'Unknown'
 
         """
@@ -355,6 +355,7 @@ class MMD4SolR:
             lmu_datetime = []
             lmu_type = []
             lmu_note = []
+            # FIXME check if this works correctly
             if isinstance(last_metadata_update['mmd:update'], dict): #Only one last_metadata_update element
                     lmu_datetime.append(str(last_metadata_update['mmd:update']['mmd:datetime']))
                     lmu_type.append(last_metadata_update['mmd:update']['mmd:type'])
@@ -364,7 +365,8 @@ class MMD4SolR:
                 for i,e in enumerate(last_metadata_update['mmd:update']):
                     lmu_datetime.append(str(e['mmd:datetime']))
                     lmu_type.append(e['mmd:type'])
-                    lmu_note.append(e['mmd:note'])
+                    if 'mmd:note' in e.keys():
+                        lmu_note.append(e['mmd:note'])
 
             mydict['last_metadata_update_datetime'] = lmu_datetime
             mydict['last_metadata_update_type'] = lmu_type
@@ -495,7 +497,8 @@ class MMD4SolR:
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
                 mydict['geographic_extent_rectangle_west'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
-                mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
+                if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
+                    mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
         self.logger.info('Add location element?')
@@ -832,15 +835,12 @@ class IndexMMD:
         else:
             self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
 
-
-
         if input_record['metadata_status'] == 'Inactive':
             Warning('Skipping record')
             return False
         self.id = input_record['id']
 
         self.logger.info("Adding records to core...")
-
 
         mmd_record = list()
         mmd_record.append(input_record)
@@ -887,7 +887,6 @@ class IndexMMD:
                 self.solr1.add(mmd_record)
                 self.logger.info("Level 1 record successfully added.")
                 return True
-                #self.solr1.add([input_record])
             except Exception as e:
                 self.logger.error("Something failed in SolR adding doc: %s", str(e))
                 return False
@@ -910,39 +909,51 @@ class IndexMMD:
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('https://data.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://api.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('.xml','')
-        #print('>>>>>>>',myl2record[':wrelated_dataset'])
+        # Add additonal helpder fields
+        myl2record['isChild'] = 'true'
+        #print('>>>>>>>',myl2record['related_dataset'])
 
         """ Retrieve level 1 record """
         try:
-            myresults = self.solr1.search('id:' +
-                    myl2record['mmd_related_dataset'].replace(':','_'), df='', rows=100)
+            myresults = self.solr1.search('id:' + myl2record['related_dataset'].replace(':','_'), df='', rows=100)
         except Exception as e:
             Warning("Something failed in searching for parent dataset, " + str(e))
 
-        #print("Saw {0} result(s).".format(len(myresults)))
+        # Check that only one record is returned
         if len(myresults) != 1:
             Warning("Didn't find unique parent record, skipping record")
             return
+        # Convert from pySolr results object to dict and return. 
         for result in myresults:
-            result.pop('full_text')
+            #result.pop('full_text')
+            result.pop('bbox__maxX')
+            result.pop('bbox__maxY')
+            result.pop('bbox__minX')
+            result.pop('bbox__minY')
+            result.pop('bbox_rpt')
             myresults = result
-        # Check that the parent found has mmd_related_dataset set and
+        myresults['isParent'] = 'true'
+
+        # Check that the parent found has related_dataset set and
         # update this, but first check that it doesn't already exists
-        if 'mmd_related_dataset' in dict(myresults):
+        if 'related_dataset' in myresults:
             # Need to check that this doesn't already exist...
-            if myl2record['mmd_metadata_identifier'].replace(':','_') not in myresults['mmd_related_dataset']:
-                myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
+            if myl2record['metadata_identifier'].replace(':','_') not in myresults['related_dataset']:
+                myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','_'))
         else:
-            self.logger.warn('mmd_related_dataset not found in parent, creating it...')
-            myresults['mmd_related_dataset'] = []
-            self.logger.info('Adding dataset with identifier %s to parent', myl2record['mmd_metadata_identifier'].replace(':','_'),' to ',myl2record['mmd_related_dataset'])
-            myresults['mmd_related_dataset'].append(myl2record['mmd_metadata_identifier'].replace(':','_'))
+            self.logger.info('This dataset was not found in parent, creating it...')
+            myresults['related_dataset'] = []
+            self.logger.info('Adding dataset with identifier %s to parent %s', myl2record['metadata_identifier'].replace(':','_'),myl2record['related_dataset'])
+            myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','_'))
         mmd_record1 = list()
         mmd_record1.append(myresults)
 
+        #print(myresults)
+
         """ Index level 2 dataset """
+        # FIXME use of cores...
         try:
-            self.solr2.add(mmd_record2)
+            self.solr1.add(mmd_record2)
         except Exception as e:
             raise Exception("Something failed in SolR add level 2", str(e))
         self.logger.info("Level 2 record successfully added.")
@@ -970,7 +981,7 @@ class IndexMMD:
                 elif 'OPeNDAP' in darlist:
                     # Thumbnail of timeseries to be added
                     # Or better do this as part of set_feature_type?
-                    self.logger.warn('OPeNDAP is not parsed automatically yet, to be added.')
+                    self.logger.warning('OPeNDAP is not parsed automatically yet, to be added.')
             except Exception as e:
                 self.logger.error("Something failed in adding thumbnail: %s", str(e))
                 raise Warning("Couldn't add thumbnail.")
@@ -1241,10 +1252,10 @@ def main(argv):
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
-    mySolRc = SolrServer+myCore+'-l1'
+    mySolRc = SolrServer+myCore
 
     # Find files to process
-    # FIXME remove l2 and thumbnail cores
+    # FIXME remove l2 and thumbnail cores, reconsider deletion herein
     if args.input_file:
         myfiles = [args.input_file]
     elif args.list_file:
@@ -1286,6 +1297,7 @@ def main(argv):
         if args.directory:
             myfile = os.path.join(args.directory, myfile)
 
+        # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
         if not args.no_thumbnail:
             wms_layer = args.thumbnail_layer
             wms_style = args.thumbnail_style
@@ -1304,13 +1316,13 @@ def main(argv):
         try:
             mydoc = MMD4SolR(myfile)
         except Exception as e:
-            mylog.warn('Could not handle file: %s',e)
+            mylog.warning('Could not handle file: %s',e)
             continue
         mydoc.check_mmd()
         fileno += 1
 
         mysolr = IndexMMD(mySolRc)
-        """ Do not search for :wmetadata_identifier, always used id...  """
+        """ Do not search for metadata_identifier, always used id...  """
         newdoc = mydoc.tosolr()
         if (newdoc['metadata_status'] == "Inactive"):
             continue
@@ -1331,7 +1343,7 @@ def main(argv):
             myresults = mysolr.solr1.search('id:' +
                     newdoc['related_dataset'], df='', rows=100)
             if len(myresults) == 0:
-                mylog.warn("No parent found. Staging for second run.")
+                mylog.warning("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
                 continue
             l2flg = True
@@ -1359,7 +1371,7 @@ def main(argv):
         try:
             mydoc = MMD4SolR(myfile)
         except Exception as e:
-            mylog.warn('Could not handle file: %s', e)
+            mylog.warning('Could not handle file: %s', e)
             continue
         mydoc.check_mmd()
         fileno += 1
