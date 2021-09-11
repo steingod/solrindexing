@@ -49,7 +49,7 @@ def parse_arguments():
     parser.add_argument('-d','--directory',help='Directory to ingest')
     parser.add_argument('-t','--thumbnail',help='Create and index thumbnail, do not update the main content.', action='store_true')
     parser.add_argument('-n','--no_thumbnail',help='Do not index thumbnails (normally done automatically if WMS available).', action='store_true')
-    parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
+    #parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
     parser.add_argument('-r','--remove',help='Remove the dataset with the specified identifier (to be replaced by searchindex).')
     parser.add_argument('-2','--level2',help='Operate on child core.')
 
@@ -524,7 +524,7 @@ class MMD4SolR:
             mydict['access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
 
         """ Use constraint """
-        if 'mmd:use_constraint' in self.mydoc['mmd:mmd']:
+        if 'mmd:use_constraint' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:use_constraint'] != None:
             # Need both identifier and resource for use constraint
             if 'mmd:identifier' in self.mydoc['mmd:mmd']['mmd:use_constraint'] and 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
                 mydict['use_constraint_identifier'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:identifier'])
@@ -839,6 +839,19 @@ class IndexMMD:
         if input_record['metadata_status'] == 'Inactive':
             Warning('Skipping record')
             return False
+        myfeature = None
+        if 'data_access_url_opendap' in input_record:
+            # Thumbnail of timeseries to be added
+            # Or better do this as part of get_feature_type?
+            try:
+                myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+            except Exception as e:
+                self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                #raise RuntimeError('Something failed while retrieving feature type')
+            if myfeature:
+                self.logger.info('feature_type found: %s', myfeature)
+                input_record.update({'feature_type':myfeature})
+        
         self.id = input_record['id']
 
         self.logger.info("Adding records to core...")
@@ -849,11 +862,11 @@ class IndexMMD:
         if not addThumbnail:
             try:
                 self.solr1.add(mmd_record)
-                self.logger.info("Record successfully added.")
-                return True
             except Exception as e:
                 self.logger.error("Something failed in SolR adding document: %s", str(e))
                 return False
+            self.logger.info("Record successfully added.")
+            return True
         else:
             self.wms_layer = wms_layer
             self.wms_style = wms_style
@@ -875,13 +888,8 @@ class IndexMMD:
                 if not thumbnail_data:
                     self.logger.error('Could not find WMS GetCapabilities document')
                     return False
-
-            elif 'data_access_url_opendap' in mmd_record[0]:
-                # Thumbnail of timeseries to be added
-                # Or better do this as part of set_feature_type?
-                self.logger.info('OPeNDAP is not automatically parsed yet, to be added.')
-
             try:
+                print('>>>>>>>> So far so good')
                 input_record.update({'thumbnail_data':thumbnail_data})
                 mmd_record = list()
                 mmd_record.append(input_record)
@@ -891,14 +899,6 @@ class IndexMMD:
             except Exception as e:
                 self.logger.error("Something failed in SolR adding doc: %s", str(e))
                 return False
-
-
-        self.logger.warning('FIX ADD FEATURE.')
-        #elif addFeature:
-        #    try:
-        #        self.set_feature_type(mmd_record)
-        #    except Exception as e:
-        #        self.logger.error("Something failed in adding feature type: %s", str(e))
 
     def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
             mapprojection=ccrs.Mercator(),wmstimeout=120):
@@ -1127,28 +1127,13 @@ class IndexMMD:
     def create_ts_thumbnail(self):
         """ Create a base64 encoded thumbnail """
 
-    def set_feature_type(self, mymd):
+    def get_feature_type(self, myopendap):
         """ Set feature type from OPeNDAP """
-        self.logger.info("Now in set_feature_type")
-        mylinks = self.darextract(mymd[0]['mmd_data_access_resource'])
-        """
-        for i in range(len(mymd[0]['mmd_data_access_resource'])):
-            if isinstance(mymd[0]['mmd_data_access_resource'][i], bytes):
-                mystr = str(mymd[0]['mmd_data_access_resource'][i], 'utf-8')
-            else:
-                mystr = mymd[0]['mmd_data_access_resource'][i]
-            if mystr.find('description') != -1:
-                t1,t2 = mystr.split(',', 1)
-            else:
-                t1 = mystr
-            t2 = t1.replace('"', '')
-            proto, myurl = t2.split(':', 1)
-            mylinks[proto] = myurl
-        """
+        self.logger.info("Now in get_feature_type")
 
-        # First try to open as OPeNDAP
+        # Open as OPeNDAP
         try:
-            ds = netCDF4.Dataset(mylinks['OPeNDAP'])
+            ds = netCDF4.Dataset(myopendap)
         except Exception as e:
             self.logger.error("Something failed reading dataset: %s", str(e))
 
@@ -1160,21 +1145,11 @@ class IndexMMD:
             raise Warning('Could not find featureType')
         ds.close()
 
-        mydict = OrderedDict({
-            "id": mymd[0]['mmd_metadata_identifier'].replace(':','_'),
-            "mmd_metadata_identifier": mymd[0]['mmd_metadata_identifier'],
-            "feature_type": featureType,
-        })
-        mylist = list()
-        mylist.append(mydict)
+        if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
+            self.logger.warning("The featureType found - %s - is not valid", featureType)
+            raise Warning('The featureType found is not valid')
 
-        try:
-            self.solrt.add(mylist)
-        except Exception as e:
-            self.logger.error("Something failed in SolR add: %s", str(e))
-            raise Warning("Something failed in SolR add" + str(e))
-
-        self.logger.info("Successfully added feature type for OPeNDAP.")
+        return(featureType)
 
     def delete_level1(self, datasetid):
         """ Require ID as input """
@@ -1217,6 +1192,23 @@ class IndexMMD:
             self.logger.error("Something failed during search: %s", str(e))
 
         return results
+
+    def darextract(self, mydar):
+        mylinks = {}
+        for i in range(len(mydar)):
+            if isinstance(mydar[i], bytes):
+                mystr = str(mydar[i], 'utf-8')
+            else:
+                mystr = mydar[i]
+            if mystr.find('description') != -1:
+                t1, t2 = mystr.split(',', 1)
+            else:
+                t1 = mystr
+            t2 = t1.replace('"', '')
+            proto, myurl = t2.split(':', 1)
+            mylinks[proto] = myurl
+
+        return (mylinks)
 
 def main(argv):
 
@@ -1360,9 +1352,15 @@ def main(argv):
         else:
             #print(tflg)
             if tflg:
-                mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection, thumbnail_type=thumbnail_type, wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                try:
+                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection, thumbnail_type=thumbnail_type, wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                except Exception as e:
+                    mylog.warning('Something failed during indexing %s', e)
             else:
-                mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
+                try:
+                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
+                except Exception as e:
+                    mylog.warning('Something failed during indexing %s', e)
         l2flg = False
         tflg = False
 
