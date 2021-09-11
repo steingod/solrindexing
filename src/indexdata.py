@@ -1299,12 +1299,17 @@ def main(argv):
             myfile = os.path.join(args.directory, myfile)
 
         # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
-        if not args.no_thumbnail:
+        if args.thumbnail_layer:
             wms_layer = args.thumbnail_layer
+        if args.thumbnail_style:
             wms_style = args.thumbnail_style
+        if args.thumbnail_zoom_level:
             wms_zoom_level = args.thumbnail_zoom_level
+        if args.add_coastlines:
             wms_coastlines = args.add_coastlines
+        if args.thumbnail_type:
             thumbnail_type = args.thumbnail_type
+        if args.thumbnail_extent:
             thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
             if not wms_zoom_level:
                 wms_zoom_level=0
