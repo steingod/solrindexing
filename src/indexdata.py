@@ -1358,7 +1358,7 @@ def main(argv):
             mysolr.add_level2(mydoc.tosolr(), tflg,
                     fflg,mapprojection,cfg['wms-timeout'])
         else:
-            print(tflg)
+            #print(tflg)
             if tflg:
                 mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection, thumbnail_type=thumbnail_type, wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
             else:
