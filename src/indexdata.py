@@ -830,6 +830,7 @@ class IndexMMD:
         """
         if level == 1 or level == None:
             input_record.update({'dataset_type':'Level-1'})
+            input_record.update({'isParent':'false'})
         elif level == 2:
             input_record.update({'dataset_type':'Level-2'})
         else:
