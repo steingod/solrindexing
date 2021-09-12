@@ -558,7 +558,7 @@ class MMD4SolR:
                 mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
                 for entry in personnel:
                     entry_type = entry.split(':')[-1]
-                    if entry_type == role:
+                    if entry_type == 'role':
                         mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                     else:
                         # Treat address specifically. 
@@ -566,9 +566,11 @@ class MMD4SolR:
                             for el in personnel[entry]:
                                 el_type = el.split(':')[-1]
                                 if el_type == 'address':
-                                    mydict['personnel_{}_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry])
+                                    mydict['personnel_{}_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry][el])
                                 else:
-                                    mydict['personnel_{}_address_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry])
+                                    mydict['personnel_{}_address_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry][el])
+                        else:
+                            mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
         """ Data center """
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
