@@ -542,6 +542,10 @@ class MMD4SolR:
             if isinstance(personnel_elements, dict): #Only one element
                 personnel_elements = [personnel_elements] # make it an iterable list
 
+            # Facet elements
+            mydict['personnel_role'] = []
+            mydict['personnel_name'] = []
+            mydict['personnel_organisation'] = []
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
                 mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
@@ -560,8 +564,9 @@ class MMD4SolR:
                     entry_type = entry.split(':')[-1]
                     if entry_type == 'role':
                         mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
+                        mydict['personnel_role'].append(personnel[entry])
                     else:
-                        # Treat address specifically. 
+                        # Treat address specifically and handle faceting elements personnel_role, personnel_name, personnel_organisation. 
                         if entry_type == 'contact_address':
                             for el in personnel[entry]:
                                 el_type = el.split(':')[-1]
@@ -569,6 +574,12 @@ class MMD4SolR:
                                     mydict['personnel_{}_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry][el])
                                 else:
                                     mydict['personnel_{}_address_{}'.format(personnel_role_LUT[role], el_type)].append(personnel[entry][el])
+                        elif entry_type == 'name':
+                            mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+                            mydict['personnel_name'].append(personnel[entry])
+                        elif entry_type == 'organisation':
+                            mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+                            mydict['personnel_organisation'].append(personnel[entry])
                         else:
                             mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
