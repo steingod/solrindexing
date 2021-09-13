@@ -548,6 +548,8 @@ class MMD4SolR:
             mydict['personnel_organisation'] = []
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
+                if not role:
+                    break
                 mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_name'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_email'.format(personnel_role_LUT[role])] = []
@@ -813,7 +815,7 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solr1 = pysolr.Solr(mysolrserver, always_commit=True)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=True)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
@@ -874,7 +876,7 @@ class IndexMMD:
 
         if not addThumbnail:
             try:
-                self.solr1.add(mmd_record)
+                self.solrc.add(mmd_record)
             except Exception as e:
                 self.logger.error("Something failed in SolR adding document: %s", str(e))
                 return False
@@ -906,7 +908,7 @@ class IndexMMD:
                 input_record.update({'thumbnail_data':thumbnail_data})
                 mmd_record = list()
                 mmd_record.append(input_record)
-                self.solr1.add(mmd_record)
+                self.solrc.add(mmd_record)
                 self.logger.info("Level 1 record successfully added.")
                 return True
             except Exception as e:
@@ -929,7 +931,7 @@ class IndexMMD:
 
         """ Retrieve level 1 record """
         try:
-            myresults = self.solr1.search('id:' + myl2record['related_dataset'].replace(':','_'), df='', rows=100)
+            myresults = self.solrc.search('id:' + myl2record['related_dataset'].replace(':','_'), df='', rows=100)
         except Exception as e:
             Warning("Something failed in searching for parent dataset, " + str(e))
 
@@ -967,14 +969,14 @@ class IndexMMD:
         """ Index level 2 dataset """
         # FIXME use of cores...
         try:
-            self.solr1.add(mmd_record2)
+            self.solrc.add(mmd_record2)
         except Exception as e:
             raise Exception("Something failed in SolR add level 2", str(e))
         self.logger.info("Level 2 record successfully added.")
 
         """ Update level 1 record with id of this dataset """
         try:
-            self.solr1.add(mmd_record1)
+            self.solrc.add(mmd_record1)
         except Exception as e:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         self.logger.info("Level 1 record successfully updated.")
@@ -1169,7 +1171,7 @@ class IndexMMD:
         """ Rewrite to take full metadata record as input """
         self.logger.info("Deleting %s from level 1.", datasetid)
         try:
-            self.solr1.delete(id=datasetid)
+            self.solrc.delete(id=datasetid)
         except Exception as e:
             self.logger.error("Something failed in SolR delete: %s", str(e))
 
@@ -1348,10 +1350,10 @@ def main(argv):
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('.xml','')
-            # Skip if DOI is used to refer to piarent, taht isn't consistent.
+            # Skip if DOI is used to refer to parent, that isn't consistent.
             if 'doi.org' in newdoc['related_dataset']:
                 continue
-            myresults = mysolr.solr1.search('id:' +
+            myresults = mysolr.solrc.search('id:' +
                     newdoc['related_dataset'], df='', rows=100)
             if len(myresults) == 0:
                 mylog.warning("No parent found. Staging for second run.")
