@@ -967,6 +967,7 @@ class IndexMMD:
             result.pop('bbox__minX')
             result.pop('bbox__minY')
             result.pop('bbox_rpt')
+            result.pop('ss_access')
             myresults = result
         myresults['isParent'] = 'true'
 
@@ -984,7 +985,7 @@ class IndexMMD:
         mmd_record1 = list()
         mmd_record1.append(myresults)
 
-        #print(myresults)
+        ##print(myresults)
 
         """ Index level 2 dataset """
         try:
