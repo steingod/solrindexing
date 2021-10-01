@@ -944,7 +944,7 @@ class IndexMMD:
                     self.logger.error("Something failed in adding thumbnail: %s", str(e))
                     raise Warning("Couldn't add thumbnail.")
 
-        if thumbnail_data:
+        if addThumbnail and thumbnail_data:
             myl2record.update({'thumbnail_data':thumbnail_data})
 
         mmd_record2.append(myl2record)
