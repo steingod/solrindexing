@@ -58,7 +58,6 @@ def parse_arguments():
     parser.add_argument('-t_style','--thumbnail_style',help='Specify the style (colorscheme) for the thumbnail.', required=False)
     parser.add_argument('-t_zl','--thumbnail_zoom_level',help='Specify the zoom level for the thumbnail.', type=float,required=False)
     parser.add_argument('-ac','--add_coastlines',help='Add coastlines too the thumbnail (True/False). Default True', const=True,nargs='?', required=False)
-    parser.add_argument('-t_type','--thumbnail_type',help='Type of data. E.g. WMS or timeseries. Supports "wms" and "ts".', required=False)
     parser.add_argument('-t_extent','--thumbnail_extent',help='Spatial extent of thumbnail in lat/lon degrees like "x0 x1 y0 y1"', required=False, nargs='+')
 
     args = parser.parse_args()
@@ -234,7 +233,7 @@ class MMD4SolR:
                     else:
                         myvalue = self.mydoc['mmd:mmd'][element]
                     if myvalue not in mmd_controlled_elements[element]:
-                        self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
+                        self.logger.warning('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
 
         """
         Check that keywords also contain GCMD keywords
@@ -665,7 +664,8 @@ class MMD4SolR:
 
                     if value in related_information_LUT.keys():
                         mydict['related_url_{}'.format(related_information_LUT[value])] = related_information['mmd:resource']
-                        mydict['related_url_{}_desc'.format(related_information_LUT[value])] = related_information['mmd:description']
+                        if 'mmd:description' in related_information:
+                            mydict['related_url_{}_desc'.format(related_information_LUT[value])] = related_information['mmd:description']
 
         """
         ISO TopicCategory
@@ -822,7 +822,7 @@ class IndexMMD:
             self.logger.info("Add a sys.exit?")
 
 
-    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_type='wms', thumbnail_extent=None):
+    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
@@ -836,8 +836,6 @@ class IndexMMD:
                 add_coastlines (bool): If coastlines should be added
                 projection (ccrs): Cartopy projection object or name (i.e. string)
                 wms_timeout (int): timeout for WMS service
-                thumbnail_type (str): Type of thumbnail. Supports "wms" (OGC WMS)
-                                      and "ts" (timeseries)
                 thumbnail_extent (list): Spatial extent of the thumbnail in
                                       lat/lon [x0, x1, y0, y1]
             Returns:
@@ -866,68 +864,90 @@ class IndexMMD:
             if myfeature:
                 self.logger.info('feature_type found: %s', myfeature)
                 input_record.update({'feature_type':myfeature})
-        
+
         self.id = input_record['id']
-
-        self.logger.info("Adding records to core...")
-
-        mmd_record = list()
-        mmd_record.append(input_record)
-
-        if not addThumbnail:
-            try:
-                self.solrc.add(mmd_record)
-            except Exception as e:
-                self.logger.error("Something failed in SolR adding document: %s", str(e))
-                return False
-            self.logger.info("Record successfully added.")
-            return True
-        else:
+        if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
+            self.logger.info("Checking thumbnails...")
+            getCapUrl = input_record['data_access_url_ogc_wms']
+            if not myfeature:
+                self.thumbnail_type = 'wms'
             self.wms_layer = wms_layer
             self.wms_style = wms_style
             self.wms_zoom_level = wms_zoom_level
             self.add_coastlines = add_coastlines
             self.projection = projection
             self.wms_timeout = wms_timeout
-            self.thumbnail_type = thumbnail_type
-            self.thumbnail_extent = thumbnail_extent
+            thumbnail_data = self.add_thumbnail(url=getCapUrl)
 
-            self.logger.info("Checking thumbnails...")
-
-            if 'data_access_url_ogc_wms' in mmd_record[0]:
-                # Create thumbnail from WMS
-                getCapUrl = mmd_record[0]['data_access_url_ogc_wms']
-
-                thumbnail_data = self.add_thumbnail(url=getCapUrl)
-
-                if not thumbnail_data:
-                    self.logger.error('Could not find WMS GetCapabilities document')
-                    return False
-            try:
-                print('>>>>>>>> So far so good')
-                input_record.update({'thumbnail_data':thumbnail_data})
-                mmd_record = list()
-                mmd_record.append(input_record)
-                self.solrc.add(mmd_record)
-                self.logger.info("Level 1 record successfully added.")
-                return True
-            except Exception as e:
-                self.logger.error("Something failed in SolR adding doc: %s", str(e))
+            if not thumbnail_data:
+                self.logger.error('Could not find WMS GetCapabilities document')
                 return False
+            input_record.update({'thumbnail_data':thumbnail_data})
+        
+        self.logger.info("Adding records to core...")
 
-    def add_level2(self, myl2record, addThumbnail=False, addFeature=False,
-            mapprojection=ccrs.Mercator(),wmstimeout=120):
+        mmd_record = list()
+        mmd_record.append(input_record)
+
+        try:
+            self.solrc.add(mmd_record)
+        except Exception as e:
+            self.logger.error("Something failed in SolR adding document: %s", str(e))
+            return False
+        self.logger.info("Record successfully added.")
+
+        return True
+
+    def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mmd_record2 = list()
-        mmd_record2.append(myl2record)
+
         # Fix for NPI data...
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://data.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('https://data.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://api.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('.xml','')
-        # Add additonal helpder fields
+        
+        # Add additonal helper fields for handling in SolR and Drupal
         myl2record['isChild'] = 'true'
-        #print('>>>>>>>',myl2record['related_dataset'])
+
+        myfeature = None
+        if 'data_access_url_opendap' in myl2record:
+            # Thumbnail of timeseries to be added
+            # Or better do this as part of get_feature_type?
+            try:
+                myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
+            except Exception as e:
+                self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                #raise RuntimeError('Something failed while retrieving feature type')
+            if myfeature:
+                self.logger.info('feature_type found: %s', myfeature)
+                myl2record.update({'feature_type':myfeature})
+
+        self.id = myl2record['id']
+        # Add thumbnail for WMS supported datasets
+        if 'data_access_url_ogc_wms' in myl2record and addThumbnail:
+            self.logger.info("Checking tumbnails...")
+            if not myfeature:
+                self.thumbnail_type = 'wms'
+            self.wms_layer = wms_layer
+            self.wms_style = wms_style
+            self.wms_zoom_level = wms_zoom_level
+            self.add_coastlines = add_coastlines
+            self.projection = projection
+            self.wms_timeout = wms_timeout
+            if 'data_access_url_ogc_wms' in myl2record.keys():
+                getCapUrl = myl2record['data_access_url_ogc_wms']
+                try:
+                    thumbnail_data = self.add_thumbnail(url=getCapUrl)
+                except Exception as e:
+                    self.logger.error("Something failed in adding thumbnail: %s", str(e))
+                    raise Warning("Couldn't add thumbnail.")
+
+        if thumbnail_data:
+            myl2record.update({'thumbnail_data':thumbnail_data})
+
+        mmd_record2.append(myl2record)
 
         """ Retrieve level 1 record """
         try:
@@ -967,7 +987,6 @@ class IndexMMD:
         #print(myresults)
 
         """ Index level 2 dataset """
-        # FIXME use of cores...
         try:
             self.solrc.add(mmd_record2)
         except Exception as e:
@@ -981,33 +1000,6 @@ class IndexMMD:
             raise Exception("Something failed in SolR update level 1 for level 2", str(e))
         self.logger.info("Level 1 record successfully updated.")
 
-        if addThumbnail:
-            self.logger.info("Checking tumbnails...")
-            darlist = self.darextract(mmd_record2[0]['mmd_data_access_resource'])
-            try:
-                if 'OGC WMS' in darlist:
-                    getCapUrl = darlist['OGC WMS']
-                    wms_layer = 'temperature' # For arome data NOTE: need to parse/read the  mmd_data_access_i_wms_layer
-                    wms_style = 'boxfill/redblue'
-                    self.add_thumbnail(url=darlist['OGC WMS'],
-                            identifier=mmd_record2[0]['mmd_metadata_identifier'],
-                            layer=wms_layer, zoom_level=0,
-                            projection=mapprojection,wmstimeout=120,
-                            style=wms_style)
-                elif 'OPeNDAP' in darlist:
-                    # Thumbnail of timeseries to be added
-                    # Or better do this as part of set_feature_type?
-                    self.logger.warning('OPeNDAP is not parsed automatically yet, to be added.')
-            except Exception as e:
-                self.logger.error("Something failed in adding thumbnail: %s", str(e))
-                raise Warning("Couldn't add thumbnail.")
-        elif addFeature:
-            try:
-                self.set_feature_type(mmd_record2)
-            except Exception as e:
-                self.logger.error("Something failed in adding feature type: %s", str(e))
-
-
     def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
             Args:
@@ -1015,6 +1007,7 @@ class IndexMMD:
             Returns:
                 thumbnail: base64 string representation of image
         """
+        print(url)
         if thumbnail_type == 'wms':
             try:
                 thumbnail = self.create_wms_thumbnail(url)
@@ -1105,13 +1098,13 @@ class IndexMMD:
 
         # transparent background
         ax.outline_patch.set_visible(False)
-        ax.background_patch.set_visible(False)
+        ##ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
         fig.set_figwidth(4.5)
         fig.set_figheight(4.5)
         fig.set_dpi(100)
-        ax.background_patch.set_alpha(1)
+        ##ax.background_patch.set_alpha(1)
 
         ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
@@ -1308,20 +1301,24 @@ def main(argv):
         # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
         if args.thumbnail_layer:
             wms_layer = args.thumbnail_layer
+        else:
+            wms_layer = None
         if args.thumbnail_style:
             wms_style = args.thumbnail_style
+        else:
+            wms_style =  None
         if args.thumbnail_zoom_level:
             wms_zoom_level = args.thumbnail_zoom_level
+        else:
+            wms_zoom_level=0
         if args.add_coastlines:
             wms_coastlines = args.add_coastlines
-        if args.thumbnail_type:
-            thumbnail_type = args.thumbnail_type
+        else:
+            wms_coastlines=True
         if args.thumbnail_extent:
             thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
-            if not wms_zoom_level:
-                wms_zoom_level=0
-            if not wms_coastlines:
-                wms_coastlines=True
+        else:
+            thumbnail_extent = None
 
         # Index files
         mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
@@ -1339,11 +1336,8 @@ def main(argv):
         newdoc = mydoc.tosolr()
         if (newdoc['metadata_status'] == "Inactive"):
             continue
-        if (not args.no_thumbnail) and ('data_access_resource' in newdoc):
-            for e in newdoc['data_access_resource']:
-                #print(type(e))
-                if "OGC WMS" in str(e):
-                    tflg = True
+        if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
+            tflg = True
         if 'related_dataset' in newdoc:
             # Special fix for NPI
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
@@ -1362,13 +1356,11 @@ def main(argv):
             l2flg = True
         mylog.info("Indexing dataset: %s", myfile)
         if l2flg:
-            mysolr.add_level2(mydoc.tosolr(), tflg,
-                    fflg,mapprojection,cfg['wms-timeout'])
+            mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
         else:
-            #print(tflg)
             if tflg:
                 try:
-                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection, thumbnail_type=thumbnail_type, wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)
             else:
@@ -1408,8 +1400,8 @@ def main(argv):
             continue
         mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
-        mysolr.add_level2(mydoc.tosolr(), tflg,
-                fflg,mapprojection,cfg['wms-timeout'])
+        #mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+        mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
         tflg = False
 
     # Report status
