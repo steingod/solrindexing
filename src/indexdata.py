@@ -777,6 +777,9 @@ class MMD4SolR:
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
                     element_suffix = k.split(':')[-1]
+                    # Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not.
+                    if element_suffix == 'publication_date':
+                        v+='T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
                 #for entry in personnel:
                 #    entry_type = entry.split(':')[-1]
