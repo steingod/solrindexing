@@ -972,6 +972,7 @@ class IndexMMD:
             result.pop('bbox__minY')
             result.pop('bbox_rpt')
             result.pop('ss_access')
+            result.pop('_version_')
             myresults = result
         myresults['isParent'] = 'true'
 
