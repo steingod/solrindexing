@@ -779,7 +779,8 @@ class MMD4SolR:
                     element_suffix = k.split(':')[-1]
                     # Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not.
                     if element_suffix == 'publication_date':
-                        v+='T12:00:00Z'
+                        if v is not None:
+                            v+='T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
                 #for entry in personnel:
                 #    entry_type = entry.split(':')[-1]
@@ -818,7 +819,7 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=True)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=False, timeout=1020)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
