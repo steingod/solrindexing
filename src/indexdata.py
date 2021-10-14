@@ -38,6 +38,7 @@ from owslib.wms import WebMapService
 import base64
 import netCDF4
 import logging
+import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 
 def parse_arguments():
@@ -254,7 +255,7 @@ class MMD4SolR:
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
                 # warnings.warn('Keywords in GCMD are not available')
-                self.logger.warn('\n\tKeywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available')
 
         """
         Modify dates if necessary
@@ -782,16 +783,16 @@ class MMD4SolR:
                         if v is not None:
                             v+='T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
-                #for entry in personnel:
-                #    entry_type = entry.split(':')[-1]
-                #    if entry_type == role:
-                #        mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
-                #    else:
-                #        mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
+        """ Adding MMD document as base64 string"""
+        # Check if this can be simplified in the workflow.
+        xml_root = ET.parse(str(self.filename))
+        xml_string = ET.tostring(xml_root)
+        encoded_xml_string = base64.b64encode(xml_string)
+        xml_b64 = (encoded_xml_string).decode('utf-8')
+        mydict['mmd_xml_file'] = xml_b64
 
         return mydict
-
 
 class IndexMMD:
     """ Class for indexing SolR representation of MMD to SolR server. Requires
