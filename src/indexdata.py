@@ -44,6 +44,7 @@ from logging.handlers import TimedRotatingFileHandler
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('-a','--always_commit',action='store_true', help='Specification of whether always commit or not to SolR')
     parser.add_argument('-c','--cfg',dest='cfgfile', help='Configuration file', required=True)
     parser.add_argument('-i','--input_file',help='Individual file to be ingested.')
     parser.add_argument('-l','--list_file',help='File with datasets to be ingested specified.')
@@ -263,6 +264,7 @@ class MMD4SolR:
         extracted as SolR is not adapted.
         """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
+            ##print('>>>>>',type(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
             if isinstance(self.mydoc['mmd:mmd']['mmd:last_metadata_update'],
                     dict):
                 for mydict in self.mydoc['mmd:mmd']['mmd:last_metadata_update'].items():
@@ -685,27 +687,28 @@ class MMD4SolR:
         """ Need to support multiple sets of keywords... """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
-            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
-                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
-                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+            if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
+                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
+                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
+                        mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                    else:
+                        for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+                elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
+                            if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
+                                continue
+                            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
+                                for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
+                                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
+
+                            else:
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
+
                 else:
-                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
-                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
-            elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
-                        if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
-                            continue
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
-                            for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
-                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
-
-                        else:
-                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
-
-            else:
-                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
 
         """ Project """
@@ -799,7 +802,7 @@ class IndexMMD:
     a list of dictionaries representing MMD as input.
     """
 
-    def __init__(self, mysolrserver):
+    def __init__(self, mysolrserver, always_commit=False):
         # Set up logging
         self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
@@ -820,7 +823,7 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=False, timeout=1020)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
@@ -1260,7 +1263,9 @@ def main(argv):
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
+    # Set up connection to SolR server
     mySolRc = SolrServer+myCore
+    mysolr = IndexMMD(mySolRc, args.always_commit)
 
     # Find files to process
     # FIXME remove l2 and thumbnail cores, reconsider deletion herein
@@ -1275,15 +1280,12 @@ def main(argv):
         myfiles = f2.readlines()
         f2.close()
     elif args.remove:
-        mysolr = IndexMMD(mySolRc)
         mysolr.delete_level1(args.remove)
         sys.exit()
     elif args.remove and args.level2:
-        mysolr = IndexMMD(mySolRc)
         mysolr.delete_level2(args.remove)
         sys.exit()
     elif args.remove and args.thumbnail:
-        mysolr = IndexMMD(mySolRc)
         mysolr.delete_thumbnail(deleteid)
         sys.exit()
     elif args.directory:
@@ -1338,7 +1340,6 @@ def main(argv):
         mydoc.check_mmd()
         fileno += 1
 
-        mysolr = IndexMMD(mySolRc)
         """ Do not search for metadata_identifier, always used id...  """
         newdoc = mydoc.tosolr()
         if (newdoc['metadata_status'] == "Inactive"):
@@ -1393,7 +1394,6 @@ def main(argv):
             continue
         mydoc.check_mmd()
         fileno += 1
-        mysolr = IndexMMD(mySolRc)
         """ Do not search for metadata_identifier, always used id...  """
         """ Check if this can be used???? """
         newdoc = mydoc.tosolr()
@@ -1407,7 +1407,6 @@ def main(argv):
             continue
         mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
-        #mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
         mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
         tflg = False
 
