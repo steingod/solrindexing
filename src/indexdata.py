@@ -195,6 +195,7 @@ class MMD4SolR:
                                        'utilitiesCommunication'],
             'mmd:collection': ['ACCESS',
                                'ADC',
+                               'AeN',
                                'APPL',
                                'CC',
                                'DAM',
@@ -226,7 +227,7 @@ class MMD4SolR:
                             myvalue = elem
                         if myvalue not in mmd_controlled_elements[element]:
                             if myvalue is not None:
-                                self.logger.warn('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
+                                self.logger.warning('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
                             else:
                                 self.logger.warn('Discovered an empty element.')
                 else:
