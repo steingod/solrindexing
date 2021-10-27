@@ -457,7 +457,7 @@ class MMD4SolR:
         """ Geographical extent """
         """ Assumes longitudes positive eastwards and in the are -180:180
         """
-        if 'mmd:geographic_extent' in self.mydoc['mmd:mmd']:
+        if 'mmd:geographic_extent' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:geographic_extent'] != None:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
                 self.logger.warn('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
