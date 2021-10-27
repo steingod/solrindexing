@@ -36,6 +36,7 @@ def parse_arguments():
     parser.add_argument("-s","--searchstringst",dest="string",
             help="String to search for", required=True)
     parser.add_argument('-d','--delete', action='store_true', help="Flag to delete records")
+    parser.add_argument('-a','--always_commit', action='store_true', help="Flag to commit directly")
 
     args = parser.parse_args()
 
@@ -56,17 +57,17 @@ def parse_cfg(cfgfile):
 class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
 
-    def __init__(self, mysolrserver):
+    def __init__(self, mysolrserver, commit):
         """
         Connect to SolR core
         """
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=False)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=commit)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrserver))
 
-    def delete_item(self, datasetid):
+    def delete_item(self, datasetid, commit):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
         print("Deleting ", datasetid, " from Level 1")
@@ -104,7 +105,7 @@ def main(argv):
     mySolRc = SolrServer+myCore
 
     # Search for records
-    mysolr = IndexMMD(mySolRc)
+    mysolr = IndexMMD(mySolRc, args.always_commit)
     myresults = mysolr.search(args)
     #print(dir(myresults))
     print('Found %d matches' % myresults.hits)
