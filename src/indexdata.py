@@ -553,6 +553,8 @@ class MMD4SolR:
                 role = personnel['mmd:role']
                 if not role:
                     break
+                if role not in personnel_role_LUT:
+                    break
                 mydict['personnel_{}_role'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_name'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_email'.format(personnel_role_LUT[role])] = []
