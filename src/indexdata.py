@@ -335,7 +335,11 @@ class MMD4SolR:
                               'Users guide': 'user_guide',
                               'Project home page': 'home_page',
                               'Observation facility': 'obs_facility',
-                              'Extended metadata':'ext_metadata'
+                              'Extended metadata':'ext_metadata',
+                              'Scientific publication':'scientific_publication',
+                              'Data paper':'data_paper',
+                              'Data management plan':'data_management_plan',
+                              'Other documentation':'other_documentation',
                              }
 
         # Create OrderedDict which will contain all elements for SolR
