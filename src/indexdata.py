@@ -253,11 +253,11 @@ class MMD4SolR:
                     break
                 i += 1
             if not gcmd:
-                self.logger.warning('\n\tKeywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available (a)')
         else:
             if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
                 # warnings.warn('Keywords in GCMD are not available')
-                self.logger.warning('\n\tKeywords in GCMD are not available')
+                self.logger.warning('\n\tKeywords in GCMD are not available (b)')
 
         """
         Modify dates if necessary
@@ -265,7 +265,6 @@ class MMD4SolR:
         extracted as SolR is not adapted.
         """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
-            ##print('>>>>>',type(self.mydoc['mmd:mmd']['mmd:last_metadata_update']))
             if isinstance(self.mydoc['mmd:mmd']['mmd:last_metadata_update'],
                     dict):
                 for mydict in self.mydoc['mmd:mmd']['mmd:last_metadata_update'].items():
@@ -492,9 +491,9 @@ class MMD4SolR:
                 for item in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']:
                     #print(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item])
                     if self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'][item] == None:
-                        Warning('Missing geographical element')
+                        self.logger.warning('Missing geographical element, will not process the file.')
                         mydict['metadata_status'] = 'Inactive'
-                        return mydict
+                        raise Warning('Missing spatial bounds')
 
                 mydict['geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
@@ -865,7 +864,7 @@ class IndexMMD:
             self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
 
         if input_record['metadata_status'] == 'Inactive':
-            Warning('Skipping record')
+            mylog.warning('Skipping record')
             return False
         myfeature = None
         if 'data_access_url_opendap' in input_record:
@@ -957,7 +956,7 @@ class IndexMMD:
                     thumbnail_data = self.add_thumbnail(url=getCapUrl)
                 except Exception as e:
                     self.logger.error("Something failed in adding thumbnail: %s", str(e))
-                    raise Warning("Couldn't add thumbnail.")
+                    warnings.warn("Couldn't add thumbnail.")
 
         if addThumbnail and thumbnail_data:
             myl2record.update({'thumbnail_data':thumbnail_data})
@@ -968,11 +967,11 @@ class IndexMMD:
         try:
             myresults = self.solrc.search('id:' + myl2record['related_dataset'].replace(':','_'), df='', rows=100)
         except Exception as e:
-            Warning("Something failed in searching for parent dataset, " + str(e))
+            self.logger.error("Something failed in searching for parent dataset, " + str(e))
 
         # Check that only one record is returned
         if len(myresults) != 1:
-            Warning("Didn't find unique parent record, skipping record")
+            self.logger.warn("Didn't find unique parent record, skipping record")
             return
         # Convert from pySolr results object to dict and return. 
         for result in myresults:
@@ -1167,12 +1166,12 @@ class IndexMMD:
             featureType = ds.getncattr('featureType')
         except Exception as e:
             self.logger.error("Something failed reading dataset: %s", str(e))
-            raise Warning('Could not find featureType')
+            raise
         ds.close()
 
         if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
             self.logger.warning("The featureType found - %s - is not valid", featureType)
-            raise Warning('The featureType found is not valid')
+            raise
 
         return(featureType)
 
@@ -1184,6 +1183,7 @@ class IndexMMD:
             self.solrc.delete(id=datasetid)
         except Exception as e:
             self.logger.error("Something failed in SolR delete: %s", str(e))
+            raise
 
         self.logger.info("Record successfully deleted from Level 1 core")
 
@@ -1195,6 +1195,7 @@ class IndexMMD:
             self.solr2.delete(id=datasetid)
         except Exception as e:
             self.logger.error("Something failed in SolR delete: %s", str(e))
+            raise
 
         self.logger.info("Records successfully deleted from Level 2 core")
 
@@ -1206,6 +1207,7 @@ class IndexMMD:
             self.solrt.delete(id=datasetid)
         except Exception as e:
             self.logger.error("Something failed in SolR delete: %s", str(e))
+            raise
 
         self.logger.info("Records successfully deleted from thumbnail core")
 
@@ -1348,7 +1350,11 @@ def main(argv):
         fileno += 1
 
         """ Do not search for metadata_identifier, always used id...  """
-        newdoc = mydoc.tosolr()
+        try:
+            newdoc = mydoc.tosolr()
+        except Exception as e:
+            mylog.warning('Could not process the file: %s', e)
+            continue
         if (newdoc['metadata_status'] == "Inactive"):
             continue
         if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
