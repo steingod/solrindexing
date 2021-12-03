@@ -645,7 +645,7 @@ class MMD4SolR:
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
                     list):
-                self.logger.warn('Too many fields in related_dataset...')
+                self.logger.warning('Too many fields in related_dataset...')
                 for e in self.mydoc['mmd:mmd']['mmd:related_dataset']:
                     if '@mmd:relation_type' in e:
                         if e['@mmd:relation_type'] == 'parent':
@@ -956,7 +956,7 @@ class IndexMMD:
                     thumbnail_data = self.add_thumbnail(url=getCapUrl)
                 except Exception as e:
                     self.logger.error("Something failed in adding thumbnail: %s", str(e))
-                    warnings.warn("Couldn't add thumbnail.")
+                    warnings.warning("Couldn't add thumbnail.")
 
         if addThumbnail and thumbnail_data:
             myl2record.update({'thumbnail_data':thumbnail_data})
@@ -971,7 +971,7 @@ class IndexMMD:
 
         # Check that only one record is returned
         if len(myresults) != 1:
-            self.logger.warn("Didn't find unique parent record, skipping record")
+            self.logger.warning("Didn't find unique parent record, skipping record")
             return
         # Convert from pySolr results object to dict and return. 
         for result in myresults:
