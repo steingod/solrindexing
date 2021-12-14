@@ -263,6 +263,7 @@ class MMD4SolR:
         Modify dates if necessary
         Adapted for the new MMD specification, but not all information is
         extracted as SolR is not adapted.
+        FIXME and check
         """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:last_metadata_update'],
@@ -280,13 +281,19 @@ class MMD4SolR:
                                         if mydaterec['mmd:datetime'] > myvalue:
                                             myvalue = mydaterec['mmd:datetime']
                                 else:
-                                    myvalue = mydateels['mmd:datetime']
+                                    if mydateels['mmd:datetime'].endswith('Z'):
+                                        myvalue = mydateels['mmd:datetime']
+                                    else:
+                                        myvalue = mydateels['mmd:datetime']+'Z'
 
             else:
                 # To be removed when all records are transformed into the
                 # new format
                 self.logger.warning('Removed D7 format in last_metadata_update')
-                myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
+                if self.mydoc['mmd:mmd']['mmd:last_metadata_update'].endswith('Z'):
+                    myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
+                else:
+                    myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']+'Z'
             mydate = dateutil.parser.parse(myvalue)
             #self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
@@ -374,6 +381,13 @@ class MMD4SolR:
                     if 'mmd:note' in e.keys():
                         lmu_note.append(e['mmd:note'])
 
+            i = 0
+            for myel in lmu_datetime:
+                i+=1
+                if myel.endswith('Z'):
+                    continue
+                else:
+                    lmu_datetime[i-1] = myel+'Z'
             mydict['last_metadata_update_datetime'] = lmu_datetime
             mydict['last_metadata_update_type'] = lmu_type
             mydict['last_metadata_update_note'] = lmu_note
@@ -536,12 +550,13 @@ class MMD4SolR:
                 mydict['use_constraint_identifier'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:identifier'])
                 mydict['use_constraint_resource'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:resource'])
             else:
-                self.logger.warning('Both identifier and resource need to be present to index this in use_constraint')
+                self.logger.warning('Both license identifier and resource need to be present to index this properly')
+                mydict['use_constraint_identifier'] =  "Not provided"
+                mydict['use_constraint_resource'] =  "Not provided"
             if 'mmd:license_text' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
                 mydict['use_constraint_license_text'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:license_text'])
 
         """ Personnel """
-
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             personnel_elements = self.mydoc['mmd:mmd']['mmd:personnel']
 
@@ -687,7 +702,6 @@ class MMD4SolR:
             else:
                 mydict['iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
 
-
         """ Keywords """
         """ Should structure this on GCMD only at some point """
         """ Need to support multiple sets of keywords... """
@@ -715,7 +729,6 @@ class MMD4SolR:
 
                 else:
                     mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-
 
         """ Project """
         mydict['project_short_name'] = []
@@ -1171,7 +1184,11 @@ class IndexMMD:
 
         if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
             self.logger.warning("The featureType found - %s - is not valid", featureType)
-            raise
+            self.logger.warning("Fixing this locally")
+            if featureType == "TimeSeries":
+                featureType = 'timeSeries'
+
+            #raise
 
         return(featureType)
 

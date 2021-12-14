@@ -115,7 +115,7 @@ def main(argv):
         print('\t', i, doc['id'])
         deleteid = doc['id']
         if args.delete:
-            mysolr.delete_item(deleteid)
+            mysolr.delete_item(deleteid, commit=None)
         i+=1
     print('Found %d matches' % myresults.hits)
 
