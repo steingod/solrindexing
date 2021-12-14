@@ -992,15 +992,23 @@ class IndexMMD:
             return
         # Convert from pySolr results object to dict and return. 
         for result in myresults:
-            #result.pop('full_text')
-            result.pop('bbox__maxX')
-            result.pop('bbox__maxY')
-            result.pop('bbox__minX')
-            result.pop('bbox__minY')
-            result.pop('bbox_rpt')
-            result.pop('ss_access')
-            result.pop('_version_')
-            myresults = result
+            if 'full_text' in result:
+                result.pop('full_text')
+            if 'bbox__maxX' in result:
+                result.pop('bbox__maxX')
+            if 'bbox__maxY' in result:
+                result.pop('bbox__maxY')
+            if 'bbox__minX' in result:
+                result.pop('bbox__minX')
+            if 'bbox__minY' in result:
+                result.pop('bbox__minY')
+            if 'bbox_rpt' in result:
+                result.pop('bbox_rpt')
+            if 'ss_access' in result:
+                result.pop('ss_access')
+            if '_version_' in result:
+                result.pop('_version_')
+                myresults = result
         myresults['isParent'] = 'true'
 
         # Check that the parent found has related_dataset set and
