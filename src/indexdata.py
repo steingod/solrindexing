@@ -56,6 +56,7 @@ def parse_arguments():
     parser.add_argument('-2','--level2',help='Operate on child core.')
 
     ### Thumbnail parameters
+    parser.add_argument('-m','--map_projection',help='Specify map projection for thumbnail (e.g. Mercator, PlateCarree, PolarStereographic).', required=False)
     parser.add_argument('-t_layer','--thumbnail_layer',help='Specify wms_layer for thumbnail.', required=False)
     parser.add_argument('-t_style','--thumbnail_style',help='Specify the style (colorscheme) for the thumbnail.', required=False)
     parser.add_argument('-t_zl','--thumbnail_zoom_level',help='Specify the zoom level for the thumbnail.', type=float,required=False)
@@ -757,6 +758,7 @@ class MMD4SolR:
 
 
         """ Platform """
+        # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
             for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
                 if isinstance(platform_value,dict): # if sub element is ordered dict
@@ -904,6 +906,7 @@ class IndexMMD:
             self.add_coastlines = add_coastlines
             self.projection = projection
             self.wms_timeout = wms_timeout
+            self.thumbnail_extent = thumbnail_extent
             thumbnail_data = self.add_thumbnail(url=getCapUrl)
 
             if not thumbnail_data:
@@ -963,6 +966,7 @@ class IndexMMD:
             self.add_coastlines = add_coastlines
             self.projection = projection
             self.wms_timeout = wms_timeout
+            self.thumbnail_extent = thumbnail_extent
             if 'data_access_url_ogc_wms' in myl2record.keys():
                 getCapUrl = myl2record['data_access_url_ogc_wms']
                 try:
@@ -1079,9 +1083,9 @@ class IndexMMD:
 
         if wms_layer not in available_layers:
             wms_layer = available_layers[0]
-            self.logger.info('creating WMS thumbnail for layer: {}'.format(wms_layer))
+            self.logger.info('Creating WMS thumbnail for layer: {}'.format(wms_layer))
 
-        ### Checking styles
+        # Checking styles
         available_styles = list(wms.contents[wms_layer].styles.keys())
 
         if available_styles:
@@ -1159,7 +1163,7 @@ class IndexMMD:
                 encode_string).decode('utf-8')
 
         # Remove thumbnail
-        #os.remove(thumbnail_fname)
+        os.remove(thumbnail_fname)
         return thumbnail_b64
 
     def create_ts_thumbnail(self):
@@ -1278,11 +1282,15 @@ def main(argv):
         cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
     # Specify map projection
-    if cfg['wms-thumbnail-projection'] == 'Mercator':
+    if args.map_projection:
+        map_projection = args.map_projection
+    else:
+        map_projection = cfg['wms-thumbnail-projection']
+    if map_projection == 'Mercator':
         mapprojection = ccrs.Mercator()
-    elif cfg['wms-thumbnail-projection'] == 'PlateCarree':
+    elif map_projection == 'PlateCarree':
         mapprojection = ccrs.PlateCarree()
-    elif cfg['wms-thumbnail-projection'] == 'PolarStereographic':
+    elif map_projection == 'PolarStereographic':
         mapprojection = ccrs.Stereographic(central_longitude=0.0,central_latitude=90., true_scale_latitude=60.)
     else:
         raise Exception('Map projection is not properly specified in config')
