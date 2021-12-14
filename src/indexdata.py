@@ -907,7 +907,7 @@ class IndexMMD:
             thumbnail_data = self.add_thumbnail(url=getCapUrl)
 
             if not thumbnail_data:
-                self.logger.error('Could not find WMS GetCapabilities document')
+                self.logger.error('Could not properly parse WMS GetCapabilities document')
                 return False
             input_record.update({'thumbnail_data':thumbnail_data})
         
@@ -1126,7 +1126,8 @@ class IndexMMD:
         #        linewidth=0.5)
 
         # transparent background
-        ax.outline_patch.set_visible(False)
+        ax.spines['geo'].set_visible(False)
+        #ax.outline_patch.set_visible(False)
         ##ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
@@ -1158,7 +1159,7 @@ class IndexMMD:
                 encode_string).decode('utf-8')
 
         # Remove thumbnail
-        os.remove(thumbnail_fname)
+        #os.remove(thumbnail_fname)
         return thumbnail_b64
 
     def create_ts_thumbnail(self):
@@ -1178,7 +1179,7 @@ class IndexMMD:
         try:
             featureType = ds.getncattr('featureType')
         except Exception as e:
-            self.logger.error("Something failed reading dataset: %s", str(e))
+            self.logger.error("Something failed extracting featureType: %s", str(e))
             raise
         ds.close()
 
