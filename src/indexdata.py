@@ -422,12 +422,12 @@ class MMD4SolR:
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:title']:
-                if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:title'][i]['@lang'] == 'en':
                     mydict['title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
-                if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:title']['@lang'] == 'en':
                     mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
 
             else:
@@ -437,17 +437,16 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
-                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
-                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
 
             else:
                 mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
-
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
@@ -760,28 +759,28 @@ class MMD4SolR:
         """ Platform """
         # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
-            for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
-                if isinstance(platform_value,dict): # if sub element is ordered dict
-                    for kkey, vvalue in platform_value.items():
-                        element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
-                        if not element_name in mydict.keys(): # create key in mydict
+            if isinstance(self.mydoc['mmd:mmd']['mmd:platform'],dict):
+                for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
+                    if isinstance(platform_value,dict): # if sub element is ordered dict
+                        for kkey, vvalue in platform_value.items():
+                            element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
+                            if not element_name in mydict.keys(): # create key in mydict
+                                mydict[element_name] = []
+                                mydict[element_name].append(vvalue)
+                            else:
+                                mydict[element_name].append(vvalue)
+                    else: #sub element is not ordered dicts
+                        element_name = 'platform_{}'.format(platform_key.split(':')[-1])
+                        if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
                             mydict[element_name] = []
-                            mydict[element_name].append(vvalue)
+                            mydict[element_name].append(platform_value)
                         else:
-                            mydict[element_name].append(vvalue)
-                else: #sub element is not ordered dicts
-                    element_name = 'platform_{}'.format(platform_key.split(':')[-1])
-                    if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
-                        mydict[element_name] = []
-                        mydict[element_name].append(platform_value)
-                    else:
-                        mydict[element_name].append(platform_value)
+                            mydict[element_name].append(platform_value)
 
-            # Add platform_sentinel for NBS
-            initial_platform = mydict['platform_long_name'][0]
-            if initial_platform.startswith('Sentinel'):
-                mydict['platform_sentinel'] = initial_platform[:-1]
-
+                # Add platform_sentinel for NBS
+                initial_platform = mydict['platform_long_name'][0]
+                if initial_platform.startswith('Sentinel'):
+                    mydict['platform_sentinel'] = initial_platform[:-1]
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
