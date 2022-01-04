@@ -422,12 +422,12 @@ class MMD4SolR:
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:title']:
-                if self.mydoc['mmd:mmd']['mmd:title'][i]['@lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
                     mydict['title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
-                if self.mydoc['mmd:mmd']['mmd:title']['@lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
                     mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
 
             else:
@@ -437,12 +437,12 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
-                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
-                if self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
 
             else:
