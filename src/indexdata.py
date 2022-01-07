@@ -249,14 +249,14 @@ class MMD4SolR:
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
-                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMD':
+                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMDSK':
                     gcmd = True
                     break
                 i += 1
             if not gcmd:
                 self.logger.warning('\n\tKeywords in GCMD are not available (a)')
         else:
-            if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMD':
+            if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
                 # warnings.warn('Keywords in GCMD are not available')
                 self.logger.warning('\n\tKeywords in GCMD are not available (b)')
 
@@ -713,28 +713,28 @@ class MMD4SolR:
         """ Need to support multiple sets of keywords... """
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
-            if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
-                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
-                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
-                        mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                    else:
-                        for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
-                            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
-                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
-                elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
-                            if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
-                                continue
-                            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
-                                for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
-                                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
-
-                            else:
-                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
-
-                else:
+            #if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
+                if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
                     mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                else:
+                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+            elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
+                    if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i],dict):
+                        if len(self.mydoc['mmd:mmd']['mmd:keywords'][i]) < 2:
+                            continue
+                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'],list):
+                            for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
+
+                        else:
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
+
+            else:
+                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Project """
         mydict['project_short_name'] = []
