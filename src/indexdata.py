@@ -586,8 +586,10 @@ class MMD4SolR:
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
                 if not role:
+                    self.logger.warning('No role available for personnel')
                     break
                 if role not in personnel_role_LUT:
+                    self.logger.warning('Wrong role provided for personnel')
                     break
                 for entry in personnel:
                     entry_type = entry.split(':')[-1]
