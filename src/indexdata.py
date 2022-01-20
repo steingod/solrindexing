@@ -722,6 +722,7 @@ class MMD4SolR:
                 mydict['iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
 
         """ Keywords """
+        # Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR. What is shown in data portal is keywords_keyword.
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
             mydict['keywords_vocabulary'] = []
@@ -732,17 +733,15 @@ class MMD4SolR:
                 if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
                     if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
                         mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                    else:
-                        mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                        mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']['@vocabulary'])
+                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                    mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']['@vocabulary'])
                 else:
                     for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
                         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
                             if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
                                 mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
-                            else:
-                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
-                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+                            mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
             # If there are multiple keyword lists
             elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
@@ -754,22 +753,19 @@ class MMD4SolR:
                             for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
                                 if self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'] == "GCMDSK":
                                     mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
-                                else:
-                                    mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']['@vocabulary'])
-                                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
+                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']['@vocabulary'])
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
                         else:
                             if self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'] == "GCMDSK":
                                 mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
-                            else:
-                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'])
-                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
+                            mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'])
+                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])
 
             else:
                 if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
                     mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                else:
-                    mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
-                    mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
+                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Project """
         mydict['project_short_name'] = []
