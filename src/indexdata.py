@@ -439,7 +439,6 @@ class MMD4SolR:
             else:
                 mydict['title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
-
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
@@ -459,7 +458,6 @@ class MMD4SolR:
                         mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
             else:
                 mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
-
 
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
@@ -753,7 +751,7 @@ class MMD4SolR:
                             for j in range(len(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'])):
                                 if self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'] == "GCMDSK":
                                     mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
-                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword']['@vocabulary'])
+                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'])
                                 mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords'][i]['mmd:keyword'][j])
                         else:
                             if self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary'] == "GCMDSK":
