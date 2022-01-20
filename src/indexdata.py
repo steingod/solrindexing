@@ -243,20 +243,22 @@ class MMD4SolR:
         Check that keywords also contain GCMD keywords
         Need to check contents more specifically...
         """
+        gcmd = False
         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
             i = 0
-            gcmd = False
             # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:keywords']:
-                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]).upper() == 'GCMDSK':
+                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary']).upper() == 'GCMDSK':
                     gcmd = True
                     break
                 i += 1
             if not gcmd:
                 self.logger.warning('\n\tKeywords in GCMD are not available (a)')
         else:
-            if not str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
+            if str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
+                gcmd = True
+            else:
                 # warnings.warn('Keywords in GCMD are not available')
                 self.logger.warning('\n\tKeywords in GCMD are not available (b)')
 
@@ -393,7 +395,6 @@ class MMD4SolR:
             mydict['last_metadata_update_type'] = lmu_type
             mydict['last_metadata_update_note'] = lmu_note
 
-
         """ Metadata status """
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_status'],dict):
             mydict['metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']['#text']
@@ -419,35 +420,43 @@ class MMD4SolR:
         """ title """
         if isinstance(self.mydoc['mmd:mmd']['mmd:title'], list):
             i = 0
-            # TODO: remove unused for loop
             # Switch to using e instead of self.mydoc...
             for e in self.mydoc['mmd:mmd']['mmd:title']:
-                if self.mydoc['mmd:mmd']['mmd:title'][i]['@xml:lang'] == 'en':
-                    mydict['title'] = self.mydoc['mmd:mmd']['mmd:title'][i]['#text']
-                i += 1
-        else:
+                if '@xml:lang' in e:
+                    if e['@xml:lang'] == 'en':
+                        mydict['title'] = ['#text']
+                elif '@lang' in e:
+                    if e['@lang'] == 'en':
+                        mydict['title'] = e['#text']
+        else: 
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
-                if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
-                    mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
-
+                if '@xml:lang' in self.mydoc['mmd:mmd']['mmd:title']:
+                    if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
+                        mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+                if '@lang' in self.mydoc['mmd:mmd']['mmd:title']:
+                    if self.mydoc['mmd:mmd']['mmd:title']['@lang'] == 'en':
+                        mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
             else:
                 mydict['title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
+            print('So far so good')
 
+        print('So far so good')
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
             i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
-                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en' or self.mydoc['mmd:mmd']['mmd:abstract'][i]['@lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text']
                 i += 1
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
-                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
+                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en' or self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
                     mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
 
             else:
                 mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
+        print('So far so good')
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
@@ -711,8 +720,12 @@ class MMD4SolR:
         """ Keywords """
         """ Should structure this on GCMD only at some point """
         """ Need to support multiple sets of keywords... """
+        print('So far so good')
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
+            mydict['keywords_vocabulary'] = []
+            mydict['keywords_gcmd'] = []
+            mydict['keywords_wigos'] = []
             #if 'mmd:keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
                 if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
@@ -735,6 +748,9 @@ class MMD4SolR:
 
             else:
                 mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
+
+        print(keywords_keywords)
+        sys.exit()
 
         """ Project """
         mydict['project_short_name'] = []
