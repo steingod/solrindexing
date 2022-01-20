@@ -947,7 +947,8 @@ class IndexMMD:
 
             if not thumbnail_data:
                 self.logger.warning('Could not properly parse WMS GetCapabilities document')
-                #return False
+                # If WMS is not available, remove this data_access element from the XML that is indexed
+                del input_record['data_access_url_ogc_wms']
             else:
                 input_record.update({'thumbnail_data':thumbnail_data})
         
