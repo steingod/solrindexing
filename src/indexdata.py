@@ -424,7 +424,7 @@ class MMD4SolR:
             for e in self.mydoc['mmd:mmd']['mmd:title']:
                 if '@xml:lang' in e:
                     if e['@xml:lang'] == 'en':
-                        mydict['title'] = ['#text']
+                        mydict['title'] = e['#text']
                 elif '@lang' in e:
                     if e['@lang'] == 'en':
                         mydict['title'] = e['#text']
@@ -438,25 +438,29 @@ class MMD4SolR:
                         mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
             else:
                 mydict['title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
-            print('So far so good')
 
-        print('So far so good')
+
         """ abstract """
         if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'], list):
-            i = 0
             for e in self.mydoc['mmd:mmd']['mmd:abstract']:
-                if self.mydoc['mmd:mmd']['mmd:abstract'][i]['@xml:lang'] == 'en' or self.mydoc['mmd:mmd']['mmd:abstract'][i]['@lang'] == 'en':
-                    mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract'][i]['#text']
-                i += 1
+                if '@xml:lang' in e:
+                    if e['@xml:lang'] == 'en':
+                        mydict['abstract'] = e['#text']
+                elif '@lang' in e:
+                    if e['@lang'] == 'en':
+                        mydict['abstract'] = e['#text']
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
-                if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en' or self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
-                    mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
-
+                if '@xml:lang' in self.mydoc['mmd:mmd']['mmd:abstract']:
+                    if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
+                        mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+                if '@lang' in self.mydoc['mmd:mmd']['mmd:abstract']:
+                    if self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
+                        mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
             else:
                 mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
-        print('So far so good')
+
         """ Temporal extent """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
