@@ -950,9 +950,10 @@ class IndexMMD:
             thumbnail_data = self.add_thumbnail(url=getCapUrl)
 
             if not thumbnail_data:
-                self.logger.error('Could not properly parse WMS GetCapabilities document')
-                return False
-            input_record.update({'thumbnail_data':thumbnail_data})
+                self.logger.warning('Could not properly parse WMS GetCapabilities document')
+                #return False
+            else:
+                input_record.update({'thumbnail_data':thumbnail_data})
         
         self.logger.info("Adding records to core...")
 
