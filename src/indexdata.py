@@ -668,6 +668,7 @@ class MMD4SolR:
                     data_access_wms_layers = data_access['mmd:wms_layers']
                     mydict[data_access_wms_layers_string] = [ i for i in data_access_wms_layers.values()][0]
 
+        print('So far so good...')
         """ Related dataset """
         """ TODO """
         """ Remember to add type of relation in the future ØG """
