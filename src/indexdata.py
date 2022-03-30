@@ -732,7 +732,7 @@ class MMD4SolR:
                     if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
                         mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
                     mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
-                    mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword']['@vocabulary'])
+                    mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
                 else:
                     for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
                         if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
