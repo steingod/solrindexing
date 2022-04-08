@@ -40,6 +40,7 @@ import netCDF4
 import logging
 import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
+from time import sleep
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -1018,7 +1019,7 @@ class IndexMMD:
 
         """ Retrieve level 1 record """
         try:
-            myresults = self.solrc.search('id:' + myl2record['related_dataset'].replace(':','_'), df='', rows=100)
+            myresults = self.solrc.search('id:' + myl2record['related_dataset'].replace(':','_'), **{'wt':'python','rows':100})
         except Exception as e:
             self.logger.error("Something failed in searching for parent dataset, " + str(e))
 
@@ -1429,6 +1430,7 @@ def main(argv):
             continue
         if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
             tflg = True
+        # Do not directly index children unless they are requested to be children. Do always assume that the parent is included in the indexing process so postpone the actual indexing to allow the parent to be properly indexed in SolR.
         if 'related_dataset' in newdoc:
             # Special fix for NPI
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
@@ -1438,13 +1440,15 @@ def main(argv):
             # Skip if DOI is used to refer to parent, that isn't consistent.
             if 'doi.org' in newdoc['related_dataset']:
                 continue
-            myresults = mysolr.solrc.search('id:' +
-                    newdoc['related_dataset'], df='', rows=100)
+            myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
             if len(myresults) == 0:
                 mylog.warning("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
                 continue
-            l2flg = True
+            elif l2flg != True:
+                mylog.warning("Parent found, but assumes parent will be reindexed, thus postponing indexing of children until SolR is updated.")
+                myfiles_pending.append(myfile)
+                continue
         mylog.info("Indexing dataset: %s", myfile)
         if l2flg:
             mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
@@ -1467,7 +1471,8 @@ def main(argv):
     # level 2. Meaning, the section below only ingests at level 2.
     fileno = 0
     if len(myfiles_pending)>0:
-        mylog.info('Processing files that were not possible to process in first take.')
+        mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
+        sleep(20*60)
     for myfile in myfiles_pending:
         mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
         try:
