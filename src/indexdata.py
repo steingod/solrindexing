@@ -1237,6 +1237,12 @@ class IndexMMD:
             self.logger.warning("Fixing this locally")
             if featureType == "TimeSeries":
                 featureType = 'timeSeries'
+            elif featureType == "timeseries":
+                featureType = 'timeSeries'
+            elif featureType == "timseries":
+                featureType = 'timeSeries'
+            else:
+                self.logger.warning("The featureType found is a new typo...")
 
             #raise
 
