@@ -41,6 +41,7 @@ import logging
 import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 from time import sleep
+import pickle
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -355,14 +356,19 @@ class MMD4SolR:
         # Create OrderedDict which will contain all elements for SolR
         mydict = OrderedDict()
 
-        # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : by _ in the id field, let metadata_identifier be the correct one.
+        # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : and other characters like / etc by _ in the id field, let metadata_identifier be the correct one.
 
         """ Identifier """
+        idrepls = [':','/']
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
-            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text'].replace(':','_')
+            myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
+            for e in idrepls:
+                mydict['id'] = myid.replace(e,'_')
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
         else:
-            mydict['id'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier'].replace(':','_')
+            myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
+            for e in idrepls:
+                mydict['id'] = myid.replace(e,'_')
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
 
         """ Last metadata update """
@@ -850,6 +856,11 @@ class MMD4SolR:
         encoded_xml_string = base64.b64encode(xml_string)
         xml_b64 = (encoded_xml_string).decode('utf-8')
         mydict['mmd_xml_file'] = xml_b64
+
+##        with open(self.mydoc['mmd:mmd']['mmd:metadata_identifier']+'.txt','w') as myfile:
+##            #pickle.dump(mydict,myfile)
+##            myjson = json.dumps(mydict)
+##            myfile.write(myjson)
 
         return mydict
 
