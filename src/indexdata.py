@@ -363,12 +363,14 @@ class MMD4SolR:
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
             myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
             for e in idrepls:
-                mydict['id'] = myid.replace(e,'_')
+                myid = myid.replace(e,'_')
+            mydict['id'] = myid
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
         else:
             myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
             for e in idrepls:
-                mydict['id'] = myid.replace(e,'_')
+                myid = myid.replace(e,'_')
+            mydict['id'] = myid
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
 
         """ Last metadata update """
@@ -1457,7 +1459,13 @@ def main(argv):
             # Skip if DOI is used to refer to parent, that isn't consistent.
             if 'doi.org' in newdoc['related_dataset']:
                 continue
-            myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
+            # Fix special characters that SolR doesn't like
+            idrepls = [':','/']
+            myparent = newdoc['related_dataset']
+            for e in idrepls:
+                myparent = myparent.replace(e,'_')
+            #myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
+            myresults = mysolr.solrc.search('id:' + myparent, **{'wt':'python','rows':100})
             if len(myresults) == 0:
                 mylog.warning("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
