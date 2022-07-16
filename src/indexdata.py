@@ -55,7 +55,7 @@ def parse_arguments():
     parser.add_argument('-n','--no_thumbnail',help='Do not index thumbnails (normally done automatically if WMS available).', action='store_true')
     #parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
     parser.add_argument('-r','--remove',help='Remove the dataset with the specified identifier (to be replaced by searchindex).')
-    parser.add_argument('-2','--level2',help='Operate on child core.')
+    parser.add_argument('-2','--level2',action='store_true', help='Operate on child core.')
 
     ### Thumbnail parameters
     parser.add_argument('-m','--map_projection',help='Specify map projection for thumbnail (e.g. Mercator, PlateCarree, PolarStereographic).', required=False)
@@ -359,17 +359,17 @@ class MMD4SolR:
         # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : and other characters like / etc by _ in the id field, let metadata_identifier be the correct one.
 
         """ Identifier """
-        idrepls = [':','/']
+        idrepls = [':','/','.']
         if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_identifier'],dict):
             myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
             for e in idrepls:
-                myid = myid.replace(e,'_')
+                myid = myid.replace(e,'-')
             mydict['id'] = myid
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']['#text']
         else:
             myid = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
             for e in idrepls:
-                myid = myid.replace(e,'_')
+                myid = myid.replace(e,'-')
             mydict['id'] = myid
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
 
@@ -681,9 +681,11 @@ class MMD4SolR:
         """ TODO """
         """ Remember to add type of relation in the future ØG """
         """ Only interpreting parent for now since SolR doesn't take more
+            Added handling of namespace in identifiers
         """
         self.parent = None
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
+            idrepls = [':','/','.']
             if isinstance(self.mydoc['mmd:mmd']['mmd:related_dataset'],
                     list):
                 self.logger.warning('Too many fields in related_dataset...')
@@ -692,10 +694,14 @@ class MMD4SolR:
                         if e['@mmd:relation_type'] == 'parent':
                             if '#text' in dict(e):
                                 mydict['related_dataset'] = e['#text']
+                                for e in idrepls:
+                                    mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
             else:
                 """ Not sure if this is used?? """
                 if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
                     mydict['related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+                    for e in idrepls:
+                        mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
 
         """ Storage information """
         self.logger.info('Storage information not implemented yet.')
@@ -1031,8 +1037,12 @@ class IndexMMD:
         mmd_record2.append(myl2record)
 
         """ Retrieve level 1 record """
+        myparid = myl2record['related_dataset']
+        idrepls = [':','/','.']
+        for e in idrepls:
+            myparid = myparid.replace(e,'-')
         try:
-            myresults = self.solrc.search('id:' + myl2record['related_dataset'].replace(':','_'), **{'wt':'python','rows':100})
+            myresults = self.solrc.search('id:' + myparid, **{'wt':'python','rows':100})
         except Exception as e:
             self.logger.error("Something failed in searching for parent dataset, " + str(e))
 
@@ -1340,6 +1350,8 @@ def main(argv):
     mylog.info('Configuration of logging is finished.')
 
     tflg = l2flg = fflg = False
+    if args.level2:
+        l2flg = True
 
     # Read config file
     with open(args.cfgfile, 'r') as ymlfile:
@@ -1460,17 +1472,17 @@ def main(argv):
             if 'doi.org' in newdoc['related_dataset']:
                 continue
             # Fix special characters that SolR doesn't like
-            idrepls = [':','/']
+            idrepls = [':','/','.']
             myparent = newdoc['related_dataset']
             for e in idrepls:
-                myparent = myparent.replace(e,'_')
+                myparent = myparent.replace(e,'-')
             #myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
             myresults = mysolr.solrc.search('id:' + myparent, **{'wt':'python','rows':100})
             if len(myresults) == 0:
                 mylog.warning("No parent found. Staging for second run.")
                 myfiles_pending.append(myfile)
                 continue
-            elif l2flg != True:
+            elif not l2flg:
                 mylog.warning("Parent found, but assumes parent will be reindexed, thus postponing indexing of children until SolR is updated.")
                 myfiles_pending.append(myfile)
                 continue
@@ -1488,7 +1500,8 @@ def main(argv):
                     mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)
-        l2flg = False
+        if not args.level2:
+            l2flg = False
         tflg = False
 
     # Now process all the level 2 files that failed in the previous
