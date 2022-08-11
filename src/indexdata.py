@@ -745,22 +745,28 @@ class MMD4SolR:
 
         """ Platform """
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
-            for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
-                if isinstance(platform_value,dict): # if sub element is ordered dict
-                    for kkey, vvalue in platform_value.items():
-                        element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
-                        if not element_name in mydict.keys(): # create key in mydict
+
+            platform_elements = self.mydoc['mmd:mmd']['mmd:platform']
+            if isinstance(platform_elements, dict): #Only one element
+                platform_elements = [platform_elements] # make it an iterable list
+
+            for platform in platform_elements:
+                for platform_key, platform_value in platform.items():
+                    if isinstance(platform_value,dict): # if sub element is ordered dict
+                        for kkey, vvalue in platform_value.items():
+                            element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
+                            if not element_name in mydict.keys(): # create key in mydict
+                                mydict[element_name] = []
+                                mydict[element_name].append(vvalue)
+                            else:
+                                mydict[element_name].append(vvalue)
+                    else: #sub element is not ordered dicts
+                        element_name = 'platform_{}'.format(platform_key.split(':')[-1])
+                        if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
                             mydict[element_name] = []
-                            mydict[element_name].append(vvalue)
+                            mydict[element_name].append(platform_value)
                         else:
-                            mydict[element_name].append(vvalue)
-                else: #sub element is not ordered dicts
-                    element_name = 'platform_{}'.format(platform_key.split(':')[-1])
-                    if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
-                        mydict[element_name] = []
-                        mydict[element_name].append(platform_value)
-                    else:
-                        mydict[element_name].append(platform_value)
+                            mydict[element_name].append(platform_value)
 
             # Add platform_sentinel for NBS
             initial_platform = mydict['platform_long_name'][0]
