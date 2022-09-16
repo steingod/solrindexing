@@ -16,3 +16,6 @@ dependencies:
   - yaml
   - owslib
   - ipython
+  - shapely
+  - lxml
+  - geojson

@@ -30,6 +30,7 @@ import dateutil.parser
 import warnings
 import json
 import yaml
+import math
 from collections import OrderedDict
 import cartopy.crs as ccrs
 import cartopy
@@ -42,6 +43,13 @@ import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 from time import sleep
 import pickle
+from shapely.geometry import box
+from shapely.wkt import loads
+from shapely.geometry import mapping
+import geojson
+import pyproj
+import shapely.geometry as shpgeo
+import shapely.wkt
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -83,6 +91,23 @@ def parse_cfg(cfgfile):
         cfgstr = yaml.full_load(ymlfile)
 
     return cfgstr
+
+def getZones(lon, lat):
+    "get UTM zone number from latitude and longitude"
+
+    if lat >= 72.0 and lat < 84.0:
+        if lon >= 0.0 and lon < 9.0:
+            return 31
+        if lon >= 9.0 and lon < 21.0:
+            return 33
+        if lon >= 21.0 and lon < 33.0:
+            return 35
+        if lon >= 33.0 and lon < 42.0:
+            return 37
+    if lat >= 56 and lat < 64.0 and lon >= 3 and lon <= 12:
+        return 32
+    return math.floor((lon + 180) / 6) + 1
+
 
 def initialise_logger(outputfile, name):
     # Check that logfile exists
@@ -516,6 +541,50 @@ class MMD4SolR:
                     mydict['geographic_extent_rectangle_west'] = min(lonvals)
                     mydict['geographic_extent_rectangle_east'] = max(lonvals)
                     mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
+                    #Check if we have a point or a boundingbox
+                    if float(e['mmd:rectangle']['mmd:north']) == float(e['mmd:rectangle']['mmd:south']):
+                        if float(e['mmd:rectangle']['mmd:east']) == float(e['mmd:rectangle']['mmd:west']):
+                            point = shpgeo.Point(float(e['mmd:rectangle']['mmd:east']),float(e['mmd:rectangle']['mmd:north']))
+                            #print(point.y)
+                            mydict['polygon_rpt'] = point.wkt
+                            geoInterface = point.__geo_interface__
+                            zone = getZones(point.x, point.y)
+                            inv = True
+                            proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
+                            coords = geoInterface['coordinates']
+                            #print(coords)
+                            newCoord = proj(point.x, point.y, inverse=inv)
+                            #print(newCoord)
+                            #newCoord = [proj(*point, inverse=inv) for point in coords]
+
+                            #print(geojson.dumps(mapping(loads(point.wkt))))
+                            pGeo = shpgeo.shape({'type': 'point', 'coordinates': tuple(newCoord)})
+                            print(geojson.dumps(mapping(loads(pGeo.wkt))))
+                            mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+                    else:
+                        bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
+
+                        print("First conditition") 
+                        #print(bbox)
+                        polygon = bbox.wkt
+                        #print(polygon)
+
+                        mydict['polygon_rpt'] = polygon
+                        #P = mapping(loads(polygon))
+                        P = shapely.wkt.loads(polygon)
+                        geoInterface = P.__geo_interface__
+                        zone = getZones(P.centroid.x,P.centroid.y)
+                        inv = True
+                        proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
+                        coords = geoInterface['coordinates']
+                        newCoord = [[proj(*point, inverse=inv) for point in linring] for linring in coords]
+
+                        #print(geojson.dumps(mapping(loads(polygon))))
+                        pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
+                        mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+                        print(mydict['geom'])
+
+
                 else:
                     mydict['geographic_extent_rectangle_north'] = 90.
                     mydict['geographic_extent_rectangle_south'] = -90.
@@ -540,7 +609,49 @@ class MMD4SolR:
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                
+                print("Second conditition") 
+                #Check if we have a point or a boundingbox
+                if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']):
+                    if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']):
+                        point = shpgeo.Point(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']))
+                        #print(point.y)
+                        mydict['polygon_rpt'] = point.wkt
+                        geoInterface = point.__geo_interface__
+                        zone = getZones(point.x, point.y)
+                        inv = True
+                        proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
+                        coords = geoInterface['coordinates']
+                        #print(coords)
+                        newCoord = proj(point.x, point.y, inverse=inv)
+                        #print(newCoord)
+                        #newCoord = [proj(*point, inverse=inv) for point in coords]
 
+                        #print(geojson.dumps(mapping(loads(point.wkt))))
+                        pGeo = shpgeo.shape({'type': 'point', 'coordinates': tuple(newCoord)})
+                        print(geojson.dumps(mapping(loads(pGeo.wkt))))
+                        mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+
+                else:
+                    bbox = box(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']), ccw=False)
+                    polygon = bbox.wkt
+                    #print(polygon)
+                
+                    mydict['polygon_rpt'] = polygon 
+                    #P = mapping(loads(polygon))
+                    P = shapely.wkt.loads(polygon)
+                    geoInterface = P.__geo_interface__
+                    zone = getZones(P.centroid.x,P.centroid.y)
+                    inv = True
+                    proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
+                    coords = geoInterface['coordinates']
+                    newCoord = [[proj(*point, inverse=inv) for point in linring] for linring in coords]
+
+                    #print(geojson.dumps(mapping(loads(polygon))))
+                    pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
+                    mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+                    print(mydict['geom'])    
+            
         self.logger.info('Add location element?')
 
         """ Dataset production status """
