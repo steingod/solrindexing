@@ -920,8 +920,13 @@ class MMD4SolR:
         """ Platform """
         # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
-            if isinstance(self.mydoc['mmd:mmd']['mmd:platform'],dict):
-                for platform_key, platform_value in self.mydoc['mmd:mmd']['mmd:platform'].items():
+
+            platform_elements = self.mydoc['mmd:mmd']['mmd:platform']
+            if isinstance(platform_elements, dict): #Only one element
+                platform_elements = [platform_elements] # make it an iterable list
+
+            for platform in platform_elements:
+                for platform_key, platform_value in platform.items():
                     if isinstance(platform_value,dict): # if sub element is ordered dict
                         for kkey, vvalue in platform_value.items():
                             element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
