@@ -462,7 +462,7 @@ class MMD4SolR:
                 elif '@lang' in e:
                     if e['@lang'] == 'en':
                         mydict['title'] = e['#text']
-        else: 
+        else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
                 if '@xml:lang' in self.mydoc['mmd:mmd']['mmd:title']:
                     if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
@@ -547,42 +547,23 @@ class MMD4SolR:
                             point = shpgeo.Point(float(e['mmd:rectangle']['mmd:east']),float(e['mmd:rectangle']['mmd:north']))
                             #print(point.y)
                             mydict['polygon_rpt'] = point.wkt
-                            geoInterface = point.__geo_interface__
-                            zone = getZones(point.x, point.y)
-                            inv = True
-                            proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
-                            coords = geoInterface['coordinates']
-                            #print(coords)
-                            newCoord = proj(point.x, point.y, inverse=inv)
-                            #print(newCoord)
-                            #newCoord = [proj(*point, inverse=inv) for point in coords]
 
-                            #print(geojson.dumps(mapping(loads(point.wkt))))
-                            pGeo = shpgeo.shape({'type': 'point', 'coordinates': tuple(newCoord)})
-                            print(geojson.dumps(mapping(loads(pGeo.wkt))))
-                            mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+                            print(mapping(point))
+                            #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
                         bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
 
-                        print("First conditition") 
-                        #print(bbox)
+                        print("First conditition")
+                        print(bbox)
                         polygon = bbox.wkt
-                        #print(polygon)
-
+                        #p = shapely.geometry.polygon.orient(polygon, sign=1.0)
+                        #print(p.exterior.is_ccw)
                         mydict['polygon_rpt'] = polygon
-                        #P = mapping(loads(polygon))
-                        P = shapely.wkt.loads(polygon)
-                        geoInterface = P.__geo_interface__
-                        zone = getZones(P.centroid.x,P.centroid.y)
-                        inv = True
-                        proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
-                        coords = geoInterface['coordinates']
-                        newCoord = [[proj(*point, inverse=inv) for point in linring] for linring in coords]
 
-                        #print(geojson.dumps(mapping(loads(polygon))))
-                        pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
-                        mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
-                        print(mydict['geom'])
+                        #print(mapping(polygon))
+                        #pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
+                        #mydict['geom'] = geojson.dumps(mapping(shapely.wkt.loads(polygon)))
+                        #print(mydict['geom'])
 
 
                 else:
@@ -609,49 +590,33 @@ class MMD4SolR:
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
-                
-                print("Second conditition") 
+
+                print("Second conditition")
                 #Check if we have a point or a boundingbox
                 if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']):
                     if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']):
                         point = shpgeo.Point(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']))
                         #print(point.y)
                         mydict['polygon_rpt'] = point.wkt
-                        geoInterface = point.__geo_interface__
-                        zone = getZones(point.x, point.y)
-                        inv = True
-                        proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
-                        coords = geoInterface['coordinates']
-                        #print(coords)
-                        newCoord = proj(point.x, point.y, inverse=inv)
-                        #print(newCoord)
-                        #newCoord = [proj(*point, inverse=inv) for point in coords]
 
-                        #print(geojson.dumps(mapping(loads(point.wkt))))
-                        pGeo = shpgeo.shape({'type': 'point', 'coordinates': tuple(newCoord)})
-                        print(geojson.dumps(mapping(loads(pGeo.wkt))))
-                        mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
+                        print(mapping(point))
+
+                        #mydict['geom'] = geojson.dumps(mapping(point))
 
                 else:
                     bbox = box(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']), ccw=False)
+                    #print(bbox)
                     polygon = bbox.wkt
-                    #print(polygon)
-                
-                    mydict['polygon_rpt'] = polygon 
-                    #P = mapping(loads(polygon))
-                    P = shapely.wkt.loads(polygon)
-                    geoInterface = P.__geo_interface__
-                    zone = getZones(P.centroid.x,P.centroid.y)
-                    inv = True
-                    proj = pyproj.Proj(proj="utm", ellps="WGS84", zone=zone, datum="WGS84", units="m")
-                    coords = geoInterface['coordinates']
-                    newCoord = [[proj(*point, inverse=inv) for point in linring] for linring in coords]
-
+                    print(polygon)
+                    #p = shapely.geometry.polygon.orient(shapely.wkt.loads(polygon), sign=1.0)
+                    #print(p.exterior.is_ccw)
+                    mydict['polygon_rpt'] = polygon
+                    #print(mapping(shapely.wkt.loads(polygon)))
                     #print(geojson.dumps(mapping(loads(polygon))))
-                    pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
-                    mydict['geom'] = geojson.dumps(mapping(loads(pGeo.wkt)))
-                    print(mydict['geom'])    
-            
+                    #pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
+                    #mydict['geom'] = geojson.dumps(mapping(p))
+                    #print(mydict['geom'])
+
         self.logger.info('Add location element?')
 
         """ Dataset production status """
@@ -728,7 +693,7 @@ class MMD4SolR:
                         mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                         mydict['personnel_role'].append(personnel[entry])
                     else:
-                        # Treat address specifically and handle faceting elements personnel_role, personnel_name, personnel_organisation. 
+                        # Treat address specifically and handle faceting elements personnel_role, personnel_name, personnel_organisation.
                         if entry_type == 'contact_address':
                             for el in personnel[entry]:
                                 el_type = el.split(':')[-1]
@@ -1085,7 +1050,7 @@ class IndexMMD:
                 del input_record['data_access_url_ogc_wms']
             else:
                 input_record.update({'thumbnail_data':thumbnail_data})
-        
+
         self.logger.info("Adding records to core...")
 
         mmd_record = list()
@@ -1109,7 +1074,7 @@ class IndexMMD:
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('https://data.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://api.npolar.no/dataset/','')
         myl2record['related_dataset'] = myl2record['related_dataset'].replace('.xml','')
-        
+
         # Add additonal helper fields for handling in SolR and Drupal
         myl2record['isChild'] = 'true'
 
@@ -1166,7 +1131,7 @@ class IndexMMD:
         if len(myresults) != 1:
             self.logger.warning("Didn't find unique parent record, skipping record")
             return
-        # Convert from pySolr results object to dict and return. 
+        # Convert from pySolr results object to dict and return.
         for result in myresults:
             if 'full_text' in result:
                 result.pop('full_text')
