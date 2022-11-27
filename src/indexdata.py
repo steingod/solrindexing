@@ -257,7 +257,7 @@ class MMD4SolR:
                             if myvalue is not None:
                                 self.logger.warning('\n\t%s contains non valid content: \n\t\t%s', element, myvalue)
                             else:
-                                self.logger.warn('Discovered an empty element.')
+                                self.logger.warning('Discovered an empty element.')
                 else:
                     if isinstance(self.mydoc['mmd:mmd'][element],dict):
                         myvalue = self.mydoc['mmd:mmd'][element]['#text']
@@ -286,7 +286,7 @@ class MMD4SolR:
             if str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
                 gcmd = True
             else:
-                # warnings.warn('Keywords in GCMD are not available')
+                # warnings.warning('Keywords in GCMD are not available')
                 self.logger.warning('\n\tKeywords in GCMD are not available (b)')
 
         """
@@ -522,7 +522,7 @@ class MMD4SolR:
         if 'mmd:geographic_extent' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:geographic_extent'] != None:
             if isinstance(self.mydoc['mmd:mmd']['mmd:geographic_extent'],
                     list):
-                self.logger.warn('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
+                self.logger.warning('This is a challenge as multiple bounding boxes are not supported in MMD yet, flattening information')
                 latvals = []
                 lonvals = []
                 for e in self.mydoc['mmd:mmd']['mmd:geographic_extent']:
@@ -1624,7 +1624,7 @@ def main(argv):
     # sequence. If the Level 1 dataset is not available, this will fail at
     # level 2. Meaning, the section below only ingests at level 2.
     fileno = 0
-    if len(myfiles_pending)>0:
+    if len(myfiles_pending)>0 and not args.always_commit:
         mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
         sleep(20*60)
     for myfile in myfiles_pending:
