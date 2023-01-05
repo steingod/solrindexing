@@ -591,7 +591,6 @@ class MMD4SolR:
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
-                print("Second conditition")
                 #Check if we have a point or a boundingbox
                 if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']):
                     if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']):
@@ -885,14 +884,18 @@ class MMD4SolR:
         """ Platform """
         # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
-
             platform_elements = self.mydoc['mmd:mmd']['mmd:platform']
             if isinstance(platform_elements, dict): #Only one element
                 platform_elements = [platform_elements] # make it an iterable list
+            elif isinstance(platform_elements, str):
+                # If comma separated string (by some reason), split...
+                platform_elements = platform_elements.split(',')
 
             for platform in platform_elements:
+                print(platform)
                 for platform_key, platform_value in platform.items():
                     if isinstance(platform_value,dict): # if sub element is ordered dict
+                        print('I am her...')
                         for kkey, vvalue in platform_value.items():
                             element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
                             if not element_name in mydict.keys(): # create key in mydict
@@ -901,6 +904,7 @@ class MMD4SolR:
                             else:
                                 mydict[element_name].append(vvalue)
                     else: #sub element is not ordered dicts
+                        print('No here...')
                         element_name = 'platform_{}'.format(platform_key.split(':')[-1])
                         if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
                             mydict[element_name] = []
@@ -1536,7 +1540,8 @@ def main(argv):
         try:
             newdoc = mydoc.tosolr()
         except Exception as e:
-            mylog.warning('Could not process the file: %s', e)
+            mylog.warning('Could not process the file: %s', myfile)
+            mylog.warning('Message returned: %s', e)
             continue
         if (newdoc['metadata_status'] == "Inactive"):
             continue
