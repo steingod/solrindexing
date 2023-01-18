@@ -242,6 +242,10 @@ class MMD4SolR:
                                               'In Work',
                                               'Complete',
                                               'Obsolete'],
+            'mmd:quality_control': ['No quality control',
+                                    'Basic quality control',
+                                    'Extended quality control',
+                                    'Comprehensive quality control'],
         }
         for element in mmd_controlled_elements.keys():
             self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
@@ -780,7 +784,26 @@ class MMD4SolR:
                         mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
 
         """ Storage information """
-        self.logger.info('Storage information not implemented yet.')
+        if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
+            if 'mmd:file_name' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'] != None:
+                mydict['storage_information_file_name'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'])
+            if 'mmd:file_location' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_location'] != None:
+                mydict['storage_information_file_location'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_location'])
+            if 'mmd:file_format' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_format'] != None:
+                mydict['storage_information_file_format'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_format'])
+            if 'mmd:file_size' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size'] != None:
+                if isinstance(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size'], dict):
+                    mydict['storage_information_file_size'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size']['#text'])
+                    mydict['storage_information_file_size_unit'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size']['@unit'])
+                else:
+                    self.logger.warning("Filesize unit not specified, skipping field")
+            if 'mmd:checksum' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum'] != None:
+                if isinstance(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum'], dict):
+                    mydict['storage_information_file_checksum'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum']['#text'])
+                    mydict['storage_information_file_checksum_type'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum']['@type'])
+                else:
+                    self.logger.warning("Checksum type is not specified, skipping field")
+
 
         """ Related information """
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
@@ -937,6 +960,10 @@ class MMD4SolR:
                         if v is not None:
                             v+='T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
+
+        """ Quality control """
+        if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
+            mydict['quality_control'] = str(self.mydoc['mmd:mmd']['mmd:quality_control'])
 
         """ Adding MMD document as base64 string"""
         # Check if this can be simplified in the workflow.
