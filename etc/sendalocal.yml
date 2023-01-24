@@ -1,0 +1,9 @@
+# Configuration template file
+# Øystein Godøy, METNO/FOU, 2019-10-23
+
+logfile: /tmp/index.log 
+solrserver: http://localhost:8983/solr/ 
+solrcore: senda
+# Valid map projections include Mercator, PlateCarree, PolarStereographic
+wms-thumbnail-projection: Mercator
+wms-timeout: 480
