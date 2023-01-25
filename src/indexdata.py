@@ -51,6 +51,8 @@ import pyproj
 import shapely.geometry as shpgeo
 import shapely.wkt
 
+#For basic authentication
+from requests.auth import HTTPBasicAuth
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
@@ -985,7 +987,7 @@ class IndexMMD:
     a list of dictionaries representing MMD as input.
     """
 
-    def __init__(self, mysolrserver, always_commit=False):
+    def __init__(self, mysolrserver, always_commit=False, authentication=None):
         # Set up logging
         self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
@@ -1006,13 +1008,15 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020, auth=authentication)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
             self.logger.info("Add a sys.exit?")
 
-
+    #Function for sending explicit commit to solr
+    def commit(self):
+        self.solrc.commit()
     def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         """ Add thumbnail to SolR
             Args:
@@ -1479,12 +1483,25 @@ def main(argv):
     else:
         raise Exception('Map projection is not properly specified in config')
 
+    #Enable basic authentication if configured.
+    if 'auth-basic-username' in cfg and 'auth-basic-password' in cfg:
+        username = cfg['auth-basic-username']
+        password = cfg['auth-basic-password']
+        mylog.info("Setting up basic authentication")
+        if username == '' or password == '':
+            raise Exception('Authentication username and/or password are configured, but have blank strings')
+        else:
+            authentication = HTTPBasicAuth(username,password)
+    else:
+        authentication = None
+        mylog.info("Authentication disabled")
+    #Get solr server config
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
     # Set up connection to SolR server
     mySolRc = SolrServer+myCore
-    mysolr = IndexMMD(mySolRc, args.always_commit)
+    mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
 
     # Find files to process
     # FIXME remove l2 and thumbnail cores, reconsider deletion herein
@@ -1646,6 +1663,9 @@ def main(argv):
 
     # Report status
     mylog.info("Number of files processed were: %d", len(myfiles))
+
+    #add a commit to solr at end of run
+    mysolr.commit()
 
 
 if __name__ == "__main__":
