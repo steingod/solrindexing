@@ -12,3 +12,15 @@ wms-timeout: 480
 # uncomment and set <USERNAME> & <PASSWORD> to enable Authentication
 #auth-basic-username: <USERNAME>
 #auth-basic-password: <PASSWORD>
+
+#Index in batches
+batch-size: 250
+
+#Commit to solr at end of execution True/False
+#end-solr-commit: True
+
+#Skip netCDF feature_type extraction if not set this is considered False
+#skip-feature-type: True
+#Override feature type (This will also skip the feature type)
+#Can be used if we know the feature_type of all datasets indexed in this execution (list,dir)
+#override-feature-type: profile

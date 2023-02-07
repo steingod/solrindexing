@@ -50,6 +50,7 @@ import geojson
 import pyproj
 import shapely.geometry as shpgeo
 import shapely.wkt
+import time
 
 #For basic authentication
 from requests.auth import HTTPBasicAuth
@@ -121,12 +122,12 @@ def initialise_logger(outputfile, name):
             raise IOError
     # Set up logging
     mylog = logging.getLogger(name)
-    mylog.setLevel(logging.INFO)
+    mylog.setLevel(logging.ERROR)
     #logging.basicConfig(level=logging.INFO,
     #        format='%(asctime)s - %(levelname)s - %(message)s')
     myformat = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.ERROR)
     console_handler.setFormatter(myformat)
     mylog.addHandler(console_handler)
     file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -134,7 +135,7 @@ def initialise_logger(outputfile, name):
             when='w0',
             interval=1,
             backupCount=7)
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.ERROR)
     file_handler.setFormatter(myformat)
     mylog.addHandler(file_handler)
 
@@ -149,6 +150,7 @@ class MMD4SolR:
         self.logger.info('Creating an instance of IndexMMD')
         """ set variables in class """
         self.filename = filename
+        self.jsonld = []
         try:
             with open(self.filename, encoding='utf-8') as fd:
                 self.mydoc = xmltodict.parse(fd.read())
@@ -277,24 +279,26 @@ class MMD4SolR:
         Need to check contents more specifically...
         """
         gcmd = False
-        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
-            i = 0
-            # TODO: remove unused for loop
-            # Switch to using e instead of self.mydoc...
-            for e in self.mydoc['mmd:mmd']['mmd:keywords']:
-                if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary']).upper() == 'GCMDSK':
-                    gcmd = True
-                    break
-                i += 1
+        try:
+            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
+                i = 0
+                # TODO: remove unused for loop
+                # Switch to using e instead of self.mydoc...
+                for e in self.mydoc['mmd:mmd']['mmd:keywords']:
+                    if str(self.mydoc['mmd:mmd']['mmd:keywords'][i]['@vocabulary']).upper() == 'GCMDSK':
+                        gcmd = True
+                        break
+                    i += 1
             if not gcmd:
                 self.logger.warning('\n\tKeywords in GCMD are not available (a)')
-        else:
-            if str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
-                gcmd = True
             else:
-                # warnings.warning('Keywords in GCMD are not available')
-                self.logger.warning('\n\tKeywords in GCMD are not available (b)')
-
+                if str(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary']).upper() == 'GCMDSK':
+                    gcmd = True
+                else:
+                    # warnings.warning('Keywords in GCMD are not available')
+                    self.logger.warning('\n\tKeywords in GCMD are not available (b)')
+        except:
+            self.logger.warning('\n\t Something went wrong with gcmd')
         """
         Modify dates if necessary
         Adapted for the new MMD specification, but not all information is
@@ -554,13 +558,13 @@ class MMD4SolR:
                             #print(point.y)
                             mydict['polygon_rpt'] = point.wkt
 
-                            print(mapping(point))
+                            #print(mapping(point))
                             #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
                         bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
 
-                        print("First conditition")
-                        print(bbox)
+                        #print("First conditition")
+                        #print(bbox)
                         polygon = bbox.wkt
                         #p = shapely.geometry.polygon.orient(polygon, sign=1.0)
                         #print(p.exterior.is_ccw)
@@ -597,7 +601,7 @@ class MMD4SolR:
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
-                print("Second conditition")
+                #print("Second conditition")
                 #Check if we have a point or a boundingbox
                 if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']):
                     if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']):
@@ -605,7 +609,7 @@ class MMD4SolR:
                         #print(point.y)
                         mydict['polygon_rpt'] = point.wkt
 
-                        print(mapping(point))
+                        #print(mapping(point))
 
                         #mydict['geom'] = geojson.dumps(mapping(point))
 
@@ -613,7 +617,7 @@ class MMD4SolR:
                     bbox = box(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']), ccw=False)
                     #print(bbox)
                     polygon = bbox.wkt
-                    print(polygon)
+                    #print(polygon)
                     #p = shapely.geometry.polygon.orient(shapely.wkt.loads(polygon), sign=1.0)
                     #print(p.exterior.is_ccw)
                     mydict['polygon_rpt'] = polygon
@@ -996,6 +1000,8 @@ class IndexMMD:
 
         self.level = None
 
+        self.docList = list()
+
         # Thumbnail variables
         self.wms_layer = None
         self.wms_style = None
@@ -1017,6 +1023,7 @@ class IndexMMD:
     #Function for sending explicit commit to solr
     def commit(self):
         self.solrc.commit()
+
     def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         """ Add thumbnail to SolR
             Args:
@@ -1048,17 +1055,17 @@ class IndexMMD:
             mylog.warning('Skipping record')
             return False
         myfeature = None
-        if 'data_access_url_opendap' in input_record:
+        #if 'data_access_url_opendap' in input_record:
             # Thumbnail of timeseries to be added
             # Or better do this as part of get_feature_type?
-            try:
-                myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
-            except Exception as e:
-                self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                #raise RuntimeError('Something failed while retrieving feature type')
-            if myfeature:
-                self.logger.info('feature_type found: %s', myfeature)
-                input_record.update({'feature_type':myfeature})
+            # try:
+            #     myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+            # except Exception as e:
+            #     self.logger.warning("Something failed while retrieving feature type: %s", str(e))
+            #     #raise RuntimeError('Something failed while retrieving feature type')
+            # if myfeature:
+            #     self.logger.info('feature_type found: %s', myfeature)
+            #     input_record.update({'feature_type':myfeature})
 
         self.id = input_record['id']
         if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
@@ -1084,17 +1091,17 @@ class IndexMMD:
 
         self.logger.info("Adding records to core...")
 
-        mmd_record = list()
-        mmd_record.append(input_record)
+        #mmd_record = list()
+        #mmd_record.append(input_record)
 
-        try:
-            self.solrc.add(mmd_record)
-        except Exception as e:
-            self.logger.error("Something failed in SolR adding document: %s", str(e))
-            return False
-        self.logger.info("Record successfully added.")
+        # try:
+        #     self.solrc.add(mmd_record)
+        # except Exception as e:
+        #     self.logger.error("Something failed in SolR adding document: %s", str(e))
+        #     return False
+        # self.logger.info("Record successfully added.")
 
-        return True
+        return input_record
 
     def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None):
         """ Add a level 2 dataset, i.e. update level 1 as well """
@@ -1110,17 +1117,17 @@ class IndexMMD:
         myl2record['isChild'] = 'true'
 
         myfeature = None
-        if 'data_access_url_opendap' in myl2record:
+       #if 'data_access_url_opendap' in myl2record:
             # Thumbnail of timeseries to be added
             # Or better do this as part of get_feature_type?
-            try:
-                myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
-            except Exception as e:
-                self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                #raise RuntimeError('Something failed while retrieving feature type')
-            if myfeature:
-                self.logger.info('feature_type found: %s', myfeature)
-                myl2record.update({'feature_type':myfeature})
+            # try:
+            #     myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
+            # except Exception as e:
+            #     self.logger.error("Something failed while retrieving feature type: %s", str(e))
+            #     #raise RuntimeError('Something failed while retrieving feature type')
+            # if myfeature:
+            #     self.logger.info('feature_type found: %s', myfeature)
+            #     myl2record.update({'feature_type':myfeature})
 
         self.id = myl2record['id']
         # Add thumbnail for WMS supported datasets
@@ -1199,19 +1206,21 @@ class IndexMMD:
 
         ##print(myresults)
 
-        """ Index level 2 dataset """
-        try:
-            self.solrc.add(mmd_record2)
-        except Exception as e:
-            raise Exception("Something failed in SolR add level 2", str(e))
-        self.logger.info("Level 2 record successfully added.")
+        # """ Index level 2 dataset """
+        # try:
+        #     self.solrc.add(mmd_record2)
+        # except Exception as e:
+        #     raise Exception("Something failed in SolR add level 2", str(e))
+        # self.logger.info("Level 2 record successfully added.")
 
-        """ Update level 1 record with id of this dataset """
-        try:
-            self.solrc.add(mmd_record1)
-        except Exception as e:
-            raise Exception("Something failed in SolR update level 1 for level 2", str(e))
-        self.logger.info("Level 1 record successfully updated.")
+        # """ Update level 1 record with id of this dataset """
+        # try:
+        #     self.solrc.add(mmd_record1)
+        # except Exception as e:
+        #     raise Exception("Something failed in SolR update level 1 for level 2", str(e))
+        # self.logger.info("Level 1 record successfully updated.")
+        mmd_record1.extend(mmd_record2)
+        return mmd_record1
 
     def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
@@ -1363,7 +1372,7 @@ class IndexMMD:
         try:
             featureType = ds.getncattr('featureType')
         except Exception as e:
-            self.logger.error("Something failed extracting featureType: %s", str(e))
+            self.logger.warning("Something failed extracting featureType: %s", str(e))
             raise
         ds.close()
 
@@ -1447,6 +1456,9 @@ class IndexMMD:
 
 def main(argv):
 
+    # start time
+    st = time.time()
+    pst = time.process_time()
     # Parse command line arguments
     try:
         args = parse_arguments()
@@ -1502,7 +1514,7 @@ def main(argv):
     # Set up connection to SolR server
     mySolRc = SolrServer+myCore
     mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
-
+    docList = list()
     # Find files to process
     # FIXME remove l2 and thumbnail cores, reconsider deletion herein
     if args.input_file:
@@ -1530,7 +1542,7 @@ def main(argv):
         except Exception as e:
             mylog.error("Something went wrong in decoding cmd arguments: %s", e)
             sys.exit(1)
-
+    batch = 250
     fileno = 0
     myfiles_pending = []
     for myfile in myfiles:
@@ -1567,20 +1579,22 @@ def main(argv):
 
         # Index files
         mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
-
+        # Open the file we are processing and convert to dict
         try:
             mydoc = MMD4SolR(myfile)
         except Exception as e:
             mylog.warning('Could not handle file: %s',e)
             continue
+        #Check and correct MMD
         mydoc.check_mmd()
         fileno += 1
 
         """ Do not search for metadata_identifier, always used id...  """
+        # Convert MMD dict to solr doc
         try:
             newdoc = mydoc.tosolr()
         except Exception as e:
-            mylog.warning('Could not process the file: %s', e)
+            mylog.warning('Could  convert MMD dict to solr doc: %s', e)
             continue
         if (newdoc['metadata_status'] == "Inactive"):
             continue
@@ -1613,29 +1627,49 @@ def main(argv):
                 continue
         mylog.info("Indexing dataset: %s", myfile)
         if l2flg:
-            mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+            solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+            docList.extend(solrDocList)
         else:
             if tflg:
                 try:
-                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                    docList.append(solrDoc)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)
             else:
                 try:
-                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
+                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
+                    docList.append(solrDoc)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)
         if not args.level2:
             l2flg = False
         tflg = False
+        if len(docList) == batch:
+            try:
+                print("Adding documents to solr", str(len(docList)))
+                mysolr.solrc.add(docList)
+            except Exception as e:
+                self.logger.error("Something failed in SolR adding document: %s", str(e))
+            docList = list()
 
+        #self.logger.info("Record successfully added.")
+    if len(docList) > 0:
+        try:
+            print("Adding %s documents to solr", str(len(docList)))
+            mysolr.solrc.add(docList)
+        except Exception as e:
+            self.logger.error("Something failed in SolR adding document: %s", str(e))
+        docList = list()
     # Now process all the level 2 files that failed in the previous
     # sequence. If the Level 1 dataset is not available, this will fail at
     # level 2. Meaning, the section below only ingests at level 2.
+    docList = list()
     fileno = 0
     if len(myfiles_pending)>0 and not args.always_commit:
         mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
-        sleep(20*60)
+        #sleep(20*60)
+        mysolr.commit()
     for myfile in myfiles_pending:
         mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
         try:
@@ -1658,14 +1692,45 @@ def main(argv):
             continue
         mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
-        mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+        solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+        docList.extend(solrDocList)
         tflg = False
+        if len(docList) == batch:
+            try:
+                print("Adding %s documents to solr", str(len(docList)))
+                mysolr.solrc.add(docList)
+            except Exception as e:
+                self.logger.error("Something failed in SolR adding document: %s", str(e))
+            docList = list()
+    if len(docList) > 0:
+        try:
+            print("Adding %s documents to solr", str(len(docList)))
+            mysolr.solrc.add(docList)
+        except Exception as e:
+            self.logger.error("Something failed in SolR adding document: %s", str(e))
+        docList = list()
 
     # Report status
-    mylog.info("Number of files processed were: %d", len(myfiles))
-
+    #mylog.info("Number of files processed were: %d", len(myfiles))
+    print("Number of files processed were: %d", len(myfiles))
+    #with open("bulkidx2.json", "w") as f:
+    #    for doc in docList:
+    #        f.write(json.dumps(doc))
+    #        f.write("\n")
     #add a commit to solr at end of run
+    # get the end time
+    et = time.time()
+    pet = time.process_time()
+    elapsed_time = et - st
+    pelt = pet -pst
+    print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+    print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
+    st = time.time()
     mysolr.commit()
+    et = time.time()
+    elapsed_time = et - st
+    print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+
 
 
 if __name__ == "__main__":
