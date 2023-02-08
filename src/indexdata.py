@@ -1024,7 +1024,7 @@ class IndexMMD:
     def commit(self):
         self.solrc.commit()
 
-    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
+    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None, feature_type=None):
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
@@ -1055,17 +1055,18 @@ class IndexMMD:
             mylog.warning('Skipping record')
             return False
         myfeature = None
-        #if 'data_access_url_opendap' in input_record:
-            # Thumbnail of timeseries to be added
-            # Or better do this as part of get_feature_type?
-            # try:
-            #     myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
-            # except Exception as e:
-            #     self.logger.warning("Something failed while retrieving feature type: %s", str(e))
-            #     #raise RuntimeError('Something failed while retrieving feature type')
-            # if myfeature:
-            #     self.logger.info('feature_type found: %s', myfeature)
-            #     input_record.update({'feature_type':myfeature})
+        if 'data_access_url_opendap' in input_record:
+            """Thumbnail of timeseries to be added
+            Or better do this as part of get_feature_type?"""
+            if feature_type == None:
+                try:
+                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+                except Exception as e:
+                    self.logger.warning("Something failed while retrieving feature type: %s", str(e))
+                    #raise RuntimeError('Something failed while retrieving feature type')
+                if myfeature:
+                    self.logger.info('feature_type found: %s', myfeature)
+                    input_record.update({'feature_type':myfeature})
 
         self.id = input_record['id']
         if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
@@ -1103,7 +1104,7 @@ class IndexMMD:
 
         return input_record
 
-    def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None):
+    def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None, feature_type=None):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mmd_record2 = list()
 
@@ -1117,17 +1118,18 @@ class IndexMMD:
         myl2record['isChild'] = 'true'
 
         myfeature = None
-       #if 'data_access_url_opendap' in myl2record:
-            # Thumbnail of timeseries to be added
-            # Or better do this as part of get_feature_type?
-            # try:
-            #     myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
-            # except Exception as e:
-            #     self.logger.error("Something failed while retrieving feature type: %s", str(e))
-            #     #raise RuntimeError('Something failed while retrieving feature type')
-            # if myfeature:
-            #     self.logger.info('feature_type found: %s', myfeature)
-            #     myl2record.update({'feature_type':myfeature})
+        if 'data_access_url_opendap' in myl2record:
+            """Thumbnail of timeseries to be added
+            Or better do this as part of get_feature_type?"""
+            if feature_type == None:
+                try:
+                    myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
+                except Exception as e:
+                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    #raise RuntimeError('Something failed while retrieving feature type')
+                if myfeature:
+                    self.logger.info('feature_type found: %s', myfeature)
+                    myl2record.update({'feature_type':myfeature})
 
         self.id = myl2record['id']
         # Add thumbnail for WMS supported datasets
@@ -1507,6 +1509,25 @@ def main(argv):
     else:
         authentication = None
         mylog.info("Authentication disabled")
+
+    #Set batch size from config.
+    batch = 1
+    if 'batch-size' in cfg:
+        batch = cfg["batch-size"]
+
+    #Should we commit to solr at the end of execution?
+    end_solr_commit = False;
+    if 'end-solr-commit' in cfg:
+        if(cfg['end-solr-commit']):
+            end_solr_commit = cfg['end-solr-commit']
+    #Get config for feature_type handeling
+    feature_type=None
+    if 'skip-feature-type' in cfg:
+        if(cfg['skip-feature-type']):
+            feature_type="Skip"
+    if 'override-feature-type' in cfg:
+        feature_type=cfg['override-feature-type']
+
     #Get solr server config
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
@@ -1519,6 +1540,7 @@ def main(argv):
     # FIXME remove l2 and thumbnail cores, reconsider deletion herein
     if args.input_file:
         myfiles = [args.input_file]
+        batch = 1 #Batch always 1 when single file is indexed
     elif args.list_file:
         try:
             f2 = open(args.list_file, "r")
@@ -1542,9 +1564,10 @@ def main(argv):
         except Exception as e:
             mylog.error("Something went wrong in decoding cmd arguments: %s", e)
             sys.exit(1)
-    batch = 250
+    #batch = 250
     fileno = 0
     myfiles_pending = []
+    print("Files to process: ", len(myfiles))
     for myfile in myfiles:
         myfile = myfile.strip()
         # Decide files to operate on
@@ -1627,18 +1650,18 @@ def main(argv):
                 continue
         mylog.info("Indexing dataset: %s", myfile)
         if l2flg:
-            solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+            solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent, feature_type=feature_type)
             docList.extend(solrDocList)
         else:
             if tflg:
                 try:
-                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
+                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent, feature_type=feature_type)
                     docList.append(solrDoc)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)
             else:
                 try:
-                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
+                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, feature_type=feature_type)
                     docList.append(solrDoc)
                 except Exception as e:
                     mylog.warning('Something failed during indexing %s', e)

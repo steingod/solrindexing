@@ -14,7 +14,7 @@ wms-timeout: 480
 #auth-basic-password: <PASSWORD>
 
 #Index in batches
-batch-size: 250
+batch-size: 1000
 
 #Commit to solr at end of execution True/False
 #end-solr-commit: True
