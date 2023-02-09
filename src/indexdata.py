@@ -51,6 +51,9 @@ import pyproj
 import shapely.geometry as shpgeo
 import shapely.wkt
 import time
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 
 #For basic authentication
 from requests.auth import HTTPBasicAuth
@@ -135,7 +138,7 @@ def initialise_logger(outputfile, name):
             when='w0',
             interval=1,
             backupCount=7)
-    file_handler.setLevel(logging.ERROR)
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(myformat)
     mylog.addHandler(file_handler)
 
@@ -151,12 +154,13 @@ class MMD4SolR:
         """ set variables in class """
         self.filename = filename
         self.jsonld = []
-        try:
-            with open(self.filename, encoding='utf-8') as fd:
-                self.mydoc = xmltodict.parse(fd.read())
-        except Exception as e:
-            self.logger.error('Could not open file: %s',self.filename)
-            raise
+        self.mydoc = filename
+        # try:
+        #     with open(self.filename, encoding='utf-8') as fd:
+        #         self.mydoc = xmltodict.parse(fd.read())
+        # except Exception as e:
+        #     self.logger.error('Could not open file: %s',self.filename)
+        #     raise
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
@@ -973,10 +977,14 @@ class MMD4SolR:
 
         """ Adding MMD document as base64 string"""
         # Check if this can be simplified in the workflow.
-        xml_root = ET.parse(str(self.filename))
-        xml_string = ET.tostring(xml_root)
-        encoded_xml_string = base64.b64encode(xml_string)
-        xml_b64 = (encoded_xml_string).decode('utf-8')
+        xml_mmd = xmltodict.unparse(self.mydoc)
+        #print(type(xml_mmd))
+        #xml_root = ET.parse(xml_mmd)
+        #xml_string = ET.tostring(xml_root)
+        xml_mmd_bytes = xml_mmd.encode('utf-8')
+        base64_bytes = base64.b64encode(xml_mmd_bytes)
+        #encoded_xml_string = base64.b64encode(xml_string)
+        xml_b64 = (base64_bytes).decode('utf-8')
         mydict['mmd_xml_file'] = xml_b64
 
 ##        with open(self.mydoc['mmd:mmd']['mmd:metadata_identifier']+'.txt','w') as myfile:
@@ -1058,7 +1066,7 @@ class IndexMMD:
         if 'data_access_url_opendap' in input_record:
             """Thumbnail of timeseries to be added
             Or better do this as part of get_feature_type?"""
-            if feature_type == None:
+            if feature_type is None:
                 try:
                     myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
                 except Exception as e:
@@ -1067,6 +1075,10 @@ class IndexMMD:
                 if myfeature:
                     self.logger.info('feature_type found: %s', myfeature)
                     input_record.update({'feature_type':myfeature})
+            elif feature_type == 'Skip':
+                myfeature = None
+            else:
+                myfeature = feature_type
 
         self.id = input_record['id']
         if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
@@ -1456,6 +1468,66 @@ class IndexMMD:
 
         return (mylinks)
 
+## Some test functions for multiprocessing and multi threading
+
+# load mmd and return contents
+def load_file(filename):
+    # open the file
+    filename = filename.strip()
+    try:
+        with open(filename, encoding='utf-8') as fd:
+           return xmltodict.parse(fd.read())
+    except Exception as e:
+            self.logger.error('Could not open file: %s',self.filename)
+            raise
+# Load multiple mmd files using multi-threading
+def load_files(filelist):
+    # create a thread pool
+    with ThreadPoolExecutor(len(filelist)) as exe:
+        # load files
+        futures = [exe.submit(load_file, name) for name in filelist]
+        # collect data
+        mmd_list = [future.result() for future in futures]
+        # return data and file paths
+        return (mmd_list)
+
+def mmd2solr(mmd):
+    mydoc = MMD4SolR(mmd)
+    mydoc.check_mmd()
+    return mydoc.tosolr()
+
+#Pocess and tranforms multiple mmd files
+def process_mmd(mmd_list):
+    with ThreadPoolExecutor(len(mmd_list)) as exe:
+        # convert mmd to solr doc
+        futures = [exe.submit(mmd2solr, doc) for doc in mmd_list]
+        # collect data
+        solr_docs = [future.result() for future in futures]
+        # return data and file paths
+        return (solr_docs)
+
+#Process the mmd list and index to solr
+def bulkindex(filelist,mysolr, workers, chunksize):
+    # Calculate chunksize
+    #chunksize = round(len(filelist) / workers)
+
+    with ProcessPoolExecutor(workers) as executor:
+
+        # split the load operations into chunks
+        for i in range(0, len(filelist), chunksize):
+            # select a chunk
+            files = filelist[i:(i + chunksize)]
+            # load the mmd files
+            futures = executor.submit(load_files, files)
+            # Get the list of loaded mmd files
+            #mmd_list = [future.result() for future in as_completed(futures)]
+            #Convert the mmd to solr
+            futures = executor.submit(process_mmd, futures.result())
+            #solr_docs = [future.result() for future in as_completed(futures)]
+            mysolr.solrc.add(futures.result())
+            print("Added %s documents to solr. Total added so far %s" %(chunksize,i))
+            #print("Total documents added so far: %s" %(added* chunksize))
+
 def main(argv):
 
     # start time
@@ -1482,6 +1554,7 @@ def main(argv):
     # Read config file
     with open(args.cfgfile, 'r') as ymlfile:
         cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
+
 
     # Specify map projection
     if args.map_projection:
@@ -1515,16 +1588,20 @@ def main(argv):
     if 'batch-size' in cfg:
         batch = cfg["batch-size"]
 
+    workers = 2
+    if 'workers' in cfg:
+        workers = cfg["workers"]
+
     #Should we commit to solr at the end of execution?
-    end_solr_commit = False;
+    end_solr_commit = False
     if 'end-solr-commit' in cfg:
-        if(cfg['end-solr-commit']):
+        if cfg['end-solr-commit'] is True:
             end_solr_commit = cfg['end-solr-commit']
     #Get config for feature_type handeling
     feature_type=None
     if 'skip-feature-type' in cfg:
-        if(cfg['skip-feature-type']):
-            feature_type="Skip"
+        if cfg['skip-feature-type'] is True:
+            feature_type = 'Skip'
     if 'override-feature-type' in cfg:
         feature_type=cfg['override-feature-type']
 
@@ -1546,7 +1623,7 @@ def main(argv):
             f2 = open(args.list_file, "r")
         except IOError as e:
             mylog.error('Could not open file: %s %e', args.list_file, e)
-            sys.exit()
+            sys.exit(1)
         myfiles = f2.readlines()
         f2.close()
     elif args.remove:
@@ -1562,180 +1639,187 @@ def main(argv):
         try:
             myfiles = os.listdir(args.directory)
         except Exception as e:
-            mylog.error("Something went wrong in decoding cmd arguments: %s", e)
+            mylog.error("Could not find directory: %s", e)
             sys.exit(1)
+    # We only process files that have xml extensions.
+    # Remove files we do not use
+    #myfiles = [x for x in myfiles if not x.endswith('.xml')]
+
+
     #batch = 250
     fileno = 0
-    myfiles_pending = []
     print("Files to process: ", len(myfiles))
-    for myfile in myfiles:
-        myfile = myfile.strip()
-        # Decide files to operate on
-        if not myfile.endswith('.xml'):
-            continue
-        if args.list_file:
-            myfile = myfile.rstrip()
-        if args.directory:
-            myfile = os.path.join(args.directory, myfile)
+    bulkindex(myfiles,mysolr,workers,batch)
+    myfiles_pending = []
 
-        # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
-        if args.thumbnail_layer:
-            wms_layer = args.thumbnail_layer
-        else:
-            wms_layer = None
-        if args.thumbnail_style:
-            wms_style = args.thumbnail_style
-        else:
-            wms_style =  None
-        if args.thumbnail_zoom_level:
-            wms_zoom_level = args.thumbnail_zoom_level
-        else:
-            wms_zoom_level=0
-        if args.add_coastlines:
-            wms_coastlines = args.add_coastlines
-        else:
-            wms_coastlines=True
-        if args.thumbnail_extent:
-            thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
-        else:
-            thumbnail_extent = None
+    # for myfile in myfiles:
+    #     myfile = myfile.strip()
+    #     # Decide files to operate on
+    #     if not myfile.endswith('.xml'):
+    #         continue
+    #     if args.list_file:
+    #         myfile = myfile.rstrip()
+    #     if args.directory:
+    #         myfile = os.path.join(args.directory, myfile)
 
-        # Index files
-        mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
-        # Open the file we are processing and convert to dict
-        try:
-            mydoc = MMD4SolR(myfile)
-        except Exception as e:
-            mylog.warning('Could not handle file: %s',e)
-            continue
-        #Check and correct MMD
-        mydoc.check_mmd()
-        fileno += 1
+    #     # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
+    #     if args.thumbnail_layer:
+    #         wms_layer = args.thumbnail_layer
+    #     else:
+    #         wms_layer = None
+    #     if args.thumbnail_style:
+    #         wms_style = args.thumbnail_style
+    #     else:
+    #         wms_style =  None
+    #     if args.thumbnail_zoom_level:
+    #         wms_zoom_level = args.thumbnail_zoom_level
+    #     else:
+    #         wms_zoom_level=0
+    #     if args.add_coastlines:
+    #         wms_coastlines = args.add_coastlines
+    #     else:
+    #         wms_coastlines=True
+    #     if args.thumbnail_extent:
+    #         thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
+    #     else:
+    #         thumbnail_extent = None
 
-        """ Do not search for metadata_identifier, always used id...  """
-        # Convert MMD dict to solr doc
-        try:
-            newdoc = mydoc.tosolr()
-        except Exception as e:
-            mylog.warning('Could  convert MMD dict to solr doc: %s', e)
-            continue
-        if (newdoc['metadata_status'] == "Inactive"):
-            continue
-        if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
-            tflg = True
-        # Do not directly index children unless they are requested to be children. Do always assume that the parent is included in the indexing process so postpone the actual indexing to allow the parent to be properly indexed in SolR.
-        if 'related_dataset' in newdoc:
-            # Special fix for NPI
-            newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
-            newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
-            newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
-            newdoc['related_dataset'] = newdoc['related_dataset'].replace('.xml','')
-            # Skip if DOI is used to refer to parent, that isn't consistent.
-            if 'doi.org' in newdoc['related_dataset']:
-                continue
-            # Fix special characters that SolR doesn't like
-            idrepls = [':','/','.']
-            myparent = newdoc['related_dataset']
-            for e in idrepls:
-                myparent = myparent.replace(e,'-')
-            #myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
-            myresults = mysolr.solrc.search('id:' + myparent, **{'wt':'python','rows':100})
-            if len(myresults) == 0:
-                mylog.warning("No parent found. Staging for second run.")
-                myfiles_pending.append(myfile)
-                continue
-            elif not l2flg:
-                mylog.warning("Parent found, but assumes parent will be reindexed, thus postponing indexing of children until SolR is updated.")
-                myfiles_pending.append(myfile)
-                continue
-        mylog.info("Indexing dataset: %s", myfile)
-        if l2flg:
-            solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent, feature_type=feature_type)
-            docList.extend(solrDocList)
-        else:
-            if tflg:
-                try:
-                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent, feature_type=feature_type)
-                    docList.append(solrDoc)
-                except Exception as e:
-                    mylog.warning('Something failed during indexing %s', e)
-            else:
-                try:
-                    solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, feature_type=feature_type)
-                    docList.append(solrDoc)
-                except Exception as e:
-                    mylog.warning('Something failed during indexing %s', e)
-        if not args.level2:
-            l2flg = False
-        tflg = False
-        if len(docList) == batch:
-            try:
-                print("Adding documents to solr", str(len(docList)))
-                mysolr.solrc.add(docList)
-            except Exception as e:
-                self.logger.error("Something failed in SolR adding document: %s", str(e))
-            docList = list()
+    #     # Index files
+    #     mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
+    #     # Open the file we are processing and convert to dict
+    #     try:
+    #         mydoc = MMD4SolR(myfile)
+    #     except Exception as e:
+    #         mylog.warning('Could not handle file: %s',e)
+    #         continue
+    #     #Check and correct MMD
+    #     mydoc.check_mmd()
+    #     fileno += 1
 
-        #self.logger.info("Record successfully added.")
-    if len(docList) > 0:
-        try:
-            print("Adding %s documents to solr", str(len(docList)))
-            mysolr.solrc.add(docList)
-        except Exception as e:
-            self.logger.error("Something failed in SolR adding document: %s", str(e))
-        docList = list()
-    # Now process all the level 2 files that failed in the previous
-    # sequence. If the Level 1 dataset is not available, this will fail at
-    # level 2. Meaning, the section below only ingests at level 2.
-    docList = list()
-    fileno = 0
-    if len(myfiles_pending)>0 and not args.always_commit:
-        mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
-        #sleep(20*60)
-        mysolr.commit()
-    for myfile in myfiles_pending:
-        mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
-        try:
-            mydoc = MMD4SolR(myfile)
-        except Exception as e:
-            mylog.warning('Could not handle file: %s', e)
-            continue
-        mydoc.check_mmd()
-        fileno += 1
-        """ Do not search for metadata_identifier, always used id...  """
-        """ Check if this can be used???? """
-        newdoc = mydoc.tosolr()
-        if 'data_access_resource' in newdoc.keys():
-            for e in newdoc['data_access_resource']:
-                #print('>>>>>e', e)
-                if (not nflg) and "OGC WMS" in (''.join(e)):
-                    tflg = True
-        # Skip file if not a level 2 file
-        if 'related_dataset' not in newdoc:
-            continue
-        mylog.info("Indexing dataset: %s", myfile)
-        # Ingest at level 2
-        solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
-        docList.extend(solrDocList)
-        tflg = False
-        if len(docList) == batch:
-            try:
-                print("Adding %s documents to solr", str(len(docList)))
-                mysolr.solrc.add(docList)
-            except Exception as e:
-                self.logger.error("Something failed in SolR adding document: %s", str(e))
-            docList = list()
-    if len(docList) > 0:
-        try:
-            print("Adding %s documents to solr", str(len(docList)))
-            mysolr.solrc.add(docList)
-        except Exception as e:
-            self.logger.error("Something failed in SolR adding document: %s", str(e))
-        docList = list()
+    #     """ Do not search for metadata_identifier, always used id...  """
+    #     # Convert MMD dict to solr doc
+    #     try:
+    #         newdoc = mydoc.tosolr()
+    #     except Exception as e:
+    #         mylog.warning('Could  convert MMD dict to solr doc: %s', e)
+    #         continue
+    #     if (newdoc['metadata_status'] == "Inactive"):
+    #         continue
+    #     if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
+    #         tflg = True
+    #     # Do not directly index children unless they are requested to be children. Do always assume that the parent is included in the indexing process so postpone the actual indexing to allow the parent to be properly indexed in SolR.
+    #     if 'related_dataset' in newdoc:
+    #         # Special fix for NPI
+    #         newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
+    #         newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
+    #         newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
+    #         newdoc['related_dataset'] = newdoc['related_dataset'].replace('.xml','')
+    #         # Skip if DOI is used to refer to parent, that isn't consistent.
+    #         if 'doi.org' in newdoc['related_dataset']:
+    #             continue
+    #         # Fix special characters that SolR doesn't like
+    #         idrepls = [':','/','.']
+    #         myparent = newdoc['related_dataset']
+    #         for e in idrepls:
+    #             myparent = myparent.replace(e,'-')
+    #         #myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
+    #         myresults = mysolr.solrc.search('id:' + myparent, **{'wt':'python','rows':100})
+    #         if len(myresults) == 0:
+    #             mylog.warning("No parent found. Staging for second run.")
+    #             myfiles_pending.append(myfile)
+    #             continue
+    #         elif not l2flg:
+    #             mylog.warning("Parent found, but assumes parent will be reindexed, thus postponing indexing of children until SolR is updated.")
+    #             myfiles_pending.append(myfile)
+    #             continue
+    #     mylog.info("Indexing dataset: %s", myfile)
+    #     if l2flg:
+    #         solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent, feature_type=feature_type)
+    #         docList.extend(solrDocList)
+    #     else:
+    #         if tflg:
+    #             try:
+    #                 solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent, feature_type=feature_type)
+    #                 docList.append(solrDoc)
+    #             except Exception as e:
+    #                 mylog.warning('Something failed during indexing %s', e)
+    #         else:
+    #             try:
+    #                 solrDoc = mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, feature_type=feature_type)
+    #                 docList.append(solrDoc)
+    #             except Exception as e:
+    #                 mylog.warning('Something failed during indexing %s', e)
+    #     if not args.level2:
+    #         l2flg = False
+    #     tflg = False
+    #     if len(docList) == batch:
+    #         try:
+    #             print("Adding documents to solr", str(len(docList)))
+    #             mysolr.solrc.add(docList)
+    #         except Exception as e:
+    #             self.logger.error("Something failed in SolR adding document: %s", str(e))
+    #         docList = list()
+
+    #     #self.logger.info("Record successfully added.")
+    # if len(docList) > 0:
+    #     try:
+    #         print("Adding %s documents to solr", str(len(docList)))
+    #         mysolr.solrc.add(docList)
+    #     except Exception as e:
+    #         self.logger.error("Something failed in SolR adding document: %s", str(e))
+    #     docList = list()
+    # # Now process all the level 2 files that failed in the previous
+    # # sequence. If the Level 1 dataset is not available, this will fail at
+    # # level 2. Meaning, the section below only ingests at level 2.
+    # docList = list()
+    # fileno = 0
+    # if len(myfiles_pending)>0 and not args.always_commit:
+    #     mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
+    #     #sleep(20*60)
+    #     mysolr.commit()
+    # for myfile in myfiles_pending:
+    #     mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
+    #     try:
+    #         mydoc = MMD4SolR(myfile)
+    #     except Exception as e:
+    #         mylog.warning('Could not handle file: %s', e)
+    #         continue
+    #     mydoc.check_mmd()
+    #     fileno += 1
+    #     """ Do not search for metadata_identifier, always used id...  """
+    #     """ Check if this can be used???? """
+    #     newdoc = mydoc.tosolr()
+    #     if 'data_access_resource' in newdoc.keys():
+    #         for e in newdoc['data_access_resource']:
+    #             #print('>>>>>e', e)
+    #             if (not nflg) and "OGC WMS" in (''.join(e)):
+    #                 tflg = True
+    #     # Skip file if not a level 2 file
+    #     if 'related_dataset' not in newdoc:
+    #         continue
+    #     mylog.info("Indexing dataset: %s", myfile)
+    #     # Ingest at level 2
+    #     solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+    #     docList.extend(solrDocList)
+    #     tflg = False
+    #     if len(docList) == batch:
+    #         try:
+    #             print("Adding %s documents to solr", str(len(docList)))
+    #             mysolr.solrc.add(docList)
+    #         except Exception as e:
+    #             self.logger.error("Something failed in SolR adding document: %s", str(e))
+    #         docList = list()
+    # if len(docList) > 0:
+    #     try:
+    #         print("Adding %s documents to solr", str(len(docList)))
+    #         mysolr.solrc.add(docList)
+    #     except Exception as e:
+    #         self.logger.error("Something failed in SolR adding document: %s", str(e))
+    #     docList = list()
 
     # Report status
     #mylog.info("Number of files processed were: %d", len(myfiles))
-    print("Number of files processed were: %d", len(myfiles))
+    print("Number of files processed were: %d" % (len(myfiles)))
     #with open("bulkidx2.json", "w") as f:
     #    for doc in docList:
     #        f.write(json.dumps(doc))
@@ -1748,11 +1832,11 @@ def main(argv):
     pelt = pet -pst
     print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
-    st = time.time()
-    mysolr.commit()
-    et = time.time()
-    elapsed_time = et - st
-    print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+    #st = time.time()
+    #mysolr.commit()
+    #et = time.time()
+    #elapsed_time = et - st
+    #print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
 
 
