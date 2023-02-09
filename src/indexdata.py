@@ -1054,11 +1054,12 @@ class IndexMMD:
         if input_record['metadata_status'] == 'Inactive':
             mylog.warning('Skipping record')
             return False
+
         myfeature = None
         if 'data_access_url_opendap' in input_record:
             """Thumbnail of timeseries to be added
             Or better do this as part of get_feature_type?"""
-            if feature_type == None:
+            if feature_type is None:
                 try:
                     myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
                 except Exception as e:
@@ -1067,6 +1068,11 @@ class IndexMMD:
                 if myfeature:
                     self.logger.info('feature_type found: %s', myfeature)
                     input_record.update({'feature_type':myfeature})
+            elif feature_type == 'Skip':
+                myfeature = None
+            else:
+                myfeature = feature_type
+
 
         self.id = input_record['id']
         if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
@@ -1118,18 +1124,23 @@ class IndexMMD:
         myl2record['isChild'] = 'true'
 
         myfeature = None
-        if 'data_access_url_opendap' in myl2record:
+        if 'data_access_url_opendap' in input_record:
             """Thumbnail of timeseries to be added
             Or better do this as part of get_feature_type?"""
-            if feature_type == None:
+            if feature_type is None:
                 try:
-                    myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
+                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
                 except Exception as e:
-                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    self.logger.warning("Something failed while retrieving feature type: %s", str(e))
                     #raise RuntimeError('Something failed while retrieving feature type')
                 if myfeature:
                     self.logger.info('feature_type found: %s', myfeature)
-                    myl2record.update({'feature_type':myfeature})
+                    input_record.update({'feature_type':myfeature})
+            elif feature_type == 'Skip':
+                myfeature = None
+            else:
+                myfeature = feature_type
+
 
         self.id = myl2record['id']
         # Add thumbnail for WMS supported datasets
@@ -1515,8 +1526,29 @@ def main(argv):
     if 'batch-size' in cfg:
         batch = cfg["batch-size"]
 
+    workers = 1
+    if 'workers' in cfg:
+        workers = cfg["workers"]
+
     #Should we commit to solr at the end of execution?
-    end_solr_commit = False;
+    end_solr_commit = False
+    if 'end-solr-commit' in cfg:
+        if cfg['end-solr-commit'] is True:
+            end_solr_commit = cfg['end-solr-commit']
+    #Get config for feature_type handeling
+    feature_type=None
+    if 'skip-feature-type' in cfg:
+        if cfg['skip-feature-type'] is True:
+            feature_type = 'Skip'
+    if 'override-feature-type' in cfg:
+        feature_type=cfg['override-feature-type']
+    #Set batch size from config.
+    batch = 1
+    if 'batch-size' in cfg:
+        batch = cfg["batch-size"]
+
+    #Should we commit to solr at the end of execution?
+    end_solr_commit = False
     if 'end-solr-commit' in cfg:
         if(cfg['end-solr-commit']):
             end_solr_commit = cfg['end-solr-commit']
@@ -1715,7 +1747,7 @@ def main(argv):
             continue
         mylog.info("Indexing dataset: %s", myfile)
         # Ingest at level 2
-        solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
+        solrDocList = mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent,  feature_type=feature_type)
         docList.extend(solrDocList)
         tflg = False
         if len(docList) == batch:
@@ -1748,11 +1780,14 @@ def main(argv):
     pelt = pet -pst
     print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
-    st = time.time()
-    mysolr.commit()
-    et = time.time()
-    elapsed_time = et - st
-    print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+
+    #Commit at the end of run if specified in config
+    if end_solr_commit is True:
+        st = time.time()
+        mysolr.commit()
+        et = time.time()
+        elapsed_time = et - st
+        print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
 
 
