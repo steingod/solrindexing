@@ -31,6 +31,7 @@ import warnings
 import json
 import yaml
 import math
+import re
 from collections import OrderedDict
 import cartopy.crs as ccrs
 import cartopy
@@ -54,6 +55,12 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+from concurrent import futures as Futures
+from threading import Thread
+import requests
+import itertools
+from pathlib import Path
+
 
 #For basic authentication
 from requests.auth import HTTPBasicAuth
@@ -334,11 +341,16 @@ class MMD4SolR:
                 # To be removed when all records are transformed into the
                 # new format
                 self.logger.warning('Removed D7 format in last_metadata_update')
+
                 if self.mydoc['mmd:mmd']['mmd:last_metadata_update'].endswith('Z'):
                     myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
                 else:
                     myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']+'Z'
-            mydate = dateutil.parser.parse(myvalue)
+            #print(myvalue)
+            if re.search(r'\+\d\d:\d\dZ$', myvalue) is not None:
+                myvalue = re.sub(r'\+\d\d:\d\d','',myvalue)
+            mydate = dateutil.parser.isoparse(myvalue)
+            #print(myvalue)
             #self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
@@ -411,7 +423,8 @@ class MMD4SolR:
                 myid = myid.replace(e,'-')
             mydict['id'] = myid
             mydict['metadata_identifier'] = self.mydoc['mmd:mmd']['mmd:metadata_identifier']
-
+        if myid == 'Unkown':
+            return None
         """ Last metadata update """
         if 'mmd:last_metadata_update' in self.mydoc['mmd:mmd']:
             last_metadata_update = self.mydoc['mmd:mmd']['mmd:last_metadata_update']
@@ -420,11 +433,16 @@ class MMD4SolR:
             lmu_type = []
             lmu_note = []
             # FIXME check if this works correctly
-            if isinstance(last_metadata_update['mmd:update'], dict): #Only one last_metadata_update element
+            # NOTE: Fix for some nbs xml files that have the wrong structure
+            if isinstance(last_metadata_update, str):
+                lmu_datetime.append(str(last_metadata_update).strip())
+            elif isinstance(last_metadata_update['mmd:update'], dict): #Only one last_metadata_update element
                     lmu_datetime.append(str(last_metadata_update['mmd:update']['mmd:datetime']))
                     lmu_type.append(last_metadata_update['mmd:update']['mmd:type'])
-                    lmu_note.append(last_metadata_update['mmd:update']['mmd:note'])
-
+                    if 'mmd:note' in last_metadata_update['mmd:update']:
+                        lmu_note.append(last_metadata_update['mmd:update']['mmd:note'])
+                    else:
+                        lmu_note.append('Not provided')
             else: # multiple last_metadata_update elements
                 for i,e in enumerate(last_metadata_update['mmd:update']):
                     lmu_datetime.append(str(e['mmd:datetime']))
@@ -439,12 +457,29 @@ class MMD4SolR:
                     continue
                 else:
                     lmu_datetime[i-1] = myel+'Z'
+            #Check  and fixdate format validity
+            for i, date in enumerate(lmu_datetime):
+                test = re.match(DATETIME_REGEX, date)
+                if not test:
+                    #print(type(date))
+                    if re.search(r'\+\d\d:\d\dZ$', date) is not None:
+                        date = re.sub(r'\+\d\d:\d\d','',date)
+                    newdate = dateutil.parser.parse(date)
+                    date = newdate.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    #print(date)
+                    lmu_datetime[i] = date
+                    #self.logger.error("Dateformat not solr-compatible, document will fail during indexing")
             mydict['last_metadata_update_datetime'] = lmu_datetime
             mydict['last_metadata_update_type'] = lmu_type
             mydict['last_metadata_update_note'] = lmu_note
 
         """ Metadata status """
-        if isinstance(self.mydoc['mmd:mmd']['mmd:metadata_status'],dict):
+        #print(mydict)
+        if not 'mmd:metadata_status' in self.mydoc['mmd:mmd']:
+                #print('Did not find metadata_status for document %s. Setting to Inactive'%(mydict['id']))
+                mydict['metadata_status'] = 'Inactive'
+                return None
+        elif isinstance(self.mydoc['mmd:mmd']['mmd:metadata_status'],dict):
             mydict['metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']['#text']
         else:
             mydict['metadata_status'] = self.mydoc['mmd:mmd']['mmd:metadata_status']
@@ -522,6 +557,8 @@ class MMD4SolR:
                             maxtime = mytime
                 mydict['temporal_extent_start_date'] = mintime.strftime('%Y-%m-%dT%H:%M:%SZ')
                 mydict['temporal_extent_end_date'] = maxtime.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
             else:
                 mydict["temporal_extent_start_date"] = str(
                     self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
@@ -529,6 +566,9 @@ class MMD4SolR:
                     if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
                         mydict["temporal_extent_end_date"] = str(
                             self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+                #test = re.match(DATETIME_REGEX, mydict['temporal_extent_start_date'])
+                #if not test:
+                #    self.logger.error("Start date is not solr-compatible")
 
         """ Geographical extent """
         """ Assumes longitudes positive eastwards and in the are -180:180
@@ -565,6 +605,11 @@ class MMD4SolR:
                             #print(mapping(point))
                             #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
+                        #fix out of bounds
+                        #minX = min(lonvals)
+                        #maxX = max(la)
+                        #if min(lonvals)
+
                         bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
 
                         #print("First conditition")
@@ -765,7 +810,8 @@ class MMD4SolR:
                 if 'mmd:wms_layers' in data_access and data_access_type == 'ogc_wms':
                     data_access_wms_layers_string = 'data_access_wms_layers'
                     data_access_wms_layers = data_access['mmd:wms_layers']
-                    mydict[data_access_wms_layers_string] = [ i for i in data_access_wms_layers.values()][0]
+                    if data_access_wms_layers is not None:
+                        mydict[data_access_wms_layers_string] = [ i for i in data_access_wms_layers.values()][0]
 
         """ Related dataset """
         """ TODO """
@@ -852,6 +898,8 @@ class MMD4SolR:
             mydict['keywords_wigos'] = [] # Not used yet
             # If there is only one keyword list
             if isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], dict):
+                #if not 'mmd_keyword' in self.mydoc['mmd:mmd']['mmd:keywords']:
+                #    print('missing keywords for dataset %s' % (mydict['metadata_identifier']))
                 if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'],str):
                     if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
                         mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
@@ -943,8 +991,9 @@ class MMD4SolR:
 
                 # Add platform_sentinel for NBS
                 initial_platform = mydict['platform_long_name'][0]
-                if initial_platform.startswith('Sentinel'):
-                    mydict['platform_sentinel'] = initial_platform[:-1]
+                if initial_platform is not None:
+                    if initial_platform.startswith('Sentinel'):
+                        mydict['platform_sentinel'] = initial_platform[:-1]
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
@@ -968,7 +1017,17 @@ class MMD4SolR:
                     # Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not.
                     if element_suffix == 'publication_date':
                         if v is not None:
-                            v+='T12:00:00Z'
+                            solrdate = re.match(DATETIME_REGEX, v)
+                            if not solrdate:
+                                v+='T12:00:00Z'
+                            test = re.match(DATETIME_REGEX, v)
+                            if not test:
+                                #print(type(date))
+                                if re.search(r'\+\d\d:\d\dZ$', v) is not None:
+                                  date = re.sub(r'\+\d\d:\d\d','',v)
+                                newdate = dateutil.parser.parse(date)
+                                v = newdate.strftime('%Y-%m-%dT%H:%M:%SZ')
+
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
 
         """ Quality control """
@@ -992,6 +1051,8 @@ class MMD4SolR:
 ##            myjson = json.dumps(mydict)
 ##            myfile.write(myjson)
 
+        #print(mydict)
+        #sys.exit(1)
         return mydict
 
 class IndexMMD:
@@ -1469,21 +1530,68 @@ class IndexMMD:
         return (mylinks)
 
 ## Some test functions for multiprocessing and multi threading
+def concurrently(fn, inputs, *, max_concurrency=5):
+    """
+    Calls the function ``fn`` on the values ``inputs``.
+    ``fn`` should be a function that takes a single input, which is the
+    individual values in the iterable ``inputs``.
+    Generates (input, output) tuples as the calls to ``fn`` complete.
+    See https://alexwlchan.net/2019/10/adventures-with-concurrent-futures/ for an explanation
+    of how this function works.
+    """
+    # Make sure we get a consistent iterator throughout, rather than
+    # getting the first element repeatedly.
+    fn_inputs = iter(inputs)
 
-# load mmd and return contents
+    with ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(fn, input): input
+            for input in itertools.islice(fn_inputs, max_concurrency)
+        }
+
+        while futures:
+            done, _ = Futures.wait(
+                futures, return_when=Futures.FIRST_COMPLETED
+            )
+
+            for fut in done:
+                original_input = futures.pop(fut)
+                yield original_input, fut.result()
+
+            for input in itertools.islice(fn_inputs, len(done)):
+                fut = executor.submit(fn, input)
+                futures[fut] = input
+
+ #load mmd and return contents
 def load_file(filename):
-    # open the file
+    """
+    Load xml file and convert to dict using xmltodict
+    """
     filename = filename.strip()
     try:
-        with open(filename, encoding='utf-8') as fd:
-           return xmltodict.parse(fd.read())
+        file = Path(filename)
     except Exception as e:
-            self.logger.error('Could not open file: %s',self.filename)
-            raise
+        print('Not a valid filepath %s error was %s' %(filename,e))
+        return None
+    with open(file, encoding='utf-8') as fd:
+        try:
+            xmlfile = fd.read()
+        except Exception as e:
+            print('Clould not read file %s error was %s' %(filename,e))
+            return None
+        try:
+            mmddict = xmltodict.parse(xmlfile)
+        except Exception as e:
+            print('Could not parse the xmlfile: %s  with error %s' %(filename,e))
+            return None
+        return mmddict
+
 # Load multiple mmd files using multi-threading
 def load_files(filelist):
-    # create a thread pool
-    with ThreadPoolExecutor(len(filelist)) as exe:
+    """
+    Multithreaded function to load files using the load_file function
+    """
+    with ThreadPoolExecutor(threads) as exe:
         # load files
         futures = [exe.submit(load_file, name) for name in filelist]
         # collect data
@@ -1491,44 +1599,504 @@ def load_files(filelist):
         # return data and file paths
         return (mmd_list)
 
-def mmd2solr(mmd):
+def solr_updateparent(parent):
+    """
+    Update the parent document we got from solr.
+    some fields need to be removed for solr to accept the update.
+    """
+    if 'full_text' in parent:
+        parent.pop('full_text')
+    if 'bbox__maxX' in parent:
+        parent.pop('bbox__maxX')
+    if 'bbox__maxY' in parent:
+        parent.pop('bbox__maxY')
+    if 'bbox__minX' in parent:
+        parent.pop('bbox__minX')
+    if 'bbox__minY' in parent:
+        parent.pop('bbox__minY')
+    if 'bbox_rpt' in parent:
+        parent.pop('bbox_rpt')
+    if 'ss_access' in parent:
+        parent.pop('ss_access')
+    if '_version_' in parent:
+        parent.pop('_version_')
+
+    parent['isParent'] = True
+    return parent
+
+def find_parent(id):
+    """
+    Use solr real-time get to check if a parent is already indexed,
+    and have been marked as parent
+    """
+    res = requests.get(mySolRc+'/get?id='+id, auth=authentication)
+    res.raise_for_status()
+    #print(res.text)
+    #sys.exit(1)
+    #print(jsonres)
+    return res.json()
+
+def mmd2solr(mmd,status,mysolr,file):
+    """
+    Convert mmd dict to solr dict
+
+    Check for presence of children and mark them as children.
+    If children found return parentid together with the solrdoc
+    """
+
+    #(mmd, status) = doc
+    if mmd is None:
+        print("Warning file %s was not parsed" %file)
+        return (None,status)
+    #print(mmd, status)
     mydoc = MMD4SolR(mmd)
-    mydoc.check_mmd()
-    return mydoc.tosolr()
+    try:
+        mydoc.check_mmd()
+    except Exception as e:
+        print("File %s did not pass the mmd check, cannot index. Reason: %s" % (file,e))
+        return(None,status)
+
+    #DEBUG MMD
+    #import pprint
+    #pp = pprint.PrettyPrinter(indent=2, depth=6)
+    #print(mmd)
+    #sys.exit(1)
+    #print(mmd['mmd:mmd']['mmd:metadata_identifier'])
+    #print(type(mmd['mmd:mmd']['mmd:last_metadata_update']['mmd:update']))
+
+    #Convert mmd xml dict to solr dict
+    try:
+        tmpdoc = mydoc.tosolr()
+    except Exception as e:
+        print("File %s could not be converted to solr document. Reason: %s" % (file,e))
+        return(None,status)
+
+    #File could not be processed
+    if tmpdoc is None:
+        print("Warning solr document for file %s was empty" % (file))
+        return (None,status)
+    if 'id' not in tmpdoc:
+        print("WARNING  file %s have no id. Missing metadata_identifier?" % file)
+        return (None,status)
+
+    if tmpdoc['id'] == None or tmpdoc['id'] == 'Unknown':
+        print("Skipping process file %s. Metadata identifier: Unknown" % file)
+        return (None,status)
+    if tmpdoc['metadata_status'] != "Active":
+        print("WARNING indexed file %s  with metadata_status: %s" %(file, tmpdoc['metadata_status']))
+    #print(tmpdoc)
+    #Check if dates are ok. If not we cannot index, report.
+    try:
+        (start_date,) = tmpdoc['temporal_extent_start_date']
+    except Exception as e:
+        print("Could not find start date in  %s. Reason: %s" % (file,e))
+        return(None,status)
+    #print(start_date)
+    test = re.match(DATETIME_REGEX, start_date)
+
+    if not test:
+        print('Incomaptible start date %s in document % s ' %(tmpdoc['temporal_extent_start_date'],tmpdoc['metadata_identifier']))
+        return (None, status)
+    if 'temporal_extent_end_date' in tmpdoc:
+        try:
+            (end_date,) = tmpdoc['temporal_extent_end_date']
+        except Exception as e:
+            print("Could extract end date in  %s. Reason: %s" % (file,e))
+            return(None,status)
+
+        test = re.match(DATETIME_REGEX, end_date)
+        if not test:
+            print('Incomaptible end date %s in document %s ' %(tmpdoc['temporal_extent_start_date'],tmpdoc['metadata_identifier']))
+            return (None, status)
+
+    tmpstatus = "OK"
+    #Check geographic extent is ok
+    try:
+        if round(tmpdoc['geographic_extent_rectangle_north'][0]) not in range(-91,91):
+            tmpstatus = None
+        if round(tmpdoc['geographic_extent_rectangle_south'][0]) not in range(-91,91):
+            tmpstatus = None
+        if round(tmpdoc['geographic_extent_rectangle_east'][0]) not in range(-181,181):
+            tmpstatus = None
+        if round(tmpdoc['geographic_extent_rectangle_west'][0]) not in range(-181,181):
+            tmpstatus = None
+    except Exception as e:
+        print("Missing information in document %s. Reason %s" % (file,e))
+
+    if tmpstatus != "OK":
+         print('Incomaptible geographic extent for docid:  %s for file %s' % (tmpdoc['id'],file))
+         return (None,status)
+    #pp.pprint(tmpdoc)
+    #print(tmpdoc['related_dataset'],type)
+    #Check if we have a child pointing to a parent
+
+    #check for future_type using opendap if not set to skip or overriden in config:
+    if feature_type is None:
+        if 'data_access_url_opendap' in tmpdoc:
+            if feature_type == None:
+                try:
+                    myfeature = self.get_feature_type(['data_access_url_opendap'])
+                except Exception as e:
+                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    #raise RuntimeError('Something failed while retrieving feature type')
+                if myfeature:
+                    tmpdoc.update({'feature_type':myfeature})
+    if feature_type != "Skip" and feature_type is not None:
+        tmpdoc.update({'feature_type':feature_type})
+
+
+    #If we got level2 flag from cmd arguments we make it a child/Level-2
+    if l2flg:
+        tmpdoc.update({'dataset_type':'Level-2'})
+        tmpdoc.update({'isChild': True })
+
+    if 'related_dataset' in tmpdoc:
+        #print("got related dataset")
+        if isinstance(tmpdoc['related_dataset'],str):
+            #print("processing child")
+            #Manipulate the related_dataset id to solr id
+            # Special fix for NPI
+            tmpdoc['related_dataset'] = tmpdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
+            tmpdoc['related_dataset'] = tmpdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
+            tmpdoc['related_dataset'] = tmpdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
+            tmpdoc['related_dataset'] = tmpdoc['related_dataset'].replace('.xml','')
+            # Skip if DOI is used to refer to parent, that isn't consistent.
+            if not 'doi.org' in tmpdoc['related_dataset']:
+                #Update document with child specific fields
+                tmpdoc.update({'dataset_type':'Level-2'})
+                tmpdoc.update({'isChild': True})
+
+            # Fix special characters that SolR doesn't like
+            idrepls = [':','/','.']
+            myparent = tmpdoc['related_dataset']
+            for e in idrepls:
+                myparent = myparent.replace(e,'-')
+
+            status = myparent.strip()
+            #pp.pprint(tmpdoc)
+            #print(status)
+    else:
+        #Assume we have level-1 doc that are not parent
+        tmpdoc.update({'dataset_type':'Level-1'})
+        tmpdoc.update({'isParent': False})
+
+    return (tmpdoc,status)
 
 #Pocess and tranforms multiple mmd files
-def process_mmd(mmd_list):
-    with ThreadPoolExecutor(len(mmd_list)) as exe:
+def process_mmd(mmd_list, status_list):
+    """
+    Mutithreaded processing of mmd2solr conversion
+    """
+    with ThreadPoolExecutor(threads) as exe:
+        arglist = zip(mmd_list,status_list)
         # convert mmd to solr doc
-        futures = [exe.submit(mmd2solr, doc) for doc in mmd_list]
+        futures = [exe.submit(mmd2solr, item) for item in arglist]
         # collect data
-        solr_docs = [future.result() for future in futures]
+        result = [future.result() for future in futures]
+        solr_docs, status = zip(*result)
+        #print(solr_docs, status)
         # return data and file paths
-        return (solr_docs)
+        return solr_docs,status
+
+#add documents to solr
+def add2solr(docs):
+    try:
+        solrcon.add(docs)
+    except Exception as e:
+        print("Some documents failed to be added to solr. reason: %s" % e)
+
 
 #Process the mmd list and index to solr
-def bulkindex(filelist,mysolr, workers, chunksize):
-    # Calculate chunksize
-    #chunksize = round(len(filelist) / workers)
+def bulkindex(filelist,mysolr, chunksize):
 
-    with ProcessPoolExecutor(workers) as executor:
+    #Define some lists to keep track of the processing
+    parent_ids_pending = list()  # Keep track of pending parent ids
+    parent_ids_processed =list() # Keep track parent ids already processed
+    parent_ids_indexed = list()  # Keep track of parent ids sent to the index
+    parent_ids_found = list()    # Keep track of parent ids found
 
-        # split the load operations into chunks
-        for i in range(0, len(filelist), chunksize):
-            # select a chunk
-            files = filelist[i:(i + chunksize)]
-            # load the mmd files
-            futures = executor.submit(load_files, files)
-            # Get the list of loaded mmd files
-            #mmd_list = [future.result() for future in as_completed(futures)]
-            #Convert the mmd to solr
-            futures = executor.submit(process_mmd, futures.result())
-            #solr_docs = [future.result() for future in as_completed(futures)]
-            mysolr.solrc.add(futures.result())
-            print("Added %s documents to solr. Total added so far %s" %(chunksize,i))
-            #print("Total documents added so far: %s" %(added* chunksize))
+    #Total files given to the bulkindexer
+    total_in = len(filelist)
+    print("Total files given as input: %s " % len(filelist))
+
+    #keep track of index threads
+    indexthreads = list()
+    #with ProcessPoolExecutor(workers) as executor:
+    files_processed = 0
+    docs_indexed = 0
+    docs_skipped = 0
+    # split the load operations into chunks
+    #chunksize = 2
+    it = 1
+    #random.shuffle(filelist)
+    for i in range(0, len(filelist), chunksize):
+        # select a chunk
+        files = filelist[i:(i + chunksize)]
+        #mmdlist = list()
+        docs = list()
+        statuses = list()
+        #create a copy of pending ids
+        #ppending_ = parent_ids_pending.copy()
+
+        ######################## STARTING THREADS ########################
+        #Load each file using multiple threads, and process documents as files are loaded
+        for(file, mmd) in concurrently(fn=load_file, inputs=files):
+
+            # Get the processed document and its status
+            doc,status = mmd2solr(mmd,None,mysolr,file)
+
+            # Add the document and the status to the document-list
+            docs.append(doc)
+            statuses.append(status)
+
+
+        ################################## THREADS FINISHED ##################
+
+        # Check if we got some children in the batch pointing to a parent id
+        parentids = set([element for element in statuses if element != None])
+        #print(parentids)
+        #print(parent_ids_processed)
+
+        # Check if the parent(s) of the children(s) was found before. If not, we add them to found.
+        for pid in parentids:
+            if pid not in parent_ids_found:
+                parent_ids_found.append(pid)
+            if pid not in parent_ids_pending and pid not in parent_ids_processed:
+                parent_ids_pending.append(pid)
+
+        # Check if the parent(s) of the children(s) we found was processed. If so, we do not process agian
+        for pid in parent_ids_processed:
+            if pid in parentids:
+                parentids.remove(pid)
+        for pid in parent_ids_found:
+            if pid in parentids:
+                parentids.remove(pid)
+
+        # Files processed so far
+        files_processed += len(files)
+
+        # Gnereate a list of documents to send to solr.
+        # Documents that could not be opened, parsed or converted to solr documents are skipped
+        docs_= len(docs) # Number of documents processed
+        docs = [el for el in docs if el != None] # List of documents that can be indexed
+        docs_skipped += (docs_ - len(docs)) # Update # of skipped documents
+        docs_skipped_ = (docs_ - len(docs))
+        print("===========================================================================================================")
+        print("=== BAtch no. %s ========= Files processed %s ==== Docs processed %s  ==== Docs skipped %s ==== Docs indexed %s ======" %(it, files_processed, len(docs), docs_skipped_,docs_indexed))
+        #print("New ids found: %s" % len(parentids))
+        print("Parent ids found: %s" % len(parent_ids_found))
+        print("Parent ids pending: %s" % len(parent_ids_pending))
+        print("Parent ids processed: %s" % len(parent_ids_processed))
+        print("Parent ids sent to index: %s" % len(parent_ids_indexed))
+        print("Parent ids pending list: %s" % parent_ids_pending)
+        print("===========================================================================================================")
+
+        #Run over the list of parentids found in this job and look for the parent
+        parent_found = False
+        for pid in parentids:
+            #print("checking parent: %s" % pid)
+            #Firs we check if the parent dataset are in our jobs
+            myparent = None
+            parent = [el for el in docs if el['id'] == pid]
+            #print("parents found in this chunk: %s" % parent)
+
+            #Check if we have the parent in this batch
+            if len(parent) > 0:
+                #print("found %s parent." % len(parent))
+                myparent = parent.pop()
+                myparent_ = myparent
+                print("parent found in current chunk: %s " % myparent['id'])
+                parent_found = True
+                if myparent['isParent'] is False:
+                    print('found pending parent %s in this job.' % pid)
+                    print('updating pending parent')
+
+                    docs.remove(myparent) #Remove original
+                    myparent_.update({'isParent': True})
+                    docs.append(myparent_)
+
+                    #Remove from pending list
+                    if pid in parent_ids_pending:
+                        parent_ids_pending.remove(pid)
+
+                    #add to processed list for reference
+                    parent_ids_processed.append(pid)
+                    parent_ids_indexed.append(pid)
+                else:
+                    print('parent %s was already processed' % pid)
+
+            #If the parent was proccesd, asume it was indexed before flagged
+            if pid not in parent_ids_processed and not parent_found:
+                #print("Parent %s have not been processed, check if indexed." % pid)
+                myparent = find_parent(pid)
+
+                #print("myparent: ", myparent)
+                #If we did not find the parent in this job, check if it was already indexed
+                if myparent is not None: # and (pid in parent_ids_processed and pid not in parents_updated_index):
+                    #if pid in parent_ids_processed:
+                        #print("Parent are processed. Checking if parent %s is in indexed" %pid)
+                        #print(type(myparent))
+                        #print(myparent)
+                        #if not found in the index, it will be  processed later, we check again then
+                    if myparent['doc'] is None:
+                        if pid not in parent_ids_pending:
+                            print('parent %s not found in index. storing it for later' % pid)
+                            parent_ids_pending.append(pid)
+
+                    #If found in index we update it using atomic updates
+                    else:
+                        if myparent['doc'] is not None:
+                            print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+
+                            if myparent['doc']['isParent'] is False:
+                                print('Update on indexed parent %s, isParent: True' % pid)
+                                #print('before: ' , myparent)
+                                mydoc = solr_updateparent(myparent['doc'])
+                                #print(mydoc)
+                                doc_ = mydoc
+                                #doc = {'id': pid, 'isParent': True}
+                                #mysolr.solrc.add([doc], fieldUpdates={'isParent': 'set'})
+                                try:
+                                    solrcon.add([doc_])
+                                except Exception as e:
+                                    print("Could update parent on index. reason %s",e)
+                                    print(doc_)
+                                    sys.exit(1)
+                                #Update lists
+                                parent_ids_processed.append(pid)
+                                parent_ids_indexed.append(pid)
+
+                                #Remove from pending list
+                                if pid in parent_ids_pending:
+                                    parent_ids_pending.remove(pid)
+                    #if 'id' in myparent and 'siParent' in myparent is True:
+
+
+        #Last we check if a parent was not found in a previous job, and is present in this job
+        ppending = set(parent_ids_pending)
+        #ppending = set(parent_ids_processed) - set(ppending_)
+        print(" == Checking Pending == ")
+        for pid in  ppending:
+            #print("checking parent: %s" % pid)
+            #Firs we check if the parent dataset are in our jobs
+            myparent = None
+            parent = [el for el in docs if el['id'] == pid]
+            #print("parents found in this chunk: %s" % parent)
+
+            #Check if we have the parent in this batch
+            if len(parent) > 0:
+                #print("found %s parent." % len(parent))
+                myparent = parent.pop()
+                myparent_ = myparent
+                print("pending parent found in current chunk: %s " % myparent['id'])
+                parent_found = True
+                if myparent['isParent'] is False:
+                    print('found unprocessed pending parent %s in this job.' % pid)
+                    print('updating parent')
+
+                    docs.remove(myparent) #Remove original
+                    myparent_.update({'isParent': True})
+                    docs.append(myparent_)
+
+                    #Remove from pending list
+                    if pid in parent_ids_pending:
+                        parent_ids_pending.remove(pid)
+
+                    #add to processed list for reference
+                    parent_ids_processed.append(pid)
+                    parent_ids_indexed.append(pid)
+                else:
+                    print('pending parent %s was already processed' % pid)
+
+            #If the parent was proccesd, asume it was indexed before flagged
+            if pid not in parent_ids_processed and not parent_found:
+                #print("Parent %s have not been processed, check if indexed." % pid)
+                myparent = find_parent(pid)
+
+                #print("myparent: ", myparent)
+                #If we did not find the parent in this job, check if it was already indexed
+                if myparent['doc'] is not None:
+                    print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+
+                    if myparent['doc']['isParent'] is False:
+                        print('Update on indexed parent %s, isParent: True' % pid)
+                        #print('before: ' , myparent)
+                        mydoc_ = solr_updateparent(myparent['doc'])
+                        mydoc = mydoc_
+                        #doc = {'id': pid, 'isParent': True}
+                        try:
+                            solrcon.add([mydoc])
+                        except Exception as e:
+                            print("Could not update parent on index. reason %s",e)
+                            print(mydoc)
+                            sys.exit(1)
+                                #Update lists
+                        parent_ids_processed.append(pid)
+                        parent_ids_indexed.append(pid)
+
+                        #Remove from pending list
+                        if pid in parent_ids_pending:
+                            parent_ids_pending.remove(pid)
+            #if 'id' in myparent and 'siParent' in myparent is True:
+        # TODO: Add posibility to not index datasets that are already in the index
+        #dont index what was already indexed
+        # if True:
+        #     docids = [doc['id'] for doc in docs ]
+        #     already_indexed = list()
+        #     for(docid, response) in concurrently(fn=find_parent, inputs=docids):
+        #         if response['doc'] is not None:
+        #             already_indexed.append(docid)
+        #     if len(already_indexed) > 0:
+        #         print("%s docs was already indexed. skipping.." % len(already_indexed))
+        #         docs = [doc for doc in docs if doc['id'] not in already_indexed ]
+        #         docs_skipped += len(docs)
+
+        #Keep track of docs indexed and batch iteration
+        docs_indexed += len(docs)
+        it += 1
+
+        # Send processed documents to solr as a new thread.
+        indexthread = Thread(target=add2solr, args=(docs,))
+        indexthreads.append(indexthread)
+        indexthread.start()
+        if len(indexthreads) >= threads:
+            for thr in indexthreads[:-1]:
+                #thread = indexthreads.pop()
+                thr.join()
+
+        print("===================================")
+        print("Added %s documents to solr. Total: %s" % (len(docs),docs_indexed))
+        print("===================================")
+
+
+
+    print("================= BATCH END =======================================================")
+    print("Parent ids found: %s" % len(parent_ids_found))
+    print("Parent ids pending: %s" % len(parent_ids_pending))
+    print("Parent ids processed: %s" % len(parent_ids_processed))
+    print("Parent ids sent to index: %s" % len(parent_ids_indexed))
+    print("Parent ids pending list: %s" % parent_ids_pending)
+    print("===========================================================================================================")
+    for thr in indexthreads:
+        thr.join()
+    #summary of possible missing parents
+    missing = list(set(parent_ids_found) - set(parent_ids_processed))
+    print('Missing parents in input. %s' % missing)
+    docs_failed = total_in - docs_indexed
+    if docs_failed != 0:
+        print('**WARNING** %s Documents could not be indexed. check output.' % docs_failed)
+         #print(parent_ids_pending)
+    print("===================================================================")
+    print("%s files processed and %s documents indexed. %s documents was skipped" %(files_processed,docs_indexed,docs_skipped))
+    print("===================================================================")
+    return docs_indexed
 
 def main(argv):
+    #Global date regexp to validate solr dates
+    global DATETIME_REGEX
+    DATETIME_REGEX = re.compile(
+    r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(\.\d+)?Z$"  # NOQA: E501
+)
 
     # start time
     st = time.time()
@@ -1547,6 +2115,10 @@ def main(argv):
     mylog = initialise_logger(cfgstr['logfile'], 'indexdata')
     mylog.info('Configuration of logging is finished.')
 
+    #Set given arguments as global variables for subprocesses to access.
+    global tflg
+    global l2flg
+    global fflg
     tflg = l2flg = fflg = False
     if args.level2:
         l2flg = True
@@ -1555,7 +2127,8 @@ def main(argv):
     with open(args.cfgfile, 'r') as ymlfile:
         cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
-
+    #Global mapprojection
+    global mapprojection
     # Specify map projection
     if args.map_projection:
         map_projection = args.map_projection
@@ -1570,7 +2143,36 @@ def main(argv):
     else:
         raise Exception('Map projection is not properly specified in config')
 
+    #Global wms config from cmd arguments
+    # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
+    global wms_layer
+    global wms_style
+    global wms_zoom_level
+    global wms_coastlines
+    global thumbnail_extent
+    if args.thumbnail_layer:
+        wms_layer = args.thumbnail_layer
+    else:
+        wms_layer = None
+    if args.thumbnail_style:
+        wms_style = args.thumbnail_style
+    else:
+        wms_style =  None
+    if args.thumbnail_zoom_level:
+        wms_zoom_level = args.thumbnail_zoom_level
+    else:
+        wms_zoom_level=0
+    if args.add_coastlines:
+        wms_coastlines = args.add_coastlines
+    else:
+        wms_coastlines=True
+    if args.thumbnail_extent:
+        thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
+    else:
+        thumbnail_extent = None
+
     #Enable basic authentication if configured.
+    global authentication
     if 'auth-basic-username' in cfg and 'auth-basic-password' in cfg:
         username = cfg['auth-basic-username']
         password = cfg['auth-basic-password']
@@ -1584,13 +2186,18 @@ def main(argv):
         mylog.info("Authentication disabled")
 
     #Set batch size from config.
-    batch = 1
+    batch = 1000 # Default to 1000
     if 'batch-size' in cfg:
         batch = cfg["batch-size"]
 
-    workers = 2
+    workers = 2 # Default to 2
     if 'workers' in cfg:
         workers = cfg["workers"]
+
+    global threads
+    threads = 8
+    if 'threads' in cfg:
+        threads = cfg["threads"]
 
     #Should we commit to solr at the end of execution?
     end_solr_commit = False
@@ -1598,6 +2205,7 @@ def main(argv):
         if cfg['end-solr-commit'] is True:
             end_solr_commit = cfg['end-solr-commit']
     #Get config for feature_type handeling
+    global feature_type
     feature_type=None
     if 'skip-feature-type' in cfg:
         if cfg['skip-feature-type'] is True:
@@ -1610,7 +2218,16 @@ def main(argv):
     myCore = cfg['solrcore']
 
     # Set up connection to SolR server
+    global mySolRc
     mySolRc = SolrServer+myCore
+    #print(mySolRc)
+    global solrcon
+    try:
+        solrcon = pysolr.Solr(mySolRc, always_commit=False, timeout=1020, auth=authentication)
+        print("Connection established to: %s" % mySolRc)
+    except Exception as e:
+        print("Something failed while connecting to solr %s with error: %s" %(mySolRc,e))
+        sys.exit(1)
     mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
     docList = list()
     # Find files to process
@@ -1618,6 +2235,7 @@ def main(argv):
     if args.input_file:
         myfiles = [args.input_file]
         batch = 1 #Batch always 1 when single file is indexed
+        workers = 1 #We only need one worker to process one file
     elif args.list_file:
         try:
             f2 = open(args.list_file, "r")
@@ -1638,63 +2256,37 @@ def main(argv):
     elif args.directory:
         try:
             myfiles = os.listdir(args.directory)
+            if len(myfiles) == 0:
+                mylog.error("Given directory %s is empty", args.directory)
+            myfiles = [os.path.join(args.directory, f) for f in os.listdir(args.directory) if f.endswith('.xml')]
+
         except Exception as e:
             mylog.error("Could not find directory: %s", e)
             sys.exit(1)
     # We only process files that have xml extensions.
     # Remove files we do not use
     #myfiles = [x for x in myfiles if not x.endswith('.xml')]
+    if len(myfiles) == 0:
+        mylog.error('No files to process. exiting')
+        sys.exit(1)
 
 
-    #batch = 250
     fileno = 0
     print("Files to process: ", len(myfiles))
-    bulkindex(myfiles,mysolr,workers,batch)
-    myfiles_pending = []
+    # If batch size is set to greater than number of files provided for processing,
+    # we set the batch size to the number of files
+    if batch > len(myfiles):
+        batch = len(myfiles)
+        if batch < 100:
+            workers = 1 # With small list of files more workers just make extra overhead
 
-    # for myfile in myfiles:
-    #     myfile = myfile.strip()
-    #     # Decide files to operate on
-    #     if not myfile.endswith('.xml'):
-    #         continue
-    #     if args.list_file:
-    #         myfile = myfile.rstrip()
-    #     if args.directory:
-    #         myfile = os.path.join(args.directory, myfile)
+    #Start the indexing
+    print("Indexing with batch size %s" % batch)
+    processed = bulkindex(myfiles,mysolr,batch)
 
-    #     # FIXME, need a better way of handling this, WMS layers should be interpreted automatically, this way we need to know up fron whether WMS makes sense or not and that won't work for harvesting
-    #     if args.thumbnail_layer:
-    #         wms_layer = args.thumbnail_layer
-    #     else:
-    #         wms_layer = None
-    #     if args.thumbnail_style:
-    #         wms_style = args.thumbnail_style
-    #     else:
-    #         wms_style =  None
-    #     if args.thumbnail_zoom_level:
-    #         wms_zoom_level = args.thumbnail_zoom_level
-    #     else:
-    #         wms_zoom_level=0
-    #     if args.add_coastlines:
-    #         wms_coastlines = args.add_coastlines
-    #     else:
-    #         wms_coastlines=True
-    #     if args.thumbnail_extent:
-    #         thumbnail_extent = [int(i) for i in args.thumbnail_extent[0].split(' ')]
-    #     else:
-    #         thumbnail_extent = None
 
-    #     # Index files
-    #     mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
-    #     # Open the file we are processing and convert to dict
-    #     try:
-    #         mydoc = MMD4SolR(myfile)
-    #     except Exception as e:
-    #         mylog.warning('Could not handle file: %s',e)
-    #         continue
-    #     #Check and correct MMD
-    #     mydoc.check_mmd()
-    #     fileno += 1
+
+
 
     #     """ Do not search for metadata_identifier, always used id...  """
     #     # Convert MMD dict to solr doc
@@ -1819,7 +2411,7 @@ def main(argv):
 
     # Report status
     #mylog.info("Number of files processed were: %d", len(myfiles))
-    print("Number of files processed were: %d" % (len(myfiles)))
+    print("Number of files processed were: %d" % processed)
     #with open("bulkidx2.json", "w") as f:
     #    for doc in docList:
     #        f.write(json.dumps(doc))
