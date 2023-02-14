@@ -1137,7 +1137,7 @@ class IndexMMD:
             self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
 
         if input_record['metadata_status'] == 'Inactive':
-            mylog.warning('Skipping record')
+            self.logger.warning('Skipping record')
             return False
         myfeature = None
         if 'data_access_url_opendap' in input_record:
@@ -1522,7 +1522,7 @@ class IndexMMD:
     def search(self):
         """ Require Id as input """
         try:
-            results = solr.search('mmd_title:Sea Ice Extent', df='text_en', rows=100)
+            results = self.mysolr.search('mmd_title:Sea Ice Extent', df='text_en', rows=100)
         except Exception as e:
             self.logger.error("Something failed during search: %s", str(e))
 
@@ -1751,9 +1751,9 @@ def mmd2solr(mmd,status,mysolr,file):
         if 'data_access_url_opendap' in tmpdoc:
             if feature_type == None:
                 try:
-                    myfeature = self.get_feature_type(['data_access_url_opendap'])
+                    myfeature = IndexMMD.get_feature_type(['data_access_url_opendap'])
                 except Exception as e:
-                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    print("Something failed while retrieving feature type: %s", str(e))
                     #raise RuntimeError('Something failed while retrieving feature type')
                 if myfeature:
                     tmpdoc.update({'feature_type':myfeature})
@@ -2333,7 +2333,7 @@ def main(argv):
         mysolr.delete_level2(args.remove)
         sys.exit()
     elif args.remove and args.thumbnail:
-        mysolr.delete_thumbnail(deleteid)
+        mysolr.delete_thumbnail(args.remove)
         sys.exit()
     elif args.directory:
         try:
