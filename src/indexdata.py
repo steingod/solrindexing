@@ -508,17 +508,25 @@ class MMD4SolR:
                 if '@xml:lang' in e:
                     if e['@xml:lang'] == 'en':
                         mydict['title'] = e['#text']
+                    if e['@xml:lang'] == 'no':
+                        mydict['title_no'] = e['#text']
                 elif '@lang' in e:
                     if e['@lang'] == 'en':
                         mydict['title'] = e['#text']
+                    if e['@lang'] == 'no':
+                        mydict['title_no'] = e['#text']
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:title'],dict):
                 if '@xml:lang' in self.mydoc['mmd:mmd']['mmd:title']:
                     if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'en':
                         mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+                    if self.mydoc['mmd:mmd']['mmd:title']['@xml:lang'] == 'no':
+                        mydict['title_no'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
                 if '@lang' in self.mydoc['mmd:mmd']['mmd:title']:
                     if self.mydoc['mmd:mmd']['mmd:title']['@lang'] == 'en':
                         mydict['title'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
+                    if self.mydoc['mmd:mmd']['mmd:title']['@lang'] == 'no':
+                        mydict['title_no'] = self.mydoc['mmd:mmd']['mmd:title']['#text']
             else:
                 mydict['title'] = str(self.mydoc['mmd:mmd']['mmd:title'])
 
@@ -528,17 +536,25 @@ class MMD4SolR:
                 if '@xml:lang' in e:
                     if e['@xml:lang'] == 'en':
                         mydict['abstract'] = e['#text']
+                    if e['@xml:lang'] == 'no':
+                        mydict['abstract_no'] = e['#text']
                 elif '@lang' in e:
                     if e['@lang'] == 'en':
                         mydict['abstract'] = e['#text']
+                    if e['@lang'] == 'no':
+                        mydict['abstract_no'] = e['#text']
         else:
             if isinstance(self.mydoc['mmd:mmd']['mmd:abstract'],dict):
                 if '@xml:lang' in self.mydoc['mmd:mmd']['mmd:abstract']:
                     if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'en':
                         mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+                    if self.mydoc['mmd:mmd']['mmd:abstract']['@xml:lang'] == 'no':
+                        mydict['abstract_no'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
                 if '@lang' in self.mydoc['mmd:mmd']['mmd:abstract']:
                     if self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'en':
                         mydict['abstract'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
+                    if self.mydoc['mmd:mmd']['mmd:abstract']['@lang'] == 'no':
+                        mydict['abstract_no'] = self.mydoc['mmd:mmd']['mmd:abstract']['#text']
             else:
                 mydict['abstract'] = str(self.mydoc['mmd:mmd']['mmd:abstract'])
 
