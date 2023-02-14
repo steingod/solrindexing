@@ -1766,15 +1766,16 @@ def mmd2solr(mmd,status,mysolr,file):
                 tmpdoc.update({'dataset_type':'Level-2'})
                 tmpdoc.update({'isChild': True})
 
-            # Fix special characters that SolR doesn't like
-            idrepls = [':','/','.']
-            myparent = tmpdoc['related_dataset']
-            for e in idrepls:
-                myparent = myparent.replace(e,'-')
+                # Fix special characters that SolR doesn't like
+                idrepls = [':','/','.']
+                myparentid = tmpdoc['related_dataset']
+                for e in idrepls:
+                    myparentid = myparentid.replace(e,'-')
 
-            status = myparent.strip()
-            #pp.pprint(tmpdoc)
-            #print(status)
+                status = myparentid.strip()
+                tmpdoc.update({'related_dataset': myparentid})
+                #pp.pprint(tmpdoc)
+                #print(status)
     else:
         #Assume we have level-1 doc that are not parent
         tmpdoc.update({'dataset_type':'Level-1'})
@@ -2068,6 +2069,71 @@ def bulkindex(filelist,mysolr, chunksize):
         print("Added %s documents to solr. Total: %s" % (len(docs),docs_indexed))
         print("===================================")
 
+    #Last we assume all pending parents are in the index
+    ppending = set(parent_ids_pending)
+    #ppending = set(parent_ids_processed) - set(ppending_)
+    print(" == Checking Pending == ")
+    for pid in  ppending:
+        #print("checking parent: %s" % pid)
+        #Firs we check if the parent dataset are in our jobs
+        myparent = None
+        parent = [el for el in docs if el['id'] == pid]
+        #print("parents found in this chunk: %s" % parent)
+
+        #Check if we have the parent in this batch
+        if len(parent) > 0:
+            #print("found %s parent." % len(parent))
+            myparent = parent.pop()
+            myparent_ = myparent
+            print("pending parent found in current chunk: %s " % myparent['id'])
+            parent_found = True
+            if myparent['isParent'] is False:
+                print('found unprocessed pending parent %s in this job.' % pid)
+                print('updating parent')
+
+                docs.remove(myparent) #Remove original
+                myparent_.update({'isParent': True})
+                docs.append(myparent_)
+
+                #Remove from pending list
+                if pid in parent_ids_pending:
+                    parent_ids_pending.remove(pid)
+
+                #add to processed list for reference
+                parent_ids_processed.append(pid)
+                parent_ids_indexed.append(pid)
+            else:
+                print('pending parent %s was already processed' % pid)
+
+        #If the parent was proccesd, asume it was indexed before flagged
+        if pid not in parent_ids_processed and not parent_found:
+            #print("Parent %s have not been processed, check if indexed." % pid)
+            myparent = find_parent(pid)
+
+            #print("myparent: ", myparent)
+            #If we did not find the parent in this job, check if it was already indexed
+            if myparent['doc'] is not None:
+                print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+
+                if myparent['doc']['isParent'] is False:
+                    print('Update on indexed parent %s, isParent: True' % pid)
+                    #print('before: ' , myparent)
+                    mydoc_ = solr_updateparent(myparent['doc'])
+                    mydoc = mydoc_
+                    #doc = {'id': pid, 'isParent': True}
+                    try:
+                        solrcon.add([mydoc])
+                    except Exception as e:
+                        print("Could not update parent on index. reason %s",e)
+                        print(mydoc)
+                        sys.exit(1)
+                            #Update lists
+                    parent_ids_processed.append(pid)
+                    parent_ids_indexed.append(pid)
+
+                    #Remove from pending list
+                    if pid in parent_ids_pending:
+                        parent_ids_pending.remove(pid)
 
 
     print("================= BATCH END =======================================================")
