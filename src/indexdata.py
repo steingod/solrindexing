@@ -56,7 +56,7 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from concurrent import futures as Futures
-from threading import Thread
+import threading
 import requests
 import itertools
 from pathlib import Path
@@ -154,20 +154,15 @@ def initialise_logger(outputfile, name):
 class MMD4SolR:
     """ Read and check MMD files, convert to dictionary """
 
-    def __init__(self, filename):
+    def __init__(self, mydoc):
         # Set up logging
         self.logger = logging.getLogger('indexdata.MMD4SolR')
         self.logger.info('Creating an instance of IndexMMD')
         """ set variables in class """
-        self.filename = filename
+        #self.filename = filename
         self.jsonld = []
-        self.mydoc = filename
-        # try:
-        #     with open(self.filename, encoding='utf-8') as fd:
-        #         self.mydoc = xmltodict.parse(fd.read())
-        # except Exception as e:
-        #     self.logger.error('Could not open file: %s',self.filename)
-        #     raise
+        self.mydoc = mydoc
+
 
     def check_mmd(self):
         """ Check and correct MMD if needed """
@@ -1103,7 +1098,6 @@ class IndexMMD:
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
-            self.logger.info("Add a sys.exit?")
 
     #Function for sending explicit commit to solr
     def commit(self):
@@ -1452,19 +1446,20 @@ class IndexMMD:
     def get_feature_type(self, myopendap):
         """ Set feature type from OPeNDAP """
         self.logger.info("Now in get_feature_type")
-
+        myopendap.strip()
         # Open as OPeNDAP
         try:
             ds = netCDF4.Dataset(myopendap)
         except Exception as e:
-            self.logger.error("Something failed reading dataset: %s", str(e))
-
+            self.logger.error("Something failed reading dataset: %s" %e)
+            return None
         # Try to get the global attribute featureType
         try:
             featureType = ds.getncattr('featureType')
         except Exception as e:
-            self.logger.warning("Something failed extracting featureType: %s", str(e))
-            raise
+            self.logger.warning("no featureType: %s" % e)
+            ds.close()
+            return None
         ds.close()
 
         if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
@@ -1481,7 +1476,7 @@ class IndexMMD:
 
             #raise
 
-        return(featureType)
+        return featureType
 
     def delete_level1(self, datasetid):
         """ Require ID as input """
@@ -1578,6 +1573,39 @@ def concurrently(fn, inputs, *, max_concurrency=5):
                 fut = executor.submit(fn, input)
                 futures[fut] = input
 
+
+
+def get_feature_type(myopendap):
+    """ Set feature type from OPeNDAP """
+    myopendap.strip()
+    # Open as OPeNDAP
+    try:
+        ds = netCDF4.Dataset(str(myopendap))
+    except Exception as e:
+        print("Something failed reading dataset: %s" % e)
+        return None
+    # Try to get the global attribute featureType
+    try:
+        featureType = ds.getncattr('featureType')
+    except Exception as e:
+        #print("no featureType: %s" % e)
+        ds.close()
+        return None
+    ds.close()
+
+    if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
+        if featureType == "TimeSeries":
+            featureType = 'timeSeries'
+        elif featureType == "timeseries":
+            featureType = 'timeSeries'
+        elif featureType == "timseries":
+            featureType = 'timeSeries'
+        else:
+            return None
+
+        #raise
+
+    return featureType
  #load mmd and return contents
 def load_file(filename):
     """
@@ -1640,17 +1668,29 @@ def solr_updateparent(parent):
     parent['isParent'] = True
     return parent
 
-def find_parent(id):
+def find_parent_in_index(id):
     """
     Use solr real-time get to check if a parent is already indexed,
     and have been marked as parent
     """
     res = requests.get(mySolRc+'/get?id='+id, auth=authentication)
     res.raise_for_status()
-    #print(res.text)
-    #sys.exit(1)
-    #print(jsonres)
     return res.json()
+
+
+def process_feature_type(tmpdoc):
+    """
+    Look for feature type and update document
+    """
+    if 'data_access_url_opendap' in tmpdoc:
+        try:
+            myfeature = get_feature_type(str(tmpdoc['data_access_url_opendap']))
+        except Exception as e:
+            print("Something failed while retrieving feature type: %s"% e)
+            #raise RuntimeError('Something failed while retrieving feature type')
+        if myfeature:
+            tmpdoc.update({'feature_type':myfeature})
+    return tmpdoc
 
 def mmd2solr(mmd,status,mysolr,file):
     """
@@ -1696,10 +1736,10 @@ def mmd2solr(mmd,status,mysolr,file):
         return (None,status)
 
     if tmpdoc['id'] == None or tmpdoc['id'] == 'Unknown':
-        print("Skipping process file %s. Metadata identifier: Unknown" % file)
+        print("Skipping process file %s. Metadata identifier: Unknown, or missing" % file)
         return (None,status)
-    if tmpdoc['metadata_status'] != "Active":
-        print("WARNING indexed file %s  with metadata_status: %s" %(file, tmpdoc['metadata_status']))
+    #if tmpdoc['metadata_status'] != "Active":
+    #    print("WARNING indexed file %s  with metadata_status: %s" %(file, tmpdoc['metadata_status']))
     #print(tmpdoc)
     #Check if dates are ok. If not we cannot index, report.
     try:
@@ -1711,7 +1751,8 @@ def mmd2solr(mmd,status,mysolr,file):
     test = re.match(DATETIME_REGEX, start_date)
 
     if not test:
-        print('Incomaptible start date %s in document % s ' %(tmpdoc['temporal_extent_start_date'],tmpdoc['metadata_identifier']))
+        print('Incomaptible start date %s in document % s, file: %s' %(tmpdoc['temporal_extent_start_date'],tmpdoc['metadata_identifier'],file))
+
         return (None, status)
     if 'temporal_extent_end_date' in tmpdoc:
         try:
@@ -1746,21 +1787,9 @@ def mmd2solr(mmd,status,mysolr,file):
     #print(tmpdoc['related_dataset'],type)
     #Check if we have a child pointing to a parent
 
-    #check for future_type using opendap if not set to skip or overriden in config:
-    if feature_type is None:
-        if 'data_access_url_opendap' in tmpdoc:
-            if feature_type == None:
-                try:
-                    myfeature = IndexMMD.get_feature_type(['data_access_url_opendap'])
-                except Exception as e:
-                    print("Something failed while retrieving feature type: %s", str(e))
-                    #raise RuntimeError('Something failed while retrieving feature type')
-                if myfeature:
-                    tmpdoc.update({'feature_type':myfeature})
+    #Override frature_type if set in config
     if feature_type != "Skip" and feature_type is not None:
         tmpdoc.update({'feature_type':feature_type})
-
-
     #If we got level2 flag from cmd arguments we make it a child/Level-2
     if l2flg:
         tmpdoc.update({'dataset_type':'Level-2'})
@@ -1816,12 +1845,17 @@ def process_mmd(mmd_list, status_list):
         return solr_docs,status
 
 #add documents to solr
-def add2solr(docs):
+def add2solr(docs,msg_callback):
     try:
         solrcon.add(docs)
     except Exception as e:
         print("Some documents failed to be added to solr. reason: %s" % e)
+    #print("indexed %s documents" % len(docs))
+    #msg_callback("%s, PID: %s completed!" % (threading.current_thread().name, threading.get_native_id()))
 
+#mmessage callback for index trheads
+def msg_callback(msg):
+    print(msg)
 
 #Process the mmd list and index to solr
 def bulkindex(filelist,mysolr, chunksize):
@@ -1829,34 +1863,28 @@ def bulkindex(filelist,mysolr, chunksize):
     #Define some lists to keep track of the processing
     parent_ids_pending = list()  # Keep track of pending parent ids
     parent_ids_processed =list() # Keep track parent ids already processed
-    parent_ids_indexed = list()  # Keep track of parent ids sent to the index
     parent_ids_found = list()    # Keep track of parent ids found
 
     #Total files given to the bulkindexer
     total_in = len(filelist)
-    print("Total files given as input: %s " % len(filelist))
 
-    #keep track of index threads
+    #keep track of batch process
     indexthreads = list()
-    #with ProcessPoolExecutor(workers) as executor:
     files_processed = 0
     docs_indexed = 0
     docs_skipped = 0
-    # split the load operations into chunks
-    #chunksize = 2
     it = 1
-    #random.shuffle(filelist)
+    doc_ids_processed = set()
+    print("######### BATCH START ###########################")
     for i in range(0, len(filelist), chunksize):
         # select a chunk
         files = filelist[i:(i + chunksize)]
-        #mmdlist = list()
         docs = list()
         statuses = list()
-        #create a copy of pending ids
-        #ppending_ = parent_ids_pending.copy()
 
         ######################## STARTING THREADS ########################
         #Load each file using multiple threads, and process documents as files are loaded
+        ###################################################################
         for(file, mmd) in concurrently(fn=load_file, inputs=files):
 
             # Get the processed document and its status
@@ -1865,14 +1893,11 @@ def bulkindex(filelist,mysolr, chunksize):
             # Add the document and the status to the document-list
             docs.append(doc)
             statuses.append(status)
-
-
         ################################## THREADS FINISHED ##################
 
         # Check if we got some children in the batch pointing to a parent id
         parentids = set([element for element in statuses if element != None])
         #print(parentids)
-        #print(parent_ids_processed)
 
         # Check if the parent(s) of the children(s) was found before. If not, we add them to found.
         for pid in parentids:
@@ -1897,18 +1922,31 @@ def bulkindex(filelist,mysolr, chunksize):
         docs_= len(docs) # Number of documents processed
         docs = [el for el in docs if el != None] # List of documents that can be indexed
         docs_skipped += (docs_ - len(docs)) # Update # of skipped documents
-        docs_skipped_ = (docs_ - len(docs))
-        print("===========================================================================================================")
-        print("=== BAtch no. %s ========= Files processed %s ==== Docs processed %s  ==== Docs skipped %s ==== Docs indexed %s ======" %(it, files_processed, len(docs), docs_skipped_,docs_indexed))
-        #print("New ids found: %s" % len(parentids))
-        print("Parent ids found: %s" % len(parent_ids_found))
-        print("Parent ids pending: %s" % len(parent_ids_pending))
-        print("Parent ids processed: %s" % len(parent_ids_processed))
-        print("Parent ids sent to index: %s" % len(parent_ids_indexed))
-        print("Parent ids pending list: %s" % parent_ids_pending)
-        print("===========================================================================================================")
 
-        #Run over the list of parentids found in this job and look for the parent
+        #keep track of all document ids we have indexed, so we do not have to check solr for a parent more than we need
+        docids_ = [doc['id'] for doc in docs]
+        doc_ids_processed.update(docids_)
+
+        # print("===========================================================================================================")
+        # print("=== BAtch no. %s ========= Files processed %s ==== Docs processed %s  ==== Docs skipped %s ==== Docs indexed %s ======" %(it, files_processed, len(docs), docs_skipped_,docs_indexed))
+        # print("Parent ids found: %s" % len(parent_ids_found))
+        # print("Parent ids pending: %s" % len(parent_ids_pending))
+        # print("Parent ids processed: %s" % len(parent_ids_processed))
+        # print("Parent ids pending list: %s" % parent_ids_pending)
+        # print("===========================================================================================================")
+
+        #Process feature types here, using the concurrently function,
+        if feature_type is None:
+            ######################## STARTING THREADS ########################
+            #Load each file using multiple threads, and process documents as files are loaded
+            ###################################################################
+            for(doc, newdoc) in concurrently(fn=process_feature_type, inputs=docs):
+                docs.remove(doc)
+                docs.append(newdoc)
+            ################################## THREADS FINISHED ##################
+
+
+        #Run over the list of parentids found in this chunk, and look for the parent
         parent_found = False
         for pid in parentids:
             #print("checking parent: %s" % pid)
@@ -1917,16 +1955,15 @@ def bulkindex(filelist,mysolr, chunksize):
             parent = [el for el in docs if el['id'] == pid]
             #print("parents found in this chunk: %s" % parent)
 
-            #Check if we have the parent in this batch
+            #Check if we have the parent in this chunk
             if len(parent) > 0:
-                #print("found %s parent." % len(parent))
                 myparent = parent.pop()
                 myparent_ = myparent
-                print("parent found in current chunk: %s " % myparent['id'])
+                #print("parent found in current chunk: %s " % myparent['id'])
                 parent_found = True
                 if myparent['isParent'] is False:
-                    print('found pending parent %s in this job.' % pid)
-                    print('updating pending parent')
+                    #print('found pending parent %s in this job.' % pid)
+                    #print('updating pending parent')
 
                     docs.remove(myparent) #Remove original
                     myparent_.update({'isParent': True})
@@ -1938,78 +1975,56 @@ def bulkindex(filelist,mysolr, chunksize):
 
                     #add to processed list for reference
                     parent_ids_processed.append(pid)
-                    parent_ids_indexed.append(pid)
-                else:
-                    print('parent %s was already processed' % pid)
 
-            #If the parent was proccesd, asume it was indexed before flagged
-            if pid not in parent_ids_processed and not parent_found:
-                #print("Parent %s have not been processed, check if indexed." % pid)
-                myparent = find_parent(pid)
+            #Check if the parent is already in the index, and flag it as parent if not done already
+            if pid in doc_ids_processed and not parent_found:
+                myparent = find_parent_in_index(pid)
 
-                #print("myparent: ", myparent)
-                #If we did not find the parent in this job, check if it was already indexed
-                if myparent is not None: # and (pid in parent_ids_processed and pid not in parents_updated_index):
-                    #if pid in parent_ids_processed:
-                        #print("Parent are processed. Checking if parent %s is in indexed" %pid)
-                        #print(type(myparent))
-                        #print(myparent)
-                        #if not found in the index, it will be  processed later, we check again then
+                if myparent is not None:
+                    #if not found in the index, we store it for later
                     if myparent['doc'] is None:
                         if pid not in parent_ids_pending:
-                            print('parent %s not found in index. storing it for later' % pid)
+                            #print('parent %s not found in index. storing it for later' % pid)
                             parent_ids_pending.append(pid)
 
-                    #If found in index we update it using atomic updates
+                    #If found in index we update the parent
                     else:
                         if myparent['doc'] is not None:
-                            print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
-
+                            #print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+                            #Check if already flagged
                             if myparent['doc']['isParent'] is False:
-                                print('Update on indexed parent %s, isParent: True' % pid)
-                                #print('before: ' , myparent)
+                                #print('Update on indexed parent %s, isParent: True' % pid)
                                 mydoc = solr_updateparent(myparent['doc'])
                                 #print(mydoc)
                                 doc_ = mydoc
-                                #doc = {'id': pid, 'isParent': True}
-                                #mysolr.solrc.add([doc], fieldUpdates={'isParent': 'set'})
                                 try:
                                     solrcon.add([doc_])
                                 except Exception as e:
                                     print("Could update parent on index. reason %s",e)
-                                    print(doc_)
-                                    sys.exit(1)
+
                                 #Update lists
                                 parent_ids_processed.append(pid)
-                                parent_ids_indexed.append(pid)
 
                                 #Remove from pending list
                                 if pid in parent_ids_pending:
                                     parent_ids_pending.remove(pid)
-                    #if 'id' in myparent and 'siParent' in myparent is True:
 
-
-        #Last we check if a parent was not found in a previous job, and is present in this job
+        #Last we check if parents pending previous chunks is in this chunk
         ppending = set(parent_ids_pending)
-        #ppending = set(parent_ids_processed) - set(ppending_)
-        print(" == Checking Pending == ")
+        #print(" == Checking Pending == ")
         for pid in  ppending:
-            #print("checking parent: %s" % pid)
             #Firs we check if the parent dataset are in our jobs
             myparent = None
             parent = [el for el in docs if el['id'] == pid]
-            #print("parents found in this chunk: %s" % parent)
 
-            #Check if we have the parent in this batch
             if len(parent) > 0:
-                #print("found %s parent." % len(parent))
                 myparent = parent.pop()
                 myparent_ = myparent
-                print("pending parent found in current chunk: %s " % myparent['id'])
+                #print("pending parent found in current chunk: %s " % myparent['id'])
                 parent_found = True
                 if myparent['isParent'] is False:
-                    print('found unprocessed pending parent %s in this job.' % pid)
-                    print('updating parent')
+                    #print('found unprocessed pending parent %s in this job.' % pid)
+                    #print('updating parent')
 
                     docs.remove(myparent) #Remove original
                     myparent_.update({'isParent': True})
@@ -2021,22 +2036,17 @@ def bulkindex(filelist,mysolr, chunksize):
 
                     #add to processed list for reference
                     parent_ids_processed.append(pid)
-                    parent_ids_indexed.append(pid)
-                else:
-                    print('pending parent %s was already processed' % pid)
 
             #If the parent was proccesd, asume it was indexed before flagged
-            if pid not in parent_ids_processed and not parent_found:
-                #print("Parent %s have not been processed, check if indexed." % pid)
-                myparent = find_parent(pid)
+            if pid in doc_ids_processed and not parent_found:
+                myparent = find_parent_in_index(pid)
 
-                #print("myparent: ", myparent)
                 #If we did not find the parent in this job, check if it was already indexed
                 if myparent['doc'] is not None:
-                    print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+                    #print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
 
                     if myparent['doc']['isParent'] is False:
-                        print('Update on indexed parent %s, isParent: True' % pid)
+                        #print('Update on indexed parent %s, isParent: True' % pid)
                         #print('before: ' , myparent)
                         mydoc_ = solr_updateparent(myparent['doc'])
                         mydoc = mydoc_
@@ -2045,94 +2055,59 @@ def bulkindex(filelist,mysolr, chunksize):
                             solrcon.add([mydoc])
                         except Exception as e:
                             print("Could not update parent on index. reason %s",e)
-                            print(mydoc)
-                            sys.exit(1)
-                                #Update lists
+
+                        #Update lists
                         parent_ids_processed.append(pid)
-                        parent_ids_indexed.append(pid)
 
                         #Remove from pending list
                         if pid in parent_ids_pending:
                             parent_ids_pending.remove(pid)
-            #if 'id' in myparent and 'siParent' in myparent is True:
+
         # TODO: Add posibility to not index datasets that are already in the index
-        #dont index what was already indexed
-        # if True:
-        #     docids = [doc['id'] for doc in docs ]
-        #     already_indexed = list()
-        #     for(docid, response) in concurrently(fn=find_parent, inputs=docids):
-        #         if response['doc'] is not None:
-        #             already_indexed.append(docid)
-        #     if len(already_indexed) > 0:
-        #         print("%s docs was already indexed. skipping.." % len(already_indexed))
-        #         docs = [doc for doc in docs if doc['id'] not in already_indexed ]
-        #         docs_skipped += len(docs)
+            # 1. Generate a list of doc ids from the docs to be indexed.
+            # 2. Search in solr for the ids
+            # 3. If the document was indexed
+                # remove document from docs to be indexed
+
 
         #Keep track of docs indexed and batch iteration
         docs_indexed += len(docs)
         it += 1
 
-        # Send processed documents to solr as a new thread.
-        indexthread = Thread(target=add2solr, args=(docs,))
+        # Send processed documents to solr  for indexing as a new thread.
+        # max threads is set in config
+        indexthread = threading.Thread(target=add2solr, name="Index thread %s" % (len(indexthreads)+1), args=(docs,msg_callback))
         indexthreads.append(indexthread)
         indexthread.start()
+
+        #If we have reached maximum threads, we wait until finished
         if len(indexthreads) >= threads:
             for thr in indexthreads[:-1]:
-                #thread = indexthreads.pop()
                 thr.join()
 
-        print("===================================")
-        print("Added %s documents to solr. Total: %s" % (len(docs),docs_indexed))
-        print("===================================")
+        #print("===================================")
+        #print("Added %s documents to solr. Total: %s" % (len(docs),docs_indexed))
+        #print("===================================")
+
+
+    ############### BATCH LOOP END  ############################
+    # wait for any threads still running to complete
+    for thr in indexthreads:
+        thr.join()
+
 
     #Last we assume all pending parents are in the index
     ppending = set(parent_ids_pending)
-    #ppending = set(parent_ids_processed) - set(ppending_)
-    print(" == Checking Pending == ")
+    #print(" == Checking Pending == ")
     for pid in  ppending:
-        #print("checking parent: %s" % pid)
-        #Firs we check if the parent dataset are in our jobs
         myparent = None
-        parent = [el for el in docs if el['id'] == pid]
-        #print("parents found in this chunk: %s" % parent)
-
-        #Check if we have the parent in this batch
-        if len(parent) > 0:
-            #print("found %s parent." % len(parent))
-            myparent = parent.pop()
-            myparent_ = myparent
-            print("pending parent found in current chunk: %s " % myparent['id'])
-            parent_found = True
-            if myparent['isParent'] is False:
-                print('found unprocessed pending parent %s in this job.' % pid)
-                print('updating parent')
-
-                docs.remove(myparent) #Remove original
-                myparent_.update({'isParent': True})
-                docs.append(myparent_)
-
-                #Remove from pending list
-                if pid in parent_ids_pending:
-                    parent_ids_pending.remove(pid)
-
-                #add to processed list for reference
-                parent_ids_processed.append(pid)
-                parent_ids_indexed.append(pid)
-            else:
-                print('pending parent %s was already processed' % pid)
-
-        #If the parent was proccesd, asume it was indexed before flagged
         if pid not in parent_ids_processed and not parent_found:
-            #print("Parent %s have not been processed, check if indexed." % pid)
-            myparent = find_parent(pid)
-
-            #print("myparent: ", myparent)
-            #If we did not find the parent in this job, check if it was already indexed
+            myparent = find_parent_in_index(pid)
             if myparent['doc'] is not None:
-                print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+                #print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
 
                 if myparent['doc']['isParent'] is False:
-                    print('Update on indexed parent %s, isParent: True' % pid)
+                    #print('Update on indexed parent %s, isParent: True' % pid)
                     #print('before: ' , myparent)
                     mydoc_ = solr_updateparent(myparent['doc'])
                     mydoc = mydoc_
@@ -2141,36 +2116,33 @@ def bulkindex(filelist,mysolr, chunksize):
                         solrcon.add([mydoc])
                     except Exception as e:
                         print("Could not update parent on index. reason %s",e)
-                        print(mydoc)
-                        sys.exit(1)
                             #Update lists
                     parent_ids_processed.append(pid)
-                    parent_ids_indexed.append(pid)
 
                     #Remove from pending list
                     if pid in parent_ids_pending:
                         parent_ids_pending.remove(pid)
 
-
-    print("================= BATCH END =======================================================")
+    #####################################################################################
+    print("====== BATCH END == %s files processed in %s iterations, using batch size %s =======" % (len(filelist),it, chunksize))
     print("Parent ids found: %s" % len(parent_ids_found))
     print("Parent ids pending: %s" % len(parent_ids_pending))
     print("Parent ids processed: %s" % len(parent_ids_processed))
-    print("Parent ids sent to index: %s" % len(parent_ids_indexed))
     print("Parent ids pending list: %s" % parent_ids_pending)
-    print("===========================================================================================================")
-    for thr in indexthreads:
-        thr.join()
+    print("======================================================================================")
+
     #summary of possible missing parents
     missing = list(set(parent_ids_found) - set(parent_ids_processed))
     print('Missing parents in input. %s' % missing)
     docs_failed = total_in - docs_indexed
     if docs_failed != 0:
-        print('**WARNING** %s Documents could not be indexed. check output.' % docs_failed)
+        print('**WARNING** %s documents could not be indexed. check output and logffile.' % docs_failed)
          #print(parent_ids_pending)
     print("===================================================================")
     print("%s files processed and %s documents indexed. %s documents was skipped" %(files_processed,docs_indexed,docs_skipped))
     print("===================================================================")
+    print("Total files given as input: %s " % len(filelist))
+
     return docs_indexed
 
 def main(argv):
@@ -2181,7 +2153,7 @@ def main(argv):
 )
 
     # start time
-    st = time.time()
+    st = time.perf_counter()
     pst = time.process_time()
     # Parse command line arguments
     try:
@@ -2362,6 +2334,9 @@ def main(argv):
         if batch < 100:
             workers = 1 # With small list of files more workers just make extra overhead
 
+    if feature_type != "Skip" and feature_type is not None:
+        print( " ** WARNING!! ** feature type is set to override. stop process now if this is a mistake (Ctrl C)")
+        sleep(5)
     #Start the indexing
     print("Indexing with batch size %s" % batch)
     processed = bulkindex(myfiles,mysolr,batch)
@@ -2493,24 +2468,24 @@ def main(argv):
 
     # Report status
     #mylog.info("Number of files processed were: %d", len(myfiles))
-    print("Number of files processed were: %d" % processed)
+    #rint("Number of files processed were: %d" % processed)
     #with open("bulkidx2.json", "w") as f:
     #    for doc in docList:
     #        f.write(json.dumps(doc))
     #        f.write("\n")
     #add a commit to solr at end of run
     # get the end time
-    et = time.time()
+    et = time.perf_counter()
     pet = time.process_time()
     elapsed_time = et - st
     pelt = pet -pst
+    print("Processed %s documents" % processed)
     print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
-    #st = time.time()
-    #mysolr.commit()
-    #et = time.time()
-    #elapsed_time = et - st
-    #print('Commit time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+    if end_solr_commit:
+        st = time.perf_counter()
+        mysolr.commit()
+        et = time.perf_counter()
 
 
 
