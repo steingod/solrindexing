@@ -1580,7 +1580,7 @@ def get_feature_type(myopendap):
     myopendap.strip()
     # Open as OPeNDAP
     try:
-        ds = netCDF4.Dataset(str(myopendap))
+        ds = netCDF4.Dataset(str(myopendap), 'r')
     except Exception as e:
         print("Something failed reading dataset: %s" % e)
         return None
@@ -1786,6 +1786,8 @@ def mmd2solr(mmd,status,mysolr,file):
     #pp.pprint(tmpdoc)
     #print(tmpdoc['related_dataset'],type)
     #Check if we have a child pointing to a parent
+    if feature_type is None:
+        process_feature_type(tmpdoc)
 
     #Override frature_type if set in config
     if feature_type != "Skip" and feature_type is not None:
@@ -1935,14 +1937,15 @@ def bulkindex(filelist,mysolr, chunksize):
         # print("Parent ids pending list: %s" % parent_ids_pending)
         # print("===========================================================================================================")
 
-        #Process feature types here, using the concurrently function,
-        if feature_type is None:
-            ######################## STARTING THREADS ########################
-            #Load each file using multiple threads, and process documents as files are loaded
-            ###################################################################
-            for(doc, newdoc) in concurrently(fn=process_feature_type, inputs=docs):
-                docs.remove(doc)
-                docs.append(newdoc)
+        # TODO: SEGFAULT NEED TO INVESTIGATE
+        # Process feature types here, using the concurrently function,
+        # if feature_type is None:
+        #     ######################## STARTING THREADS ########################
+        #     #Load each file using multiple threads, and process documents as files are loaded
+        #     ###################################################################
+        #     for(doc, newdoc) in concurrently(fn=process_feature_type, inputs=docs):
+        #         docs.remove(doc)
+        #         docs.append(newdoc)
             ################################## THREADS FINISHED ##################
 
 
@@ -2098,30 +2101,29 @@ def bulkindex(filelist,mysolr, chunksize):
 
     #Last we assume all pending parents are in the index
     ppending = set(parent_ids_pending)
-    #print(" == Checking Pending == ")
+    print(" The last parents should be in index.")
     for pid in  ppending:
         myparent = None
-        if pid not in parent_ids_processed and not parent_found:
-            myparent = find_parent_in_index(pid)
-            if myparent['doc'] is not None:
-                #print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+        myparent = find_parent_in_index(pid)
+        if myparent['doc'] is not None:
+            #print("pending parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
 
-                if myparent['doc']['isParent'] is False:
-                    #print('Update on indexed parent %s, isParent: True' % pid)
-                    #print('before: ' , myparent)
-                    mydoc_ = solr_updateparent(myparent['doc'])
-                    mydoc = mydoc_
-                    #doc = {'id': pid, 'isParent': True}
-                    try:
-                        solrcon.add([mydoc])
-                    except Exception as e:
-                        print("Could not update parent on index. reason %s",e)
-                            #Update lists
-                    parent_ids_processed.append(pid)
+            if myparent['doc']['isParent'] is False:
+                #print('Update on indexed parent %s, isParent: True' % pid)
+                #print('before: ' , myparent)
+                mydoc_ = solr_updateparent(myparent['doc'])
 
-                    #Remove from pending list
-                    if pid in parent_ids_pending:
-                        parent_ids_pending.remove(pid)
+                #doc = {'id': pid, 'isParent': True}
+                try:
+                    solrcon.add([mydoc_])
+                except Exception as e:
+                    print("Could not update parent on index. reason %s",e)
+                        #Update lists
+                parent_ids_processed.append(pid)
+
+                #Remove from pending list
+                if pid in parent_ids_pending:
+                    parent_ids_pending.remove(pid)
 
     #####################################################################################
     print("====== BATCH END == %s files processed in %s iterations, using batch size %s =======" % (len(filelist),it, chunksize))
@@ -2479,7 +2481,9 @@ def main(argv):
     pet = time.process_time()
     elapsed_time = et - st
     pelt = pet -pst
+    skipped = len(myfiles)-processed
     print("Processed %s documents" % processed)
+    print("Files / documents failed: %s" % skipped)
     print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
     if end_solr_commit:
