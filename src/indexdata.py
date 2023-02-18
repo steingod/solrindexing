@@ -38,15 +38,17 @@ import cartopy
 import matplotlib.pyplot as plt
 from owslib.wms import WebMapService
 import base64
+#import h5netcdf.legacyapi as netCDF4
 import netCDF4
 import logging
 import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 from time import sleep
 import pickle
-from shapely.geometry import box
+from shapely.geometry import *
 from shapely.wkt import loads
-from shapely.geometry import mapping
+from shapely.ops import transform
+#from shapely.geometry import mapping
 import geojson
 import pyproj
 import shapely.geometry as shpgeo
@@ -60,6 +62,9 @@ import threading
 import requests
 import itertools
 from pathlib import Path
+import h5netcdf
+import validators
+
 
 
 #For basic authentication
@@ -1562,7 +1567,7 @@ def concurrently(fn, inputs, *, max_concurrency=5):
 
         while futures:
             done, _ = Futures.wait(
-                futures, return_when=Futures.FIRST_COMPLETED
+                futures, return_when=Futures.FIRST_COMPLETED, timeout=None
             )
 
             for fut in done:
@@ -1677,20 +1682,64 @@ def find_parent_in_index(id):
     res.raise_for_status()
     return res.json()
 
+def flip(x, y):
+    """Flips the x and y coordinate values"""
+    return y, x
 
 def process_feature_type(tmpdoc):
     """
     Look for feature type and update document
     """
+    tmpdoc_ = tmpdoc
     if 'data_access_url_opendap' in tmpdoc:
+        dapurl = str(tmpdoc['data_access_url_opendap'])
+        valid = validators.url(dapurl)
+        if not valid:
+            return tmpdoc_
+        #print(dapurl)
+        
         try:
-            myfeature = get_feature_type(str(tmpdoc['data_access_url_opendap']))
+            with netCDF4.Dataset(dapurl, 'r') as f:
+              
+                #if attribs is not None:
+                for att in f.ncattrs():
+                    if att == 'featureType':
+                        featureType = getattr(f, att)
+                        #print(featureType)
+                        if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
+                            if featureType == "TimeSeries":
+                                featureType = 'timeSeries'
+                            elif featureType == "timeseries":
+                                featureType = 'timeSeries'
+                            elif featureType == "timseries":
+                                featureType = 'timeSeries'
+                            else:
+                                featureType = None
+                        if featureType:
+                            tmpdoc_.update({'feature_type':featureType})
+                    
+                    #Check if we have plogon.
+                    if att == 'geospatial_bounds':
+                        polygon = getattr(f, att)
+                        polygon_ = shapely.wkt.loads(polygon)
+                        polygon = transform(flip,polygon_).wkt
+
+                        #print(polygon)
+                        if polygon.startswith('POLYGON'):
+                            tmpdoc_.update({'polygon_rpt':polygon})
+                            #Check if we have plogon.
+                    if att == 'geospatial_bounds_crs':
+                        crs = getattr(f, att)
+                        #print(crs)
+
+                return tmpdoc_
         except Exception as e:
-            print("Something failed while retrieving feature type: %s"% e)
+            print("Something failed reading netcdf %s"% e)
+            attribs = None
             #raise RuntimeError('Something failed while retrieving feature type')
-        if myfeature:
-            tmpdoc.update({'feature_type':myfeature})
-    return tmpdoc
+        #process featuretype
+        
+    return tmpdoc_
 
 def mmd2solr(mmd,status,mysolr,file):
     """
@@ -1786,8 +1835,8 @@ def mmd2solr(mmd,status,mysolr,file):
     #pp.pprint(tmpdoc)
     #print(tmpdoc['related_dataset'],type)
     #Check if we have a child pointing to a parent
-    if feature_type is None:
-        process_feature_type(tmpdoc)
+    # if feature_type is None:
+    #     process_feature_type(tmpdoc)
 
     #Override frature_type if set in config
     if feature_type != "Skip" and feature_type is not None:
@@ -1939,13 +1988,13 @@ def bulkindex(filelist,mysolr, chunksize):
 
         # TODO: SEGFAULT NEED TO INVESTIGATE
         # Process feature types here, using the concurrently function,
-        # if feature_type is None:
-        #     ######################## STARTING THREADS ########################
-        #     #Load each file using multiple threads, and process documents as files are loaded
-        #     ###################################################################
-        #     for(doc, newdoc) in concurrently(fn=process_feature_type, inputs=docs):
-        #         docs.remove(doc)
-        #         docs.append(newdoc)
+        if feature_type is None:
+            ######################## STARTING THREADS ########################
+            #Load each file using multiple threads, and process documents as files are loaded
+            ###################################################################
+            for(doc, newdoc) in concurrently(fn=process_feature_type, inputs=docs, max_concurrency=10):
+                docs.remove(doc)
+                docs.append(newdoc)
             ################################## THREADS FINISHED ##################
 
 

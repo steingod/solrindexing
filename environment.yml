@@ -19,3 +19,10 @@ dependencies:
   - shapely
   - lxml
   - geojson
+  - h5netcdf
+  - h5py
+  - h5pyd
+  - lxml
+  - validators
+  - mpi
+  - openmpi
