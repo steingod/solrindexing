@@ -2,11 +2,11 @@ name: solrindexing
 channels:
   - conda-forge
 dependencies:
-  - python>=3.7
+  - python>=3.8
   - matplotlib>=3.1
   - numpy>=1.17
   - scipy>=1.2
-  - netcdf4
+  - netcdf4<1.6.0
   - pyproj>=2.3
   - cartopy
   - pip
@@ -21,8 +21,7 @@ dependencies:
   - geojson
   - h5netcdf
   - h5py
-  - h5pyd
   - lxml
   - validators
-  - mpi
-  - openmpi
+  - certifi
+  - urllib3
