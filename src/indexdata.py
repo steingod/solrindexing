@@ -51,6 +51,8 @@ import pyproj
 import shapely.geometry as shpgeo
 import shapely.wkt
 
+#For basic authentication
+from requests.auth import HTTPBasicAuth
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
@@ -242,6 +244,10 @@ class MMD4SolR:
                                               'In Work',
                                               'Complete',
                                               'Obsolete'],
+            'mmd:quality_control': ['No quality control',
+                                    'Basic quality control',
+                                    'Extended quality control',
+                                    'Comprehensive quality control'],
         }
         for element in mmd_controlled_elements.keys():
             self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
@@ -779,7 +785,26 @@ class MMD4SolR:
                         mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
 
         """ Storage information """
-        self.logger.info('Storage information not implemented yet.')
+        if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
+            if 'mmd:file_name' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'] != None:
+                mydict['storage_information_file_name'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'])
+            if 'mmd:file_location' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_location'] != None:
+                mydict['storage_information_file_location'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_location'])
+            if 'mmd:file_format' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_format'] != None:
+                mydict['storage_information_file_format'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_format'])
+            if 'mmd:file_size' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size'] != None:
+                if isinstance(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size'], dict):
+                    mydict['storage_information_file_size'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size']['#text'])
+                    mydict['storage_information_file_size_unit'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_size']['@unit'])
+                else:
+                    self.logger.warning("Filesize unit not specified, skipping field")
+            if 'mmd:checksum' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum'] != None:
+                if isinstance(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum'], dict):
+                    mydict['storage_information_file_checksum'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum']['#text'])
+                    mydict['storage_information_file_checksum_type'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:checksum']['@type'])
+                else:
+                    self.logger.warning("Checksum type is not specified, skipping field")
+
 
         """ Related information """
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
@@ -942,6 +967,10 @@ class MMD4SolR:
                             v+='T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
 
+        """ Quality control """
+        if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
+            mydict['quality_control'] = str(self.mydoc['mmd:mmd']['mmd:quality_control'])
+
         """ Adding MMD document as base64 string"""
         # Check if this can be simplified in the workflow.
         xml_root = ET.parse(str(self.filename))
@@ -962,7 +991,7 @@ class IndexMMD:
     a list of dictionaries representing MMD as input.
     """
 
-    def __init__(self, mysolrserver, always_commit=False):
+    def __init__(self, mysolrserver, always_commit=False, authentication=None):
         # Set up logging
         self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
@@ -983,13 +1012,15 @@ class IndexMMD:
 
         # Connecting to core
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020, auth=authentication)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
             self.logger.info("Add a sys.exit?")
 
-
+    #Function for sending explicit commit to solr
+    def commit(self):
+        self.solrc.commit()
     def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         """ Add thumbnail to SolR
             Args:
@@ -1456,12 +1487,25 @@ def main(argv):
     else:
         raise Exception('Map projection is not properly specified in config')
 
+    #Enable basic authentication if configured.
+    if 'auth-basic-username' in cfg and 'auth-basic-password' in cfg:
+        username = cfg['auth-basic-username']
+        password = cfg['auth-basic-password']
+        mylog.info("Setting up basic authentication")
+        if username == '' or password == '':
+            raise Exception('Authentication username and/or password are configured, but have blank strings')
+        else:
+            authentication = HTTPBasicAuth(username,password)
+    else:
+        authentication = None
+        mylog.info("Authentication disabled")
+    #Get solr server config
     SolrServer = cfg['solrserver']
     myCore = cfg['solrcore']
 
     # Set up connection to SolR server
     mySolRc = SolrServer+myCore
-    mysolr = IndexMMD(mySolRc, args.always_commit)
+    mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
 
     # Find files to process
     # FIXME remove l2 and thumbnail cores, reconsider deletion herein
@@ -1624,6 +1668,9 @@ def main(argv):
 
     # Report status
     mylog.info("Number of files processed were: %d", len(myfiles))
+
+    #add a commit to solr at end of run
+    mysolr.commit()
 
 
 if __name__ == "__main__":
