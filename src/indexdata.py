@@ -104,7 +104,7 @@ def check_crossing(lon1: float, lon2: float, validate: bool = True, dlon_thresho
     checks if the 180th meridian (antimeridian) is crossed.
     """
     if validate and (any(abs(x) > dlon_threshold) for x in [lon1, lon2]):
-        raise ValueError("longitudes must be in degrees [-180.0, 180.0]")   
+        raise ValueError("longitudes must be in degrees [-180.0, 180.0]")
     return abs(lon2 - lon1) > dlon_threshold
 
 def remove_interiors(poly):
@@ -165,7 +165,7 @@ def split_coords(src_coords: List[List[List[float]]]) -> GeometryCollection:
     split_meridians = set()
 
     for ring_index, ring in enumerate(coords_shift):
-        if len(ring) < 1: 
+        if len(ring) < 1:
             continue
         else:
             ring_minx = ring_maxx = ring[0][0]
@@ -211,7 +211,7 @@ def split_coords(src_coords: List[List[List[float]]]) -> GeometryCollection:
         split_polygons = split(Polygon(shell, holes), splitter)
     else:
         raise NotImplementedError(
-            """Splitting a Polygon by multiple meridians (MultiLineString) 
+            """Splitting a Polygon by multiple meridians (MultiLineString)
                not supported by Shapely"""
         )
     return split_polygons
@@ -222,7 +222,7 @@ def split_polygon(geojson: dict, output_format: OutputFormat = OutputFormat.Geoj
 ]:
     """
     Given a GeoJSON representation of a Polygon, returns a collection of
-    'antimeridian-safe' constituent polygons split at the 180th meridian, 
+    'antimeridian-safe' constituent polygons split at the 180th meridian,
     ensuring compliance with GeoJSON standards (https://tools.ietf.org/html/rfc7946#section-3.1.9)
     Assumptions:
       - Any two consecutive points with over 180 degrees difference in
@@ -813,8 +813,6 @@ class MMD4SolR:
                             #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
                         #fix out of bounds
-                        #minX = min(lonvals)
-                        #maxX = max(la)
                         #if min(lonvals)
 
                         bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
@@ -824,8 +822,10 @@ class MMD4SolR:
                         polygon = bbox.wkt
                         #p = shapely.geometry.polygon.orient(polygon, sign=1.0)
                         #print(p.exterior.is_ccw)
-                        mydict['polygon_rpt'] = polygon
-
+                        #mydict['polygon_rpt'] = polygon
+                        mydict['polygon_rpt'] = mydict['bbox']
+                        if not mydict['bbox'] == "ENVELOPE(-180.0,180.0,90,-90)":
+                            mydict['geospatial_bounds'] = mydict['bbox']
                         #print(mapping(polygon))
                         #pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
                         #mydict['geom'] = geojson.dumps(mapping(shapely.wkt.loads(polygon)))
@@ -873,10 +873,16 @@ class MMD4SolR:
                     bbox = box(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']), ccw=False)
                     #print(bbox)
                     polygon = bbox.wkt
+
                     #print(polygon)
                     #p = shapely.geometry.polygon.orient(shapely.wkt.loads(polygon), sign=1.0)
                     #print(p.exterior.is_ccw)
-                    mydict['polygon_rpt'] = polygon
+                    #mydict['polygon_rpt'] = polygon
+                    #mydict['polygon_rpt'] = polygon
+                    mydict['polygon_rpt'] = mydict['bbox']
+                    #mydict['geospatial_bounds'] =  mydict['bbox']
+                    if not mydict['bbox'] == "ENVELOPE(-180.0,180.0,90,-90)":
+                            mydict['geospatial_bounds'] = mydict['bbox']
                     #print(mapping(shapely.wkt.loads(polygon)))
                     #print(geojson.dumps(mapping(loads(polygon))))
                     #pGeo = shpgeo.shape({'type': 'polygon', 'coordinates': tuple(newCoord)})
@@ -1888,10 +1894,10 @@ def process_feature_type(tmpdoc):
         if not valid:
             return tmpdoc_
         #print(dapurl)
-        
+
         try:
             with netCDF4.Dataset(dapurl, 'r') as f:
-              
+
                 #if attribs is not None:
                 for att in f.ncattrs():
                     if att == 'featureType':
@@ -1908,7 +1914,7 @@ def process_feature_type(tmpdoc):
                                 featureType = None
                         if featureType:
                             tmpdoc_.update({'feature_type':featureType})
-                    
+
                     #Check if we have plogon.
                     #print("netcdf")
                     if att == 'geospatial_bounds':
@@ -1922,33 +1928,34 @@ def process_feature_type(tmpdoc):
                         else:
                             polygon = transform(flip,polygon_)
                             # #print(poly)
-                            ccw = polygon.exterior.is_ccw
-                            if not ccw:
-                                polygon = polygon.reverse()
-                           
+                            #ccw = polygon.exterior.is_ccw
+                            #if not ccw:
+                            #    polygon = polygon.reverse()
+
                             # pp = json.dumps(mapping(polygon))
                             # poly: dict = json.loads(pp)
-                            
+
                             # res = split_polygon(poly, OutputFormat.Polygons)
                             # mp = shapely.MultiPolygon(res)
                             #tmp = reduce(BaseGeometry.union, res)
                             #print(mp.wkt)
-                
+
                             #res_poly = json.loads(res) #print(res.wkt)
                             #print(res.wkt)
                             #polygon_ = shapely.force_3d(polygon_)
                             #polygon = polygon_.wkt
-                            polygon = remove_interiors(polygon)
+                            #polygon = remove_interiors(polygon)
                             #polygon = transform(flip,polygon_).wkt
                             #polygon_geojson = json.dumps(shapely.geometry.mapping(polygon_))
                             #print(polygon_geojson)
                             #gj = geojson.GeoJSON()
                             #gf = geojson.Feature(tmpdoc['id'],polygon_)
                             #gj.update(gf)
-                            #polygon = polygon.simplify(0.5)       
+                            #polygon = polygon.simplify(0.5)
                             #print(gj)
                             #tmpdoc.update({'polygon_rpt': polygon.wkt})
                             tmpdoc.update({'geospatial_bounds': polygon.wkt})
+                            tmpdoc.update({'polygon_rpt': polygon.wkt})
                             #Check if we have plogon.
                     if att == 'geospatial_bounds_crs':
                         crs = getattr(f, att)
@@ -1958,8 +1965,8 @@ def process_feature_type(tmpdoc):
         except Exception as e:
             print("Something failed reading netcdf %s"% e)
             print(dapurl)
-           
-        
+
+
     return tmpdoc_
 
 def mmd2solr(mmd,status,mysolr,file):
@@ -2038,67 +2045,69 @@ def mmd2solr(mmd,status,mysolr,file):
 
     tmpstatus = "OK"
     #Check geographic extent is ok
-    try:
-        if round(tmpdoc['geographic_extent_rectangle_north'][0]) not in range(-91,91):
-            tmpstatus = None
-        if round(tmpdoc['geographic_extent_rectangle_south'][0]) not in range(-91,91):
-            tmpstatus = None
-        if round(tmpdoc['geographic_extent_rectangle_east'][0]) not in range(-181,181):
-            tmpstatus = None
-        if round(tmpdoc['geographic_extent_rectangle_west'][0]) not in range(-181,181):
-            tmpstatus = None
-    except Exception as e:
-        print("Missing information in document %s. Reason %s" % (file,e))
+    # try:
+    #     if round(tmpdoc['geographic_extent_rectangle_north'][0]) not in range(-91,91):
+    #         tmpstatus = None
+    #     if round(tmpdoc['geographic_extent_rectangle_south'][0]) not in range(-91,91):
+    #         tmpstatus = None
+    #     if round(tmpdoc['geographic_extent_rectangle_east'][0]) not in range(-181,181):
+    #         tmpstatus = None
+    #     if round(tmpdoc['geographic_extent_rectangle_west'][0]) not in range(-181,181):
+    #         tmpstatus = None
+    # except Exception as e:
+    #     print("Missing information in document %s. Reason %s" % (file,e))
 
-    if tmpstatus != "OK":
-         print('Incomaptible geographic extent for docid:  %s for file %s' % (tmpdoc['id'],file))
-         return (None,status)
+    # if tmpstatus != "OK":
+    #      print('Incomaptible geographic extent for docid:  %s for file %s' % (tmpdoc['id'],file))
+    #      return (None,status)
     #pp.pprint(tmpdoc)
     #print(tmpdoc['related_dataset'],type)
     #Check if we have a child pointing to a parent
     # if feature_type is None:
     #     process_feature_type(tmpdoc)
-    if 'polygon_rpt' in tmpdoc:
-        value = tmpdoc['polygon_rpt']
-        if 'POLYGON' in value or 'POINT' in value:
-            polygon_ = shapely.wkt.loads(value)
-            type = polygon_.geom_type
-            if type == 'Point':
-                point = polygon_.wkt
-                tmpdoc.update({'geospatial_bounds': point})
-            else:
-                #polygon = transform(flip,polygon_)
-                pp = json.dumps(mapping(polygon_))
-                poly: dict = json.loads(pp)
-                #print(poly)
-              
-                res = split_polygon(poly, OutputFormat.Polygons)
-                #tmp = reduce(BaseGeometry.union, res)
-                for p in res:
-                    pol = remove_interiors(p)
-                    ccw = pol.exterior.is_ccw
-                    if not ccw:
-                        pol = pol.reverse()
-                           
-                    
-                mp = shapely.MultiPolygon(pol)
-                # print(mp)
-                # #print(polygon.wkt)
-                # res_poly = shape(res.pop())
-                # print(res_poly)
-                #polygon_ = shapely.force_3d(polygon_)
-                #polygon = polygon_.wkt
+    # if 'polygon_rpt' in tmpdoc:
+    #     value = tmpdoc['polygon_rpt']
+    #     if 'POLYGON' in value or 'POINT' in value:
+    #         polygon_ = shapely.wkt.loads(value)
+    #         type = polygon_.geom_type
+    #         if type == 'Point':
+    #             point = polygon_.wkt
+    #             tmpdoc.update({'geospatial_bounds': point})
+    #         else:
+    #             #polygon = transform(flip,polygon_)
+    #             pp = json.dumps(mapping(polygon_))
+    #             poly: dict = json.loads(pp)
+    #             #print(poly)
 
-                #polygon = transform(flip,polygon_).wkt
-                #polygon_geojson = json.dumps(shapely.geometry.mapping(polygon_))
-                #print(polygon_geojson)
-                #gj = geojson.GeoJSON()
-                #gf = geojson.Feature(tmpdoc['id'],polygon_)
-                #gj.update(gf)
-                        
-                #print(gj)
-                tmpdoc.update({'geospatial_bounds': mp.wkt})
-                tmpdoc.update({'polygon_rpt': mp.wkt})
+    #             res = split_polygon(poly, OutputFormat.Polygons)
+    #             #tmp = reduce(BaseGeometry.union, res)
+    #             newres = list()
+    #             for p in res:
+    #                 pol = remove_interiors(p)
+    #                 ccw = pol.exterior.is_ccw
+    #                 if not ccw:
+    #                     pol = pol.reverse()
+
+    #                 newres.append(pol)
+
+    #             mp = shapely.MultiPolygon(newres)
+    #             # print(mp)
+    #             # #print(polygon.wkt)
+    #             # res_poly = shape(res.pop())
+    #             # print(res_poly)
+    #             #polygon_ = shapely.force_3d(polygon_)
+    #             #polygon = polygon_.wkt
+
+    #             #polygon = transform(flip,polygon_).wkt
+    #             #polygon_geojson = json.dumps(shapely.geometry.mapping(polygon_))
+    #             #print(polygon_geojson)
+    #             #gj = geojson.GeoJSON()
+    #             #gf = geojson.Feature(tmpdoc['id'],polygon_)
+    #             #gj.update(gf)
+
+    #             #print(gj)
+    #             tmpdoc.update({'geospatial_bounds': mp.wkt})
+    #             tmpdoc.update({'polygon_rpt': mp.wkt})
 
     #Override frature_type if set in config
     if feature_type != "Skip" and feature_type is not None:
@@ -2252,7 +2261,7 @@ def bulkindex(filelist,mysolr, chunksize):
         # Process feature types here, using the concurrently function,
         dap_docs = [doc for doc in docs if 'data_access_url_opendap' in doc]
         #print('dap docs: %s' % len(dap_docs))
-        #print('nodap docs: %s' % len(docs)) 
+        #print('nodap docs: %s' % len(docs))
         if feature_type is None:
             ######################## STARTING THREADS ########################
             #Load each file using multiple threads, and process documents as files are loaded
