@@ -61,6 +61,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from concurrent import futures as Futures
 import threading
+import multiprocessing
 import requests
 import itertools
 from pathlib import Path
@@ -1969,7 +1970,7 @@ def process_feature_type(tmpdoc):
 
     return tmpdoc_
 
-def mmd2solr(mmd,status,mysolr,file):
+def mmd2solr(mmd,status,file):
     """
     Convert mmd dict to solr dict
 
@@ -2180,8 +2181,9 @@ def msg_callback(msg):
     print(msg)
 
 #Process the mmd list and index to solr
-def bulkindex(filelist,mysolr, chunksize):
-
+def bulkindex(filelist,chunksize):
+    print(len(filelist))
+    print(chunksize)
     #Define some lists to keep track of the processing
     parent_ids_pending = list()  # Keep track of pending parent ids
     parent_ids_processed =list() # Keep track parent ids already processed
@@ -2210,7 +2212,7 @@ def bulkindex(filelist,mysolr, chunksize):
         for(file, mmd) in concurrently(fn=load_file, inputs=files):
 
             # Get the processed document and its status
-            doc,status = mmd2solr(mmd,None,mysolr,file)
+            doc,status = mmd2solr(mmd,None,file)
 
             # Add the document and the status to the document-list
             docs.append(doc)
@@ -2424,8 +2426,9 @@ def bulkindex(filelist,mysolr, chunksize):
 
     #Last we assume all pending parents are in the index
     ppending = set(parent_ids_pending)
-    print(" The last parents should be in index.")
+
     for pid in  ppending:
+        print(" The last parents should be in index.")
         myparent = None
         myparent = find_parent_in_index(pid)
         if myparent['doc'] is not None:
@@ -2448,27 +2451,9 @@ def bulkindex(filelist,mysolr, chunksize):
                 if pid in parent_ids_pending:
                     parent_ids_pending.remove(pid)
 
-    #####################################################################################
-    print("====== BATCH END == %s files processed in %s iterations, using batch size %s =======" % (len(filelist),it, chunksize))
-    print("Parent ids found: %s" % len(parent_ids_found))
-    print("Parent ids pending: %s" % len(parent_ids_pending))
-    print("Parent ids processed: %s" % len(parent_ids_processed))
-    print("Parent ids pending list: %s" % parent_ids_pending)
-    print("======================================================================================")
 
-    #summary of possible missing parents
-    missing = list(set(parent_ids_found) - set(parent_ids_processed))
-    print('Missing parents in input. %s' % missing)
-    docs_failed = total_in - docs_indexed
-    if docs_failed != 0:
-        print('**WARNING** %s documents could not be indexed. check output and logffile.' % docs_failed)
-         #print(parent_ids_pending)
-    print("===================================================================")
-    print("%s files processed and %s documents indexed. %s documents was skipped" %(files_processed,docs_indexed,docs_skipped))
-    print("===================================================================")
-    print("Total files given as input: %s " % len(filelist))
 
-    return docs_indexed
+    return parent_ids_found, parent_ids_pending, parent_ids_processed,docs_skipped,docs_indexed,files_processed
 
 def main(argv):
     #Global date regexp to validate solr dates
@@ -2662,13 +2647,78 @@ def main(argv):
     if feature_type != "Skip" and feature_type is not None:
         print( " ** WARNING!! ** feature type is set to override. stop process now if this is a mistake (Ctrl C)")
         sleep(5)
+
+
+    """
+    Indexing start. The inputlist is split into as many lists as input workers.
+    Each worker will process the lists and return back the information needed to track the
+    progress and parent ids
+    """
+    #Define some lists to keep track of the processing
+    parent_ids_pending = list()  # Keep track of pending parent ids
+    parent_ids_processed =list() # Keep track parent ids already processed
+    parent_ids_found = list()    # Keep track of parent ids found
+    processed = 0
+    docs_failed = 0
+    docs_indexed = 0
+
     #Start the indexing
-    print("Indexing with batch size %s" % batch)
-    processed = bulkindex(myfiles,mysolr,batch)
+    print("Indexing with batch size %s and %s worker processes" % (batch,workers))
+    #We only do multiprocessing if workers is 2 or moree
+    workerlistsize = round(len(myfiles)/workers)
+    if workers > 1:
+        #Split the inputfiles into lists for each worker.
+        workerFileLists = [myfiles[ i : i + workerlistsize] for i in range(0, len(myfiles), workerlistsize)]
+        with ProcessPoolExecutor() as executor:
+            feature = [executor.submit(bulkindex, filelist, batch) for filelist in workerFileLists]
+            parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = feature.result()
+            parent_ids_found.append(parent_ids_found_)
+            parent_ids_pending.append(parent_ids_pending_)
+            parent_ids_processed.append(parent_ids_processed_)
+            processed += processed_
+            docs_failed += docs_failed_
+            docs_indexed += docs_indexed_
+
+        # processes = list()
+        # for fileList in workerFileLists:
+        #     p = multiprocessing.Process(target=bulkindex, args=(fileList,batch,))
+        #     p.start()
+        #     processes.append(p)
 
 
+        # # Wait for all the workerprocesses to finish
+        # for p in processes:
+        #     p.join()
+    #Bulkindex using main process.
+    else:
+        parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = bulkindex(myfiles,batch)
+        parent_ids_found.append(parent_ids_found_)
+        parent_ids_pending.append(parent_ids_pending_)
+        parent_ids_processed.append(parent_ids_processed_)
+        processed += processed_
+        docs_failed += docs_failed_
+        docs_indexed += docs_indexed_
 
 
+     #####################################################################################
+    print("====== BATCH END == %s files processed in , with %s workers and batch size %s === ====" % (len(myfiles),workers, batch))
+    print("Parent ids found: %s" % len(parent_ids_found))
+    print("Parent ids pending: %s" % len(parent_ids_pending))
+    print("Parent ids processed: %s" % len(parent_ids_processed))
+    print("Parent ids pending list: %s" % parent_ids_pending)
+    print("======================================================================================")
+
+    #summary of possible missing parents
+    missing = list(set(parent_ids_found) - set(parent_ids_processed))
+    print('Missing parents in input. %s' % missing)
+    docs_failed = len(myfiles) - docs_indexed
+    if docs_failed != 0:
+        print('**WARNING** %s documents could not be indexed. check output and logffile.' % docs_failed)
+         #print(parent_ids_pending)
+    print("===================================================================")
+    print("%s files processed and %s documents indexed. %s documents was skipped" %(processed,docs_indexed,docs_failed))
+    print("===================================================================")
+    print("Total files given as input: %s " % len(myfiles))
 
     #     """ Do not search for metadata_identifier, always used id...  """
     #     # Convert MMD dict to solr doc
