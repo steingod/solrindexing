@@ -2669,15 +2669,20 @@ def main(argv):
     if workers > 1:
         #Split the inputfiles into lists for each worker.
         workerFileLists = [myfiles[ i : i + workerlistsize] for i in range(0, len(myfiles), workerlistsize)]
-        with ProcessPoolExecutor() as executor:
-            feature = [executor.submit(bulkindex, filelist, batch) for filelist in workerFileLists]
-            parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = feature.result()
-            parent_ids_found.append(parent_ids_found_)
-            parent_ids_pending.append(parent_ids_pending_)
-            parent_ids_processed.append(parent_ids_processed_)
-            processed += processed_
-            docs_failed += docs_failed_
-            docs_indexed += docs_indexed_
+        print("len of worker list %s" % len(workerFileLists))
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures_list = list()
+            for fileList in workerFileLists:
+                future = executor.submit(bulkindex, fileList, batch) # for filelist in workerFileLists]
+                futures_list.append(future)
+            for f in as_completed(futures_list):
+                parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = f.result()
+                parent_ids_found.append(parent_ids_found_)
+                parent_ids_pending.append(parent_ids_pending_)
+                parent_ids_processed.append(parent_ids_processed_)
+                processed += processed_
+                docs_failed += docs_failed_
+                docs_indexed += docs_indexed_
 
         # processes = list()
         # for fileList in workerFileLists:
@@ -2699,6 +2704,7 @@ def main(argv):
         docs_failed += docs_failed_
         docs_indexed += docs_indexed_
 
+    #TODO: Add last parent missing index check here. after refactor this logic
 
      #####################################################################################
     print("====== BATCH END == %s files processed in , with %s workers and batch size %s === ====" % (len(myfiles),workers, batch))
