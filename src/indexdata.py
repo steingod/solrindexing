@@ -2455,6 +2455,10 @@ def bulkindex(filelist,chunksize):
 
     return parent_ids_found, parent_ids_pending, parent_ids_processed,docs_skipped,docs_indexed,files_processed
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+
 def main(argv):
     #Global date regexp to validate solr dates
     global DATETIME_REGEX
@@ -2677,9 +2681,9 @@ def main(argv):
                 futures_list.append(future)
             for f in as_completed(futures_list):
                 parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = f.result()
-                parent_ids_found.append(parent_ids_found_)
-                parent_ids_pending.append(parent_ids_pending_)
-                parent_ids_processed.append(parent_ids_processed_)
+                parent_ids_found.extend(parent_ids_found_)
+                parent_ids_pending.extend(parent_ids_pending_)
+                parent_ids_processed.extend(parent_ids_processed_)
                 processed += processed_
                 docs_failed += docs_failed_
                 docs_indexed += docs_indexed_
@@ -2697,15 +2701,47 @@ def main(argv):
     #Bulkindex using main process.
     else:
         parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = bulkindex(myfiles,batch)
-        parent_ids_found.append(parent_ids_found_)
-        parent_ids_pending.append(parent_ids_pending_)
-        parent_ids_processed.append(parent_ids_processed_)
+        parent_ids_found.extend(parent_ids_found_)
+        parent_ids_pending.extend(parent_ids_pending_)
+        parent_ids_processed.extend(parent_ids_processed_)
         processed += processed_
         docs_failed += docs_failed_
         docs_indexed += docs_indexed_
 
     #TODO: Add last parent missing index check here. after refactor this logic
+    #summary of possible missing parents
+    missing = list(set(parent_ids_found) - set(parent_ids_processed))
+    for pid in missing:
+        myparent = find_parent_in_index(pid)
 
+        if myparent is not None:
+            #if not found in the index, we store it for later
+            if myparent['doc'] is None:
+                if pid not in parent_ids_pending:
+                    #print('parent %s not found in index. storing it for later' % pid)
+                    parent_ids_pending.append(pid)
+
+            #If found in index we update the parent
+            else:
+                if myparent['doc'] is not None:
+                    #print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+                    #Check if already flagged
+                    if myparent['doc']['isParent'] is False:
+                        #print('Update on indexed parent %s, isParent: True' % pid)
+                        mydoc = solr_updateparent(myparent['doc'])
+                        #print(mydoc)
+                        doc_ = mydoc
+                        try:
+                            solrcon.add([doc_])
+                        except Exception as e:
+                            print("Could update parent on index. reason %s",e)
+
+                        #Update lists
+                        parent_ids_processed.append(pid)
+
+                        #Remove from pending list
+                        if pid in parent_ids_pending:
+                            parent_ids_pending.remove(pid)
      #####################################################################################
     print("====== BATCH END == %s files processed in , with %s workers and batch size %s === ====" % (len(myfiles),workers, batch))
     print("Parent ids found: %s" % len(parent_ids_found))
