@@ -920,7 +920,7 @@ class MMD4SolR:
                 print(platform)
                 for platform_key, platform_value in platform.items():
                     if isinstance(platform_value,dict): # if sub element is ordered dict
-                        print('I am her...')
+                        print('Platform is in a dict...')
                         for kkey, vvalue in platform_value.items():
                             element_name = 'platform_{}_{}'.format(platform_key.split(':')[-1],kkey.split(':')[-1])
                             if not element_name in mydict.keys(): # create key in mydict
@@ -929,7 +929,7 @@ class MMD4SolR:
                             else:
                                 mydict[element_name].append(vvalue)
                     else: #sub element is not ordered dicts
-                        print('No here...')
+                        print('Issue with platform as not a dict...')
                         element_name = 'platform_{}'.format(platform_key.split(':')[-1])
                         if not element_name in mydict.keys(): # create key in mydict. Repetition of above. Should be simplified.
                             mydict[element_name] = []
