@@ -817,7 +817,7 @@ class MMD4SolR:
                     if float(e['mmd:rectangle']['mmd:north']) == float(e['mmd:rectangle']['mmd:south']):
                         if float(e['mmd:rectangle']['mmd:east']) == float(e['mmd:rectangle']['mmd:west']):
                             point = shpgeo.Point(float(e['mmd:rectangle']['mmd:east']),float(e['mmd:rectangle']['mmd:north']))
-                            if point.has_z:
+                            if shapely.has_z(point):
                                 point = shapely.force_2d(point)
                             mydict['polygon_rpt'] = point.wkt
                             mydict['geospatial_bounds'] = point.wkt
@@ -884,7 +884,7 @@ class MMD4SolR:
                     if float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']) == float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']):
                         point = shpgeo.Point(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']))
                         #print(point.y)
-                        if point.has_z:
+                        if shapely.has_z(point):
                                 point = shapely.force_2d(point)
                         mydict['polygon_rpt'] = point.wkt
                         mydict['geospatial_bounds'] = point.wkt
@@ -1957,7 +1957,7 @@ def process_feature_type(tmpdoc):
                         #print(type)
                         if type == 'Point':
                             point = polygon_.wkt
-                            if point.has_z:
+                            if shapely.has_z(point):
                                 point = shapely.force_2d(point)
                             tmpdoc.update({'geospatial_bounds': point})
                         else:
