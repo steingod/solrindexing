@@ -870,7 +870,7 @@ class MMD4SolR:
                 mydict['geographic_extent_rectangle_west'] = minlon,
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
-                mydict['bbox'] = "ENVELOPE("+minlon+","+maxlon+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                mydict['bbox'] = "ENVELOPE("+str(minlon)+","+str(maxlon)+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
                 #print("Second conditition")
                 #Check if we have a point or a boundingbox
