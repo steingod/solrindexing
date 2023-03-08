@@ -1957,8 +1957,9 @@ def process_feature_type(tmpdoc):
                         #print(type)
                         if type == 'Point':
                             point = polygon_.wkt
-                            if shapely.has_z(point):
-                                point = shapely.force_2d(point)
+                            if shapely.has_z(polygon_):
+                                point_ = shapely.force_2d(polygon_)
+                                point = point_.wkt
                             tmpdoc.update({'geospatial_bounds': point})
                         else:
                             polygon = transform(flip,polygon_)
