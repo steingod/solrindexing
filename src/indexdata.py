@@ -819,7 +819,7 @@ class MMD4SolR:
                             point = shpgeo.Point(float(e['mmd:rectangle']['mmd:east']),float(e['mmd:rectangle']['mmd:north']))
                             #print(point.y)
                             mydict['polygon_rpt'] = point.wkt
-
+                            mydict['geospatial_bounds'] = point.wkt
                             #print(mapping(point))
                             #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
@@ -884,6 +884,7 @@ class MMD4SolR:
                         point = shpgeo.Point(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']))
                         #print(point.y)
                         mydict['polygon_rpt'] = point.wkt
+                        mydict['geospatial_bounds'] = point.wkt
 
                         #print(mapping(point))
 
