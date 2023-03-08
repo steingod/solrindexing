@@ -16,7 +16,7 @@ dependencies:
   - yaml
   - owslib
   - ipython
-  - shapely
+  - shapely>=2.0
   - lxml
   - geojson
   - h5netcdf
