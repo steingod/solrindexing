@@ -807,9 +807,12 @@ class MMD4SolR:
                     maxlon = max(lonvals)
                     if maxlon > 180.0:
                         maxlon = rewrap(maxlon)
-                    mydict['geographic_extent_rectangle_west'] = minlon
-                    mydict['geographic_extent_rectangle_east'] = maxlon
-                    mydict['bbox'] = "ENVELOPE("+str(minlon)+","+str(maxlon)+","+ str(max(latvals))+","+str(min(latvals))+")"
+                    lonvals.clear()
+                    lonvals.append(minlon)
+                    lonvals.append(maxlon)
+                    mydict['geographic_extent_rectangle_west'] = min(lonvals)
+                    mydict['geographic_extent_rectangle_east'] = max(lonvals)
+                    mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
                     #Check if we have a point or a boundingbox
                     if float(e['mmd:rectangle']['mmd:north']) == float(e['mmd:rectangle']['mmd:south']):
                         if float(e['mmd:rectangle']['mmd:east']) == float(e['mmd:rectangle']['mmd:west']):
@@ -861,16 +864,18 @@ class MMD4SolR:
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east'])
                 if maxlon > 180.0:
                     maxlon = rewrap(maxlon)
-
+                lonvals = []
+                lonvals.append(minlon)
+                lonvals.append(maxlon)
                 mydict['geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
                 mydict['geographic_extent_rectangle_south'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-                mydict['geographic_extent_rectangle_east'] = maxlon,
-                mydict['geographic_extent_rectangle_west'] = minlon,
+                mydict['geographic_extent_rectangle_east'] = max(lonvals),
+                mydict['geographic_extent_rectangle_west'] = min(lonvals),
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
-                mydict['bbox'] = "ENVELOPE("+str(minlon)+","+str(maxlon)+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
                 #print("Second conditition")
                 #Check if we have a point or a boundingbox
@@ -1902,6 +1907,7 @@ def process_feature_type(tmpdoc):
     """
     Look for feature type and update document
     """
+    dapurl = None
     tmpdoc_ = tmpdoc
     if 'data_access_url_opendap' in tmpdoc:
         dapurl = str(tmpdoc['data_access_url_opendap'])
@@ -1909,7 +1915,11 @@ def process_feature_type(tmpdoc):
         if not valid:
             return tmpdoc_
         #print(dapurl)
-
+    if 'storage_information_file_location' in tmpdoc:
+        fileloc = tmpdoc['storage_information_file_location']
+        if os.path.isfile(fileloc):
+            dapurl = fileloc
+    if dapurl is not None:
         try:
             with netCDF4.Dataset(dapurl, 'r') as f:
 
@@ -2196,8 +2206,8 @@ def msg_callback(msg):
 
 #Process the mmd list and index to solr
 def bulkindex(filelist,chunksize):
-    print(len(filelist))
-    print(chunksize)
+    #print(len(filelist))
+    #print(chunksize)
     #Define some lists to keep track of the processing
     parent_ids_pending = list()  # Keep track of pending parent ids
     parent_ids_processed =list() # Keep track parent ids already processed
@@ -2213,7 +2223,7 @@ def bulkindex(filelist,chunksize):
     docs_skipped = 0
     it = 1
     doc_ids_processed = set()
-    print("######### BATCH START ###########################")
+    #print("######### BATCH START ###########################")
     for i in range(0, len(filelist), chunksize):
         # select a chunk
         files = filelist[i:(i + chunksize)]
@@ -2441,8 +2451,8 @@ def bulkindex(filelist,chunksize):
     #Last we assume all pending parents are in the index
     ppending = set(parent_ids_pending)
 
-    for pid in  ppending:
-        print(" The last parents should be in index.")
+    for pid in ppending:
+        print("The last parents should be in index, or was processed by another worker.")
         myparent = None
         myparent = find_parent_in_index(pid)
         if myparent['doc'] is not None:
@@ -2467,7 +2477,7 @@ def bulkindex(filelist,chunksize):
 
 
 
-    return list(set(parent_ids_found)), list(set(parent_ids_pending)), list(set(parent_ids_processed)),docs_skipped,docs_indexed,files_processed
+    return list(set(parent_ids_found)), list(set(parent_ids_pending)), list(set(parent_ids_processed)),set(doc_ids_processed), docs_skipped,docs_indexed,files_processed
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
@@ -2660,7 +2670,7 @@ def main(argv):
     # we set the batch size to the number of files
     if batch > len(myfiles):
         batch = len(myfiles)
-        if batch < 100:
+        if batch < 500:
             workers = 1 # With small list of files more workers just make extra overhead
 
     if feature_type != "Skip" and feature_type is not None:
@@ -2677,6 +2687,7 @@ def main(argv):
     parent_ids_pending = list()  # Keep track of pending parent ids
     parent_ids_processed =list() # Keep track parent ids already processed
     parent_ids_found = list()    # Keep track of parent ids found
+    doc_ids_processed = set()    # Keep track of all doc ids processed
     processed = 0
     docs_failed = 0
     docs_indexed = 0
@@ -2695,10 +2706,11 @@ def main(argv):
                 future = executor.submit(bulkindex, fileList, batch) # for filelist in workerFileLists]
                 futures_list.append(future)
             for f in as_completed(futures_list):
-                parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = f.result()
+                parent_ids_found_, parent_ids_pending_, parent_ids_processed_,doc_ids_processed_,docs_failed_,docs_indexed_,processed_ = f.result()
                 parent_ids_found.extend(list(set(parent_ids_found_)))
                 parent_ids_pending.extend(list(set(parent_ids_pending_)))
                 parent_ids_processed.extend(list(set(parent_ids_processed_)))
+                doc_ids_processed.update(doc_ids_processed_)
                 processed += processed_
                 docs_failed += docs_failed_
                 docs_indexed += docs_indexed_
@@ -2715,10 +2727,11 @@ def main(argv):
         #     p.join()
     #Bulkindex using main process.
     else:
-        parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = bulkindex(myfiles,batch)
+        parent_ids_found_, parent_ids_pending_, parent_ids_processed_,doc_ids_processed_, docs_failed_,docs_indexed_,processed_ = bulkindex(myfiles,batch)
         parent_ids_found.extend(list(set(parent_ids_found_)))
         parent_ids_pending.extend(list(set(parent_ids_pending_)))
         parent_ids_processed.extend(list(set(parent_ids_processed_)))
+        doc_ids_processed.update(doc_ids_processed_)
         processed += processed_
         docs_failed += docs_failed_
         docs_indexed += docs_indexed_
@@ -2727,44 +2740,36 @@ def main(argv):
     #summary of possible missing parents
     missing = list(set(parent_ids_found) - set(parent_ids_processed))
     for pid in missing:
+        myparent = None
         myparent = find_parent_in_index(pid)
 
-        if myparent is not None:
-            #if not found in the index, we store it for later
-            if myparent['doc'] is None:
-                if pid not in parent_ids_pending:
-                    #print('parent %s not found in index. storing it for later' % pid)
-                    parent_ids_pending.append(pid)
+        if myparent['doc'] is not None:
+            #print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
+            #Check if already flagged
+            if myparent['doc']['isParent'] is False:
+                #print('Update on indexed parent %s, isParent: True' % pid)
+                mydoc = solr_updateparent(myparent['doc'])
+                #print(mydoc)
+                doc_ = mydoc
+                try:
+                    solrcon.add([doc_])
+                except Exception as e:
+                    print("Could update parent on index. reason %s",e)
 
-            #If found in index we update the parent
-            else:
-                if myparent['doc'] is not None:
-                    #print("parent found in index: %s, isParent: %s" %(myparent['doc']['id'], myparent['doc']['isParent']))
-                    #Check if already flagged
-                    if myparent['doc']['isParent'] is False:
-                        #print('Update on indexed parent %s, isParent: True' % pid)
-                        mydoc = solr_updateparent(myparent['doc'])
-                        #print(mydoc)
-                        doc_ = mydoc
-                        try:
-                            solrcon.add([doc_])
-                        except Exception as e:
-                            print("Could update parent on index. reason %s",e)
+                #Update lists
+                parent_ids_processed.append(pid)
 
-                        #Update lists
-                        parent_ids_processed.append(pid)
-
-                        #Remove from pending list
-                        if pid in parent_ids_pending:
-                            parent_ids_pending.remove(pid)
+                #Remove from pending list
+                if pid in parent_ids_pending:
+                    parent_ids_pending.remove(pid)
 
 
     #####################################################################################
-    print("====== BATCH END == %s files processed in , with %s workers and batch size %s === ====" % (len(myfiles),workers, batch))
+    print("====== BATCH END ===== %s files processed with %s workers and batch size %s =======" % (len(myfiles),workers, batch))
     print("Parent ids found: %s" % len(set(parent_ids_found)))
-    print("Parent ids pending: %s" % len(set(parent_ids_pending)))
+    #print("Parent ids pending: %s" % len(set(parent_ids_pending)))
     print("Parent ids processed: %s" % len(set(parent_ids_processed)))
-    print("Parent ids pending list: %s" % len(set(parent_ids_pending)))
+    #print("Parent ids pending list: %s" % len(set(parent_ids_pending)))
     print("======================================================================================")
 
     #summary of possible missing parents
@@ -2915,7 +2920,7 @@ def main(argv):
     pelt = pet -pst
     skipped = len(myfiles)-processed
     print("Processed %s documents" % processed)
-    print("Files / documents failed: %s" % skipped)
+    print("Files / documents failed: %s" % docs_failed)
     print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
     print('CPU time:', time.strftime("%H:%M:%S", time.gmtime(pelt)))
     if end_solr_commit:
