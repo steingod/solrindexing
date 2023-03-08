@@ -1913,6 +1913,10 @@ def process_feature_type(tmpdoc):
     if 'data_access_url_opendap' in tmpdoc:
         dapurl = str(tmpdoc['data_access_url_opendap'])
         valid = validators.url(dapurl)
+        #Special fix for nersc.
+        if dapurl.startswith("http://thredds.nersc"):
+            dapurl.replace("http:", "https:")
+
         if not valid:
             return tmpdoc_
         #print(dapurl)
@@ -2435,7 +2439,7 @@ def bulkindex(filelist,chunksize):
 
         #If we have reached maximum threads, we wait until finished
         if len(indexthreads) >= threads:
-            for thr in indexthreads[:-1]:
+            for thr in indexthreads:
                 thr.join()
 
      #   print("===================================")
@@ -2715,6 +2719,7 @@ def main(argv):
                 processed += processed_
                 docs_failed += docs_failed_
                 docs_indexed += docs_indexed_
+                print("%s docs indexed so far." % docs_indexed)
 
         # processes = list()
         # for fileList in workerFileLists:
