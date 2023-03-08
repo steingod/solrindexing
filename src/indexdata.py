@@ -2450,9 +2450,9 @@ def bulkindex(filelist,chunksize):
 
     #Last we assume all pending parents are in the index
     ppending = set(parent_ids_pending)
-
+    print("The last parents should be in index, or was processed by another worker.")
     for pid in ppending:
-        print("The last parents should be in index, or was processed by another worker.")
+
         myparent = None
         myparent = find_parent_in_index(pid)
         if myparent['doc'] is not None:
@@ -2739,6 +2739,7 @@ def main(argv):
     #TODO: Add last parent missing index check here. after refactor this logic
     #summary of possible missing parents
     missing = list(set(parent_ids_found) - set(parent_ids_processed))
+    print("The last parents should be in index")
     for pid in missing:
         myparent = None
         myparent = find_parent_in_index(pid)
