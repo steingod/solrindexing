@@ -800,9 +800,16 @@ class MMD4SolR:
                 if len(latvals) > 0 and len(lonvals) > 0:
                     mydict['geographic_extent_rectangle_north'] = max(latvals)
                     mydict['geographic_extent_rectangle_south'] = min(latvals)
-                    mydict['geographic_extent_rectangle_west'] = min(lonvals)
-                    mydict['geographic_extent_rectangle_east'] = max(lonvals)
-                    mydict['bbox'] = "ENVELOPE("+str(min(lonvals))+","+str(max(lonvals))+","+ str(max(latvals))+","+str(min(latvals))+")"
+                    #Test for numbers < -180 and > 180, and fix.
+                    minlon = min(lonvals)
+                    if minlon < -180.0:
+                        minlon = rewrap(minlon)
+                    maxlon = max(lonvals)
+                    if maxlon > 180.0:
+                        maxlon = rewrap(maxlon)
+                    mydict['geographic_extent_rectangle_west'] = minlon
+                    mydict['geographic_extent_rectangle_east'] = maxlon
+                    mydict['bbox'] = "ENVELOPE("+str(minlon)+","+str(maxlon)+","+ str(max(latvals))+","+str(min(latvals))+")"
                     #Check if we have a point or a boundingbox
                     if float(e['mmd:rectangle']['mmd:north']) == float(e['mmd:rectangle']['mmd:south']):
                         if float(e['mmd:rectangle']['mmd:east']) == float(e['mmd:rectangle']['mmd:west']):
@@ -845,18 +852,25 @@ class MMD4SolR:
                         self.logger.warning('Missing geographical element, will not process the file.')
                         mydict['metadata_status'] = 'Inactive'
                         raise Warning('Missing spatial bounds')
+                #Test for numbers < -180 and > 180, and fix.
+                minlon = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west'])
+                if minlon < -180.0:
+                    minlon = rewrap(minlon)
+                maxlon = float(
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east'])
+                if maxlon > 180.0:
+                    maxlon = rewrap(maxlon)
 
                 mydict['geographic_extent_rectangle_north'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
                 mydict['geographic_extent_rectangle_south'] = float(
                     self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
-                mydict['geographic_extent_rectangle_east'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
-                mydict['geographic_extent_rectangle_west'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                mydict['geographic_extent_rectangle_east'] = maxlon,
+                mydict['geographic_extent_rectangle_west'] = minlon,
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
-                mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
+                mydict['bbox'] = "ENVELOPE("+minlon+","+maxlon+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
 
                 #print("Second conditition")
                 #Check if we have a point or a boundingbox
@@ -2453,12 +2467,13 @@ def bulkindex(filelist,chunksize):
 
 
 
-    return parent_ids_found, parent_ids_pending, parent_ids_processed,docs_skipped,docs_indexed,files_processed
+    return list(set(parent_ids_found)), list(set(parent_ids_pending)), list(set(parent_ids_processed)),docs_skipped,docs_indexed,files_processed
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
-
+def rewrap(x):
+    return (x + 180) % 360 - 180
 def main(argv):
     #Global date regexp to validate solr dates
     global DATETIME_REGEX
@@ -2681,9 +2696,9 @@ def main(argv):
                 futures_list.append(future)
             for f in as_completed(futures_list):
                 parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = f.result()
-                parent_ids_found.extend(parent_ids_found_)
-                parent_ids_pending.extend(parent_ids_pending_)
-                parent_ids_processed.extend(parent_ids_processed_)
+                parent_ids_found.extend(list(set(parent_ids_found_)))
+                parent_ids_pending.extend(list(set(parent_ids_pending_)))
+                parent_ids_processed.extend(list(set(parent_ids_processed_)))
                 processed += processed_
                 docs_failed += docs_failed_
                 docs_indexed += docs_indexed_
@@ -2701,9 +2716,9 @@ def main(argv):
     #Bulkindex using main process.
     else:
         parent_ids_found_, parent_ids_pending_, parent_ids_processed_,docs_failed_,docs_indexed_,processed_ = bulkindex(myfiles,batch)
-        parent_ids_found.extend(parent_ids_found_)
-        parent_ids_pending.extend(parent_ids_pending_)
-        parent_ids_processed.extend(parent_ids_processed_)
+        parent_ids_found.extend(list(set(parent_ids_found_)))
+        parent_ids_pending.extend(list(set(parent_ids_pending_)))
+        parent_ids_processed.extend(list(set(parent_ids_processed_)))
         processed += processed_
         docs_failed += docs_failed_
         docs_indexed += docs_indexed_
@@ -2742,12 +2757,14 @@ def main(argv):
                         #Remove from pending list
                         if pid in parent_ids_pending:
                             parent_ids_pending.remove(pid)
-     #####################################################################################
+
+
+    #####################################################################################
     print("====== BATCH END == %s files processed in , with %s workers and batch size %s === ====" % (len(myfiles),workers, batch))
-    print("Parent ids found: %s" % len(parent_ids_found))
-    print("Parent ids pending: %s" % len(parent_ids_pending))
-    print("Parent ids processed: %s" % len(parent_ids_processed))
-    print("Parent ids pending list: %s" % parent_ids_pending)
+    print("Parent ids found: %s" % len(set(parent_ids_found)))
+    print("Parent ids pending: %s" % len(set(parent_ids_pending)))
+    print("Parent ids processed: %s" % len(set(parent_ids_processed)))
+    print("Parent ids pending list: %s" % len(set(parent_ids_pending)))
     print("======================================================================================")
 
     #summary of possible missing parents
