@@ -2710,6 +2710,7 @@ def main(argv):
     if workers > 1:
         #Split the inputfiles into lists for each worker.
         workerFileLists = [myfiles[ i : i + workerlistsize] for i in range(0, len(myfiles), workerlistsize)]
+        print("Input list: %s" % len(flatten(workerFileLists)))
         print("len of worker list %s" % len(workerFileLists))
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures_list = list()
