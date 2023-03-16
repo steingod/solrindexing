@@ -2168,6 +2168,7 @@ def mmd2solr(mmd,status,file):
                 #Update document with child specific fields
                 tmpdoc.update({'dataset_type':'Level-2'})
                 tmpdoc.update({'isChild': True})
+                tmpdoc.update({'isParent': False})
 
                 # Fix special characters that SolR doesn't like
                 idrepls = [':','/','.']
