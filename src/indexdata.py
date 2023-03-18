@@ -63,9 +63,6 @@ def parse_arguments():
     parser.add_argument('-d','--directory',help='Directory to ingest')
     parser.add_argument('-t','--thumbnail',help='Create and index thumbnail, do not update the main content.', action='store_true')
     parser.add_argument('-n','--no_thumbnail',help='Do not index thumbnails (normally done automatically if WMS available).', action='store_true')
-    #parser.add_argument('-f','--feature_type',help='Extract featureType during ingestion (to be done automatically).', action='store_true')
-    parser.add_argument('-r','--remove',help='Remove the dataset with the specified identifier (to be replaced by searchindex).')
-    parser.add_argument('-2','--level2',action='store_true', help='Operate on child core.')
 
     ### Thumbnail parameters
     parser.add_argument('-m','--map_projection',help='Specify map projection for thumbnail (e.g. Mercator, PlateCarree, PolarStereographic).', required=False)
@@ -1508,7 +1505,6 @@ def main(argv):
     mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
 
     # Find files to process
-    # FIXME remove l2 and thumbnail cores, reconsider deletion herein
     if args.input_file:
         myfiles = [args.input_file]
     elif args.list_file:
@@ -1519,15 +1515,6 @@ def main(argv):
             sys.exit()
         myfiles = f2.readlines()
         f2.close()
-    elif args.remove:
-        mysolr.delete_level1(args.remove)
-        sys.exit()
-    elif args.remove and args.level2:
-        mysolr.delete_level2(args.remove)
-        sys.exit()
-    elif args.remove and args.thumbnail:
-        mysolr.delete_thumbnail(deleteid)
-        sys.exit()
     elif args.directory:
         try:
             myfiles = os.listdir(args.directory)
