@@ -1042,18 +1042,22 @@ class IndexMMD:
         """
 
         mmd_records = list()
+        norec = len(records2ingest)
+        i = 0
         for input_record in records2ingest:
+            self.logger.info("\nProcessing record %d of %d", i, norec)
+            i += 1
             #print(json.dumps(input_record, indent=4))
             #sys.exit()
             # Add information on whether this is a parent or child
             # Assumes parent/child relation
             # FIXME check if to be removed as is done in outer loop
+            """
             if "related_dataset" in input_record:
                 input_record.update({'isChild':'true'})
                 input_record.update({'dataset_type':'Level-2'})
             else:
                 input_record.update({'dataset_type':'Level-1'})
-            """
             if level == 1 or level == None:
                 input_record.update({'dataset_type':'Level-1'})
                 input_record.update({'isParent':'false'})
@@ -1062,10 +1066,9 @@ class IndexMMD:
             else:
                 self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
             """
-
             # Do some checking of content
             if input_record['metadata_status'] == 'Inactive':
-                mylog.warning('This record will be set inactive...')
+                self.logger.warning('This record will be set inactive...')
                 #return False
             myfeature = None
             if 'data_access_url_opendap' in input_record:
