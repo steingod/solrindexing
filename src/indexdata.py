@@ -1018,7 +1018,10 @@ class IndexMMD:
     #Function for sending explicit commit to solr
     def commit(self):
         self.solrc.commit()
-    def index_record(self, input_record, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
+
+    # Primary function to index records, rewritten to expect list input
+    def index_record(self, records2ingest, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
+        # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19 
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
@@ -1037,59 +1040,73 @@ class IndexMMD:
             Returns:
                 bool
         """
-        if level == 1 or level == None:
-            input_record.update({'dataset_type':'Level-1'})
-            input_record.update({'isParent':'false'})
-        elif level == 2:
-            input_record.update({'dataset_type':'Level-2'})
-        else:
-            self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
 
-        if input_record['metadata_status'] == 'Inactive':
-            mylog.warning('Skipping record')
-            return False
-        myfeature = None
-        if 'data_access_url_opendap' in input_record:
-            # Thumbnail of timeseries to be added
-            # Or better do this as part of get_feature_type?
-            try:
-                myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
-            except Exception as e:
-                self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                #raise RuntimeError('Something failed while retrieving feature type')
-            if myfeature:
-                self.logger.info('feature_type found: %s', myfeature)
-                input_record.update({'feature_type':myfeature})
-
-        self.id = input_record['id']
-        if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
-            self.logger.info("Checking thumbnails...")
-            getCapUrl = input_record['data_access_url_ogc_wms']
-            if not myfeature:
-                self.thumbnail_type = 'wms'
-            self.wms_layer = wms_layer
-            self.wms_style = wms_style
-            self.wms_zoom_level = wms_zoom_level
-            self.add_coastlines = add_coastlines
-            self.projection = projection
-            self.wms_timeout = wms_timeout
-            self.thumbnail_extent = thumbnail_extent
-            thumbnail_data = self.add_thumbnail(url=getCapUrl)
-
-            if not thumbnail_data:
-                self.logger.warning('Could not properly parse WMS GetCapabilities document')
-                # If WMS is not available, remove this data_access element from the XML that is indexed
-                del input_record['data_access_url_ogc_wms']
+        mmd_records = list()
+        for input_record in records2ingest:
+            #print(json.dumps(input_record, indent=4))
+            #sys.exit()
+            # Add information on whether this is a parent or child
+            # Assumes parent/child relation
+            # FIXME check if to be removed as is done in outer loop
+            if "related_dataset" in input_record:
+                input_record.update({'isChild':'true'})
+                input_record.update({'dataset_type':'Level-2'})
             else:
-                input_record.update({'thumbnail_data':thumbnail_data})
+                input_record.update({'dataset_type':'Level-1'})
+            """
+            if level == 1 or level == None:
+                input_record.update({'dataset_type':'Level-1'})
+                input_record.update({'isParent':'false'})
+            elif level == 2:
+                input_record.update({'dataset_type':'Level-2'})
+            else:
+                self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
+            """
 
-        self.logger.info("Adding records to core...")
+            # Do some checking of content
+            if input_record['metadata_status'] == 'Inactive':
+                mylog.warning('This record will be set inactive...')
+                #return False
+            myfeature = None
+            if 'data_access_url_opendap' in input_record:
+                # Thumbnail of timeseries to be added
+                # Or better do this as part of get_feature_type?
+                try:
+                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+                except Exception as e:
+                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    #raise RuntimeError('Something failed while retrieving feature type')
+                if myfeature:
+                    self.logger.info('feature_type found: %s', myfeature)
+                    input_record.update({'feature_type':myfeature})
 
-        mmd_record = list()
-        mmd_record.append(input_record)
+            self.id = input_record['id']
+            if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
+                self.logger.info("Checking thumbnails...")
+                getCapUrl = input_record['data_access_url_ogc_wms']
+                if not myfeature:
+                    self.thumbnail_type = 'wms'
+                self.wms_layer = wms_layer
+                self.wms_style = wms_style
+                self.wms_zoom_level = wms_zoom_level
+                self.add_coastlines = add_coastlines
+                self.projection = projection
+                self.wms_timeout = wms_timeout
+                self.thumbnail_extent = thumbnail_extent
+                thumbnail_data = self.add_thumbnail(url=getCapUrl)
+
+                if not thumbnail_data:
+                    self.logger.warning('Could not properly parse WMS GetCapabilities document')
+                    # If WMS is not available, remove this data_access element from the XML that is indexed
+                    del input_record['data_access_url_ogc_wms']
+                else:
+                    input_record.update({'thumbnail_data':thumbnail_data})
+
+            self.logger.info("Adding records to core...")
+            mmd_records.append(input_record)
 
         try:
-            self.solrc.add(mmd_record)
+            self.solrc.add(mmd_records)
         except Exception as e:
             self.logger.error("Something failed in SolR adding document: %s", str(e))
             return False
@@ -1097,6 +1114,7 @@ class IndexMMD:
 
         return True
 
+    # FIXME check if this is obsolete now
     def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None):
         """ Add a level 2 dataset, i.e. update level 1 as well """
         mmd_record2 = list()
@@ -1384,6 +1402,8 @@ class IndexMMD:
 
         return(featureType)
 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
+    # Not sure if this is needed onwards, but keeping for now.
     def delete_level1(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
@@ -1396,6 +1416,8 @@ class IndexMMD:
 
         self.logger.info("Record successfully deleted from Level 1 core")
 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
+    # Not sure if this is needed onwards, but keeping for now.
     def delete_level2(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
@@ -1408,6 +1430,8 @@ class IndexMMD:
 
         self.logger.info("Records successfully deleted from Level 2 core")
 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
+    # Not sure if this is needed onwards, but keeping for now.
     def delete_thumbnail(self, datasetid):
         """ Require ID as input """
         """ Rewrite to take full metadata record as input """
@@ -1420,6 +1444,8 @@ class IndexMMD:
 
         self.logger.info("Records successfully deleted from thumbnail core")
 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
+    # Not sure if this is needed onwards, but keeping for now.
     def search(self):
         """ Require Id as input """
         try:
@@ -1429,6 +1455,7 @@ class IndexMMD:
 
         return results
 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
     def darextract(self, mydar):
         mylinks = {}
         for i in range(len(mydar)):
@@ -1445,6 +1472,40 @@ class IndexMMD:
             mylinks[proto] = myurl
 
         return (mylinks)
+
+    """
+    Use solr real-time get to check if a parent is already indexed,
+    and have been marked as parent
+    """
+    def find_parent_in_index(id):
+        res = requests.get(mySolRc+'/get?id='+id, auth=authentication)
+        res.raise_for_status()
+        return res.json()
+
+    """
+    Update the parent document we got from solr.
+    some fields need to be removed for solr to accept the update.
+    """
+    def solr_updateparent(parent):
+        if 'full_text' in parent:
+            parent.pop('full_text')
+        if 'bbox__maxX' in parent:
+            parent.pop('bbox__maxX')
+        if 'bbox__maxY' in parent:
+            parent.pop('bbox__maxY')
+        if 'bbox__minX' in parent:
+            parent.pop('bbox__minX')
+        if 'bbox__minY' in parent:
+            parent.pop('bbox__minY')
+        if 'bbox_rpt' in parent:
+            parent.pop('bbox_rpt')
+        if 'ss_access' in parent:
+            parent.pop('ss_access')
+        if '_version_' in parent:
+            parent.pop('_version_')
+
+        parent['isParent'] = True
+        return parent
 
 def main(argv):
 
@@ -1463,8 +1524,10 @@ def main(argv):
     mylog.info('Configuration of logging is finished.')
 
     tflg = l2flg = fflg = False
+    """ FIXME
     if args.level2:
         l2flg = True
+    """
 
     # Read config file
     with open(args.cfgfile, 'r') as ymlfile:
@@ -1524,6 +1587,9 @@ def main(argv):
 
     fileno = 0
     myfiles_pending = []
+    files2ingest = []
+    pendingfiles2ingest = []
+    parentids = set()
     for myfile in myfiles:
         myfile = myfile.strip()
         # Decide files to operate on
@@ -1556,7 +1622,6 @@ def main(argv):
         else:
             thumbnail_extent = None
 
-        # Index files
         mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
 
         try:
@@ -1567,18 +1632,23 @@ def main(argv):
         mydoc.check_mmd()
         fileno += 1
 
-        """ Do not search for metadata_identifier, always used id...  """
+        """ 
+        Convert to the SolR format needed
+        """
         try:
             newdoc = mydoc.tosolr()
         except Exception as e:
             mylog.warning('Could not process the file: %s', myfile)
             mylog.warning('Message returned: %s', e)
             continue
-        if (newdoc['metadata_status'] == "Inactive"):
-            continue
+
         if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
             tflg = True
-        # Do not directly index children unless they are requested to be children. Do always assume that the parent is included in the indexing process so postpone the actual indexing to allow the parent to be properly indexed in SolR.
+
+        """
+        Checking datasets to see if they are children
+        Make some corrections based on experience for harvested records...
+        """
         if 'related_dataset' in newdoc:
             # Special fix for NPI
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
@@ -1590,71 +1660,56 @@ def main(argv):
                 continue
             # Fix special characters that SolR doesn't like
             idrepls = [':','/','.']
-            myparent = newdoc['related_dataset']
+            myparentid = newdoc['related_dataset']
             for e in idrepls:
-                myparent = myparent.replace(e,'-')
-            #myresults = mysolr.solrc.search('id:' + newdoc['related_dataset'], **{'wt':'python','rows':100})
-            myresults = mysolr.solrc.search('id:' + myparent, **{'wt':'python','rows':100})
-            if len(myresults) == 0:
-                mylog.warning("No parent found. Staging for second run.")
-                myfiles_pending.append(myfile)
-                continue
-            elif not l2flg:
-                mylog.warning("Parent found, but assumes parent will be reindexed, thus postponing indexing of children until SolR is updated.")
-                myfiles_pending.append(myfile)
-                continue
-        mylog.info("Indexing dataset: %s", myfile)
-        if l2flg:
-            mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
-        else:
-            if tflg:
-                try:
-                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg, wms_layer=wms_layer,wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, projection=mapprojection,  wms_timeout=cfg['wms-timeout'],thumbnail_extent=thumbnail_extent)
-                except Exception as e:
-                    mylog.warning('Something failed during indexing %s', e)
-            else:
-                try:
-                    mysolr.index_record(input_record=mydoc.tosolr(), addThumbnail=tflg)
-                except Exception as e:
-                    mylog.warning('Something failed during indexing %s', e)
-        if not args.level2:
-            l2flg = False
+                myparentid = myparentid.replace(e,'-')
+            # If related_dataset is present, set this dataset as a child using isChild and dataset_type
+            newdoc.update({"isChild": "true"})
+            newdoc.update({"dataset_type": "Level-2"})
+            parentids.add(myparentid)
+
         tflg = False
 
-    # Now process all the level 2 files that failed in the previous
-    # sequence. If the Level 1 dataset is not available, this will fail at
-    # level 2. Meaning, the section below only ingests at level 2.
-    fileno = 0
-    if len(myfiles_pending)>0 and not args.always_commit:
-        mylog.info('Processing files that were not possible to process in first take. Waiting 20 minutes to allow SolR to update recently ingested parent datasets. ')
-        sleep(20*60)
-    for myfile in myfiles_pending:
-        mylog.info('\tProcessing L2 file: %d - %s',fileno, myfile)
-        try:
-            mydoc = MMD4SolR(myfile)
-        except Exception as e:
-            mylog.warning('Could not handle file: %s', e)
-            continue
-        mydoc.check_mmd()
-        fileno += 1
-        """ Do not search for metadata_identifier, always used id...  """
-        """ Check if this can be used???? """
-        newdoc = mydoc.tosolr()
-        if 'data_access_resource' in newdoc.keys():
-            for e in newdoc['data_access_resource']:
-                #print('>>>>>e', e)
-                if (not nflg) and "OGC WMS" in (''.join(e)):
-                    tflg = True
-        # Skip file if not a level 2 file
-        if 'related_dataset' not in newdoc:
-            continue
-        mylog.info("Indexing dataset: %s", myfile)
-        # Ingest at level 2
-        mysolr.add_level2(mydoc.tosolr(), addThumbnail=tflg, projection=mapprojection, wmstimeout=120, wms_layer=wms_layer, wms_style=wms_style, wms_zoom_level=wms_zoom_level, add_coastlines=wms_coastlines, wms_timeout=cfg['wms-timeout'], thumbnail_extent=thumbnail_extent)
-        tflg = False
+        # Update list of files to process
+        files2ingest.append(newdoc)
+
+    # Check if parents are in the existing list
+    for id in parentids:
+        print('>>>> ', id)
+        if not any(d['id'] == id for d in files2ingest):
+            # Check if already ingested and update if so
+            # FIXME, need more robustness...
+            print('>>>> This is yet not tested, bailing out until properly tested...')
+            sys.exit()
+            parent = find_parent_in_index(id)
+            parent = solr_updateparent(parent)
+            mysolr.add([parent])
+        else:
+            # Assuming found in the current batch of files, then set to parent...
+            i = 0
+            for rec in files2ingest:
+                if rec['id'] == id:
+                    if 'isParent' in rec:
+                        if rec['isParent'] ==  'true':
+                            if rec['dataset_type'] == 'Level-1':
+                                continue
+                            else:
+                                files2ingest[i].update({'dataset_type': 'Level-1'})
+                    else:
+                        files2ingest[i].update({'isParent': 'true'})
+                        files2ingest[i].update({'dataset_type': 'Level-1'})
+                i += 1
+
+    # Do the ingestion FIXME
+    # Check if thumbnail specification need to be changed
+    mylog.info("Indexing datasets")
+    try:
+        mysolr.index_record(records2ingest=files2ingest, addThumbnail=tflg)
+    except Exception as e:
+        mylog.warning('Something failed during indexing %s', e)
 
     # Report status
-    mylog.info("Number of files processed were: %d", len(myfiles))
+    mylog.info("Number of files processed were: %d", len(files2ingest))
 
     #add a commit to solr at end of run
     mysolr.commit()
