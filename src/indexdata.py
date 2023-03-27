@@ -1047,44 +1047,16 @@ class IndexMMD:
         for input_record in records2ingest:
             self.logger.info("\nProcessing record %d of %d", i, norec)
             i += 1
-            #print(json.dumps(input_record, indent=4))
-            #sys.exit()
-            # Add information on whether this is a parent or child
-            # Assumes parent/child relation
-            # FIXME check if to be removed as is done in outer loop
-            """
-            if "related_dataset" in input_record:
-                input_record.update({'isChild':'true'})
-                input_record.update({'dataset_type':'Level-2'})
-            else:
-                input_record.update({'dataset_type':'Level-1'})
-            if level == 1 or level == None:
-                input_record.update({'dataset_type':'Level-1'})
-                input_record.update({'isParent':'false'})
-            elif level == 2:
-                input_record.update({'dataset_type':'Level-2'})
-            else:
-                self.logger.error('Invalid level given: {}. Hence terminating'.format(level))
-            """
             # Do some checking of content
+            self.id = input_record['id']
             if input_record['metadata_status'] == 'Inactive':
                 self.logger.warning('This record will be set inactive...')
                 #return False
             myfeature = None
-            if 'data_access_url_opendap' in input_record:
-                # Thumbnail of timeseries to be added
-                # Or better do this as part of get_feature_type?
-                try:
-                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
-                except Exception as e:
-                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                    #raise RuntimeError('Something failed while retrieving feature type')
-                if myfeature:
-                    self.logger.info('feature_type found: %s', myfeature)
-                    input_record.update({'feature_type':myfeature})
-
-            self.id = input_record['id']
-            if 'data_access_url_ogc_wms' in input_record and addThumbnail == True:
+            """
+            If OGC WMS is available, no point in looking for featureType in OPeNDAP.
+            """
+            if 'data_access_url_ogc_wms' in input_record:
                 self.logger.info("Checking thumbnails...")
                 getCapUrl = input_record['data_access_url_ogc_wms']
                 if not myfeature:
@@ -1104,10 +1076,26 @@ class IndexMMD:
                     del input_record['data_access_url_ogc_wms']
                 else:
                     input_record.update({'thumbnail_data':thumbnail_data})
+            elif 'data_access_url_opendap' in input_record:
+                # Thumbnail of timeseries to be added
+                # Or better do this as part of get_feature_type?
+                try:
+                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+                except Exception as e:
+                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
+                    #raise RuntimeError('Something failed while retrieving feature type')
+                if myfeature:
+                    self.logger.info('feature_type found: %s', myfeature)
+                    input_record.update({'feature_type':myfeature})
+            else:
+                self.logger.info('Neither gridded nor discrete sampling geometry found in this record...')
 
-            self.logger.info("Adding records to core...")
+            self.logger.info("Adding records to list...")
             mmd_records.append(input_record)
 
+        """
+        Add all records as a bulk upload
+        """
         try:
             self.solrc.add(mmd_records)
         except Exception as e:
@@ -1209,13 +1197,13 @@ class IndexMMD:
         # update this, but first check that it doesn't already exists
         if 'related_dataset' in myresults:
             # Need to check that this doesn't already exist...
-            if myl2record['metadata_identifier'].replace(':','_') not in myresults['related_dataset']:
-                myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','_'))
+            if myl2record['metadata_identifier'].replace(':','-') not in myresults['related_dataset']:
+                myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','-'))
         else:
             self.logger.info('This dataset was not found in parent, creating it...')
             myresults['related_dataset'] = []
-            self.logger.info('Adding dataset with identifier %s to parent %s', myl2record['metadata_identifier'].replace(':','_'),myl2record['related_dataset'])
-            myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','_'))
+            self.logger.info('Adding dataset with identifier %s to parent %s', myl2record['metadata_identifier'].replace(':','-'),myl2record['related_dataset'])
+            myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','-'))
         mmd_record1 = list()
         mmd_record1.append(myresults)
 
@@ -1242,7 +1230,7 @@ class IndexMMD:
             Returns:
                 thumbnail: base64 string representation of image
         """
-        print(url)
+        self.logger.info('Processing %s',url)
         if thumbnail_type == 'wms':
             try:
                 thumbnail = self.create_wms_thumbnail(url)
