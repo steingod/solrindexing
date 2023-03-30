@@ -23,6 +23,7 @@ NOTES:
 import sys
 import os.path
 import argparse
+import re
 import subprocess
 import pysolr
 import xmltodict
@@ -357,6 +358,7 @@ class MMD4SolR:
                             self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
                         except Exception as e:
                             self.logger.error('Date format could not be parsed: %s', e)
+                            raise Exception('Error in temporal specifications for the dataset')
 
     def tosolr(self):
         """
@@ -583,13 +585,36 @@ class MMD4SolR:
                         raise Warning('Missing spatial bounds')
 
                 mydict['geographic_extent_rectangle_north'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']),
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north'])
                 mydict['geographic_extent_rectangle_south'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']),
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south'])
                 mydict['geographic_extent_rectangle_east'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']),
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east'])
                 mydict['geographic_extent_rectangle_west'] = float(
-                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']),
+                    self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west'])
+                """
+                Check if bounding box is correct
+                """
+                if not mydict['geographic_extent_rectangle_north'] >= mydict['geographic_extent_rectangle_south']:
+                    self.logger.warning('Northernmost boundary is south of southernmost, will not process...')
+                    mydict['metadata_status'] = 'Inactive'
+                    raise Warning('Error in spatial bounds')
+                if not mydict['geographic_extent_rectangle_east'] >= mydict['geographic_extent_rectangle_west']:
+                    self.logger.warning('Easternmost boundary is west of westernmost, will not process...')
+                    mydict['metadata_status'] = 'Inactive'
+                    raise Warning('Error in spatial bounds')
+                if mydict['geographic_extent_rectangle_east'] > 180 or mydict['geographic_extent_rectangle_west'] > 180 or  mydict['geographic_extent_rectangle_east'] < -180 or mydict['geographic_extent_rectangle_west'] < -180:
+                    self.logger.warning('Longitudes outside valid range, will not process...')
+                    mydict['metadata_status'] = 'Inactive'
+                    raise Warning('Error in longitude bounds')
+                if mydict['geographic_extent_rectangle_north'] > 90 or mydict['geographic_extent_rectangle_south'] > 90 or  mydict['geographic_extent_rectangle_north'] < -90 or mydict['geographic_extent_rectangle_south'] < -90:
+                    self.logger.warning('Latitudes outside valid range, will not process...')
+                    mydict['metadata_status'] = 'Inactive'
+                    raise Warning('Error in latitude bounds')
+
+                """
+                Finalise bbox
+                """
                 if '@srsName' in self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle'].keys():
                     mydict['geographic_extent_rectangle_srsName'] = self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['@srsName'],
                 mydict['bbox'] = "ENVELOPE("+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']+","+self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']+","+ self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']+")"
@@ -958,13 +983,33 @@ class MMD4SolR:
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
                     element_suffix = k.split(':')[-1]
-                    # Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not.
+                    """
+                    Fix to handle IMR records
+                    Consider to add to MMD/SolR in the future
+                    """
+                    if element_suffix == "edition":
+                        continue
+                    """
+                    Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not. Also fix any errors in harvested data...
+                    """
                     if element_suffix == 'publication_date':
+                        if "Not Available" in v:
+                            continue
                         if v is not None:
-                            v+='T12:00:00Z'
+                            # Check if time format is correct
+                            if re.search("T\d{2}:\d{2}:\d{2}:\d{2}Z", v):
+                                tmpstr = re.sub("T\d{2}:\d{2}:\d{2}:\d{2}Z", "T12:00:00Z", v)
+                                v = tmpstr
+                            elif re.search('T\d{2}:\d{2}:\d{2}', v):
+                                if not re.search('Z$', v):
+                                    v += 'Z'
+                            elif not re.search("T\d{2}:\d{2}:\d{2}Z", v):
+                                v += 'T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
 
-        """ Quality control """
+        """ 
+        Quality control 
+        """
         if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
             mydict['quality_control'] = str(self.mydoc['mmd:mmd']['mmd:quality_control'])
 
@@ -1019,7 +1064,9 @@ class IndexMMD:
     def commit(self):
         self.solrc.commit()
 
-    # Primary function to index records, rewritten to expect list input
+    """
+    Primary function to index records, rewritten to expect list input
+    """
     def index_record(self, records2ingest, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19 
         """ Add thumbnail to SolR
@@ -1044,8 +1091,10 @@ class IndexMMD:
         mmd_records = list()
         norec = len(records2ingest)
         i = 0
+        bulksegment = 0
         for input_record in records2ingest:
-            self.logger.info("\nProcessing record %d of %d", i, norec)
+            self.logger.info("====>")
+            self.logger.info("Processing record %d of %d", i, norec)
             i += 1
             # Do some checking of content
             self.id = input_record['id']
@@ -1092,16 +1141,22 @@ class IndexMMD:
 
             self.logger.info("Adding records to list...")
             mmd_records.append(input_record)
+            bulksegment += 1
 
-        """
-        Add all records as a bulk upload
-        """
-        try:
-            self.solrc.add(mmd_records)
-        except Exception as e:
-            self.logger.error("Something failed in SolR adding document: %s", str(e))
-            return False
-        self.logger.info("Record successfully added.")
+            """
+            If bulksegment is more than 1000, index these as thumbnails will cause memory issues else...
+
+            Consider to make size of bulksegment configurable
+            """
+            if bulksegment > 1000 or i == norec:
+                self.logger.info("Adding records to SolR core.")
+                try:
+                    self.solrc.add(mmd_records)
+                except Exception as e:
+                    self.logger.error("Something failed in SolR adding document: %s", str(e))
+                    return False
+                self.logger.info("%d records successfully added...", bulksegment)
+                bulksegment = 0
 
         return True
 
@@ -1618,9 +1673,14 @@ def main(argv):
         try:
             mydoc = MMD4SolR(myfile)
         except Exception as e:
-            mylog.warning('Could not handle file: %s',e)
+            mylog.error('Could not handle file: %s %s', myfile, e)
             continue
-        mydoc.check_mmd()
+        try:
+            mydoc.check_mmd()
+        except Exception as e:
+            mylog.error('File: %s is not compliant with MMD specification', myfile)
+            continue
+        print('Here I am...')
         fileno += 1
 
         """ 
@@ -1671,7 +1731,7 @@ def main(argv):
             # Check if already ingested and update if so
             # FIXME, need more robustness...
             print('>>>> This is yet not tested, bailing out until properly tested...')
-            sys.exit()
+            continue
             parent = find_parent_in_index(id)
             parent = solr_updateparent(parent)
             mysolr.add([parent])
@@ -1690,6 +1750,10 @@ def main(argv):
                         files2ingest[i].update({'isParent': 'true'})
                         files2ingest[i].update({'dataset_type': 'Level-1'})
                 i += 1
+
+    if len(files2ingest) == 0:
+        mylog.info('No files to ingest.')
+        sys.exit()
 
     # Do the ingestion FIXME
     # Check if thumbnail specification need to be changed
