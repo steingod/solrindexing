@@ -1156,6 +1156,7 @@ class IndexMMD:
                     self.logger.error("Something failed in SolR adding document: %s", str(e))
                     return False
                 self.logger.info("%d records successfully added...", bulksegment)
+                mmd_records.clear()
                 bulksegment = 0
 
         return True
@@ -1675,6 +1676,7 @@ def main(argv):
         except Exception as e:
             mylog.error('Could not handle file: %s %s', myfile, e)
             continue
+        mylog.info('Checking MMD elements.')
         try:
             mydoc.check_mmd()
         except Exception as e:
@@ -1686,6 +1688,7 @@ def main(argv):
         """ 
         Convert to the SolR format needed
         """
+        mylog.info('Converting to SolR format.')
         try:
             newdoc = mydoc.tosolr()
         except Exception as e:
@@ -1700,6 +1703,7 @@ def main(argv):
         Checking datasets to see if they are children
         Make some corrections based on experience for harvested records...
         """
+        mylog.info('Parsing parent/child relations.')
         if 'related_dataset' in newdoc:
             # Special fix for NPI
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
@@ -1726,11 +1730,10 @@ def main(argv):
 
     # Check if parents are in the existing list
     for id in parentids:
-        print('>>>> ', id)
         if not any(d['id'] == id for d in files2ingest):
             # Check if already ingested and update if so
             # FIXME, need more robustness...
-            print('>>>> This is yet not tested, bailing out until properly tested...')
+            mylog.warn('This part of parent/child relations is yet not tested.')
             continue
             parent = find_parent_in_index(id)
             parent = solr_updateparent(parent)
