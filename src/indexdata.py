@@ -1156,6 +1156,8 @@ class IndexMMD:
                     self.logger.error("Something failed in SolR adding document: %s", str(e))
                     return False
                 self.logger.info("%d records successfully added...", bulksegment)
+                if i == norec:
+                    self.logger.info("All records successfully added...")
                 mmd_records.clear()
                 bulksegment = 0
 
@@ -1700,7 +1702,8 @@ def main(argv):
             tflg = True
 
         """
-        Checking datasets to see if they are children
+        Checking datasets to see if they are children.
+        Datasets that are not children are all set to parents.
         Make some corrections based on experience for harvested records...
         """
         mylog.info('Parsing parent/child relations.')
@@ -1722,6 +1725,9 @@ def main(argv):
             newdoc.update({"isChild": "true"})
             newdoc.update({"dataset_type": "Level-2"})
             parentids.add(myparentid)
+        else:
+            newdoc.update({"isParent": "true"})
+            newdoc.update({"dataset_type": "Level-1"})
 
         tflg = False
 
@@ -1739,7 +1745,7 @@ def main(argv):
             parent = solr_updateparent(parent)
             mysolr.add([parent])
         else:
-            # Assuming found in the current batch of files, then set to parent...
+            # Assuming found in the current batch of files, then set to parent... Not sure if this is needed onwards, but discussion on how isParent works is needed Øystein Godøy, METNO/FOU, 2023-03-31 
             i = 0
             for rec in files2ingest:
                 if rec['id'] == id:
@@ -1769,7 +1775,8 @@ def main(argv):
     # Report status
     mylog.info("Number of files processed were: %d", len(files2ingest))
 
-    #add a commit to solr at end of run
+    # Add a commit to solr at end of run
+    mylog.info("Committing the input to SolR. This may take some time.")
     mysolr.commit()
 
 
