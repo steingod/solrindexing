@@ -1105,7 +1105,7 @@ class IndexMMD:
             """
             If OGC WMS is available, no point in looking for featureType in OPeNDAP.
             """
-            if 'data_access_url_ogc_wms' in input_record:
+            if 'data_access_url_ogc_wms' in input_record and addThumbnail:
                 self.logger.info("Checking thumbnails...")
                 getCapUrl = input_record['data_access_url_ogc_wms']
                 if not myfeature:
@@ -1131,8 +1131,7 @@ class IndexMMD:
                 try:
                     myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
                 except Exception as e:
-                    self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                    #raise RuntimeError('Something failed while retrieving feature type')
+                    self.logger.warning("Something failed while retrieving feature type: %s", str(e))
                 if myfeature:
                     self.logger.info('feature_type found: %s', myfeature)
                     input_record.update({'feature_type':myfeature})
@@ -1148,7 +1147,7 @@ class IndexMMD:
 
             Consider to make size of bulksegment configurable
             """
-            if bulksegment > 1000 or i == norec:
+            if bulksegment > 250 or i == norec:
                 self.logger.info("Adding records to SolR core.")
                 try:
                     self.solrc.add(mmd_records)
@@ -1158,7 +1157,11 @@ class IndexMMD:
                 self.logger.info("%d records successfully added...", bulksegment)
                 if i == norec:
                     self.logger.info("All records successfully added...")
-                mmd_records.clear()
+                try:
+                    mmd_records.clear()
+                except Exception as e:
+                    self.logger.error("Couldn't release memory for records committed.")
+                    raise  Exception("Memory error")
                 bulksegment = 0
 
         return True
@@ -1407,8 +1410,12 @@ class IndexMMD:
             data = infile.read()
             encode_string = base64.b64encode(data)
 
+        del data
+
         thumbnail_b64 = (b'data:image/png;base64,' +
                 encode_string).decode('utf-8')
+
+        del encode_string
 
         # Remove thumbnail
         os.remove(thumbnail_fname)
@@ -1700,6 +1707,8 @@ def main(argv):
 
         if (not args.no_thumbnail) and ('data_access_url_ogc_wms' in newdoc):
             tflg = True
+        else:
+            tflg = False
 
         """
         Checking datasets to see if they are children.
@@ -1728,8 +1737,6 @@ def main(argv):
         else:
             newdoc.update({"isParent": "true"})
             newdoc.update({"dataset_type": "Level-1"})
-
-        tflg = False
 
         # Update list of files to process
         files2ingest.append(newdoc)
