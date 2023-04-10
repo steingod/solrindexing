@@ -43,7 +43,7 @@ import logging
 import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 from time import sleep
-import pickle
+#import pickle Not used as of Øystein Godøy, METNO/FOU, 2023-04-10 
 from shapely.geometry import box
 from shapely.wkt import loads
 from shapely.geometry import mapping
@@ -1067,14 +1067,12 @@ class IndexMMD:
     """
     Primary function to index records, rewritten to expect list input
     """
-    def index_record(self, records2ingest, addThumbnail, level=None, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
+    def index_record(self, records2ingest, addThumbnail, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
         # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19 
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
                 addThumbnail (bool): If thumbnail should be added or not
-                level (int): 1 or 2 depending if MMD is Level-1 or Level-2,
-                            respectively. If None, assume to be Level-1
                 wms_layer (str): WMS layer name
                 wms_style (str): WMS style name
                 wms_zoom_level (float): Negative zoom. Fixed value added in
@@ -1091,7 +1089,6 @@ class IndexMMD:
         mmd_records = list()
         norec = len(records2ingest)
         i = 0
-        bulksegment = 0
         for input_record in records2ingest:
             self.logger.info("====>")
             self.logger.info("Processing record %d of %d", i, norec)
@@ -1140,149 +1137,21 @@ class IndexMMD:
 
             self.logger.info("Adding records to list...")
             mmd_records.append(input_record)
-            bulksegment += 1
 
-            """
-            If bulksegment is more than 1000, index these as thumbnails will cause memory issues else...
+        """
+        Send information to SolR
+        """
+        self.logger.info("Adding records to SolR core.")
+        try:
+            self.solrc.add(mmd_records)
+        except Exception as e:
+            self.logger.error("Something failed in SolR adding document: %s", str(e))
+            return False
+        self.logger.info("%d records successfully added...", len(mmd_records))
 
-            Consider to make size of bulksegment configurable
-            """
-            if bulksegment > 250 or i == norec:
-                self.logger.info("Adding records to SolR core.")
-                try:
-                    self.solrc.add(mmd_records)
-                except Exception as e:
-                    self.logger.error("Something failed in SolR adding document: %s", str(e))
-                    return False
-                self.logger.info("%d records successfully added...", bulksegment)
-                if i == norec:
-                    self.logger.info("All records successfully added...")
-                try:
-                    mmd_records.clear()
-                except Exception as e:
-                    self.logger.error("Couldn't release memory for records committed.")
-                    raise  Exception("Memory error")
-                bulksegment = 0
+        del mmd_records
 
         return True
-
-    # FIXME check if this is obsolete now
-    def add_level2(self, myl2record, addThumbnail=False, projection=ccrs.Mercator(), wmstimeout=120, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, wms_timeout=120, thumbnail_extent=None):
-        """ Add a level 2 dataset, i.e. update level 1 as well """
-        mmd_record2 = list()
-
-        # Fix for NPI data...
-        myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://data.npolar.no/dataset/','')
-        myl2record['related_dataset'] = myl2record['related_dataset'].replace('https://data.npolar.no/dataset/','')
-        myl2record['related_dataset'] = myl2record['related_dataset'].replace('http://api.npolar.no/dataset/','')
-        myl2record['related_dataset'] = myl2record['related_dataset'].replace('.xml','')
-
-        # Add additonal helper fields for handling in SolR and Drupal
-        myl2record['isChild'] = 'true'
-
-        myfeature = None
-        if 'data_access_url_opendap' in myl2record:
-            # Thumbnail of timeseries to be added
-            # Or better do this as part of get_feature_type?
-            try:
-                myfeature = self.get_feature_type(myl2record['data_access_url_opendap'])
-            except Exception as e:
-                self.logger.error("Something failed while retrieving feature type: %s", str(e))
-                #raise RuntimeError('Something failed while retrieving feature type')
-            if myfeature:
-                self.logger.info('feature_type found: %s', myfeature)
-                myl2record.update({'feature_type':myfeature})
-
-        self.id = myl2record['id']
-        # Add thumbnail for WMS supported datasets
-        if 'data_access_url_ogc_wms' in myl2record and addThumbnail:
-            self.logger.info("Checking tumbnails...")
-            if not myfeature:
-                self.thumbnail_type = 'wms'
-            self.wms_layer = wms_layer
-            self.wms_style = wms_style
-            self.wms_zoom_level = wms_zoom_level
-            self.add_coastlines = add_coastlines
-            self.projection = projection
-            self.wms_timeout = wms_timeout
-            self.thumbnail_extent = thumbnail_extent
-            if 'data_access_url_ogc_wms' in myl2record.keys():
-                getCapUrl = myl2record['data_access_url_ogc_wms']
-                try:
-                    thumbnail_data = self.add_thumbnail(url=getCapUrl)
-                except Exception as e:
-                    self.logger.error("Something failed in adding thumbnail: %s", str(e))
-                    warnings.warning("Couldn't add thumbnail.")
-
-        if addThumbnail and thumbnail_data:
-            myl2record.update({'thumbnail_data':thumbnail_data})
-
-        mmd_record2.append(myl2record)
-
-        """ Retrieve level 1 record """
-        myparid = myl2record['related_dataset']
-        idrepls = [':','/','.']
-        for e in idrepls:
-            myparid = myparid.replace(e,'-')
-        try:
-            myresults = self.solrc.search('id:' + myparid, **{'wt':'python','rows':100})
-        except Exception as e:
-            self.logger.error("Something failed in searching for parent dataset, " + str(e))
-
-        # Check that only one record is returned
-        if len(myresults) != 1:
-            self.logger.warning("Didn't find unique parent record, skipping record")
-            return
-        # Convert from pySolr results object to dict and return.
-        for result in myresults:
-            if 'full_text' in result:
-                result.pop('full_text')
-            if 'bbox__maxX' in result:
-                result.pop('bbox__maxX')
-            if 'bbox__maxY' in result:
-                result.pop('bbox__maxY')
-            if 'bbox__minX' in result:
-                result.pop('bbox__minX')
-            if 'bbox__minY' in result:
-                result.pop('bbox__minY')
-            if 'bbox_rpt' in result:
-                result.pop('bbox_rpt')
-            if 'ss_access' in result:
-                result.pop('ss_access')
-            if '_version_' in result:
-                result.pop('_version_')
-                myresults = result
-        myresults['isParent'] = 'true'
-
-        # Check that the parent found has related_dataset set and
-        # update this, but first check that it doesn't already exists
-        if 'related_dataset' in myresults:
-            # Need to check that this doesn't already exist...
-            if myl2record['metadata_identifier'].replace(':','-') not in myresults['related_dataset']:
-                myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','-'))
-        else:
-            self.logger.info('This dataset was not found in parent, creating it...')
-            myresults['related_dataset'] = []
-            self.logger.info('Adding dataset with identifier %s to parent %s', myl2record['metadata_identifier'].replace(':','-'),myl2record['related_dataset'])
-            myresults['related_dataset'].append(myl2record['metadata_identifier'].replace(':','-'))
-        mmd_record1 = list()
-        mmd_record1.append(myresults)
-
-        ##print(myresults)
-
-        """ Index level 2 dataset """
-        try:
-            self.solrc.add(mmd_record2)
-        except Exception as e:
-            raise Exception("Something failed in SolR add level 2", str(e))
-        self.logger.info("Level 2 record successfully added.")
-
-        """ Update level 1 record with id of this dataset """
-        try:
-            self.solrc.add(mmd_record1)
-        except Exception as e:
-            raise Exception("Something failed in SolR update level 1 for level 2", str(e))
-        self.logger.info("Level 1 record successfully updated.")
 
     def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
@@ -1409,12 +1278,10 @@ class IndexMMD:
         with open(thumbnail_fname, 'rb') as infile:
             data = infile.read()
             encode_string = base64.b64encode(data)
-
-        del data
+            del data
 
         thumbnail_b64 = (b'data:image/png;base64,' +
                 encode_string).decode('utf-8')
-
         del encode_string
 
         # Remove thumbnail
@@ -1460,48 +1327,6 @@ class IndexMMD:
 
     # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
     # Not sure if this is needed onwards, but keeping for now.
-    def delete_level1(self, datasetid):
-        """ Require ID as input """
-        """ Rewrite to take full metadata record as input """
-        self.logger.info("Deleting %s from level 1.", datasetid)
-        try:
-            self.solrc.delete(id=datasetid)
-        except Exception as e:
-            self.logger.error("Something failed in SolR delete: %s", str(e))
-            raise
-
-        self.logger.info("Record successfully deleted from Level 1 core")
-
-    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
-    # Not sure if this is needed onwards, but keeping for now.
-    def delete_level2(self, datasetid):
-        """ Require ID as input """
-        """ Rewrite to take full metadata record as input """
-        self.logger.info("Deleting %s from level 2.", datasetid)
-        try:
-            self.solr2.delete(id=datasetid)
-        except Exception as e:
-            self.logger.error("Something failed in SolR delete: %s", str(e))
-            raise
-
-        self.logger.info("Records successfully deleted from Level 2 core")
-
-    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
-    # Not sure if this is needed onwards, but keeping for now.
-    def delete_thumbnail(self, datasetid):
-        """ Require ID as input """
-        """ Rewrite to take full metadata record as input """
-        self.logger.info("Deleting %s from thumbnail core.", datasetid)
-        try:
-            self.solrt.delete(id=datasetid)
-        except Exception as e:
-            self.logger.error("Something failed in SolR delete: %s", str(e))
-            raise
-
-        self.logger.info("Records successfully deleted from thumbnail core")
-
-    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
-    # Not sure if this is needed onwards, but keeping for now.
     def search(self):
         """ Require Id as input """
         try:
@@ -1510,24 +1335,6 @@ class IndexMMD:
             self.logger.error("Something failed during search: %s", str(e))
 
         return results
-
-    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
-    def darextract(self, mydar):
-        mylinks = {}
-        for i in range(len(mydar)):
-            if isinstance(mydar[i], bytes):
-                mystr = str(mydar[i], 'utf-8')
-            else:
-                mystr = mydar[i]
-            if mystr.find('description') != -1:
-                t1, t2 = mystr.split(',', 1)
-            else:
-                t1 = mystr
-            t2 = t1.replace('"', '')
-            proto, myurl = t2.split(':', 1)
-            mylinks[proto] = myurl
-
-        return (mylinks)
 
     """
     Use solr real-time get to check if a parent is already indexed,
@@ -1774,11 +1581,23 @@ def main(argv):
     # Do the ingestion FIXME
     # Check if thumbnail specification need to be changed
     mylog.info("Indexing datasets")
-    try:
-        mysolr.index_record(records2ingest=files2ingest, addThumbnail=tflg)
-    except Exception as e:
-        mylog.warning('Something failed during indexing %s', e)
+    """
+    Split list into sublists before indexing (and retrieving WMS thumbnails etc)
+    """
+    mystep = 2500
+    myrecs = 0
+    for i in range(0,len(files2ingest),mystep):
+        mylist = files2ingest[i:i+mystep]
+        myrecs += len(mylist)
+        try:
+            mysolr.index_record(records2ingest=mylist, addThumbnail=tflg)
+        except Exception as e:
+            mylog.warning('Something failed during indexing %s', e)
+        mylog.info('%d records out of %d have been ingested...', myrecs, len(files2ingest))
+        del mylist
 
+    if myrecs != len(files2ingest):
+        mylog.warning('Inconsistent number of records processed.')
     # Report status
     mylog.info("Number of files processed were: %d", len(files2ingest))
 
