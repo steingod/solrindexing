@@ -961,8 +961,9 @@ class MMD4SolR:
 
                 # Add platform_sentinel for NBS
                 initial_platform = mydict['platform_long_name'][0]
-                if initial_platform.startswith('Sentinel'):
-                    mydict['platform_sentinel'] = initial_platform[:-1]
+                if initial_platform is not None:
+                    if initial_platform.startswith('Sentinel'):
+                        mydict['platform_sentinel'] = initial_platform[:-1]
 
         """ Activity type """
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
