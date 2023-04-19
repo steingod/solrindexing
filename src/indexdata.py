@@ -797,14 +797,16 @@ class MMD4SolR:
                         if e['@mmd:relation_type'] == 'parent':
                             if '#text' in dict(e):
                                 mydict['related_dataset'] = e['#text']
+                                mydict['related_dataset_id'] = e['#text']
                                 for e in idrepls:
-                                    mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
+                                    mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
             else:
                 """ Not sure if this is used?? """
                 if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
                     mydict['related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+                    mydict['related_dataset_id'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
                     for e in idrepls:
-                        mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
+                        mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
 
         """ Storage information """
         if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
