@@ -23,34 +23,25 @@ NOTES:
 import sys
 import os.path
 import argparse
-import subprocess
 import pysolr
 import xmltodict
 import dateutil.parser
 import warnings
-import json
 import yaml
 import math
 import re
 from collections import OrderedDict
 import cartopy.crs as ccrs
-import cartopy
 import matplotlib.pyplot as plt
 from owslib.wms import WebMapService
 import base64
 #import h5netcdf.legacyapi as netCDF4
 import netCDF4
 import logging
-import lxml.etree as ET
-from logging.handlers import TimedRotatingFileHandler
 from time import sleep
-import pickle
 from shapely.geometry import *
-from shapely.wkt import loads
 from shapely.ops import transform
 #from shapely.geometry import mapping
-import geojson
-import pyproj
 import shapely.geos
 import shapely.geometry as shpgeo
 import shapely.wkt
@@ -61,202 +52,10 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from concurrent import futures as Futures
 import threading
-import multiprocessing
 import requests
 import itertools
 from pathlib import Path
-import h5netcdf
 import validators
-
-from enum import Enum
-import json
-from typing import List, Union
-
-from shapely import affinity
-from shapely.geometry import GeometryCollection, Polygon, mapping
-
-import copy
-from functools import reduce
-import math
-from typing import List, Union
-from enum import Enum
-import sys
-
-from shapely.geometry import GeometryCollection, LineString, Polygon
-from shapely.ops import split
-from functools import reduce
-from shapely.geometry.base import BaseGeometry
-
-
-class AcceptedGeojsonTypes(Enum):
-    Polygon = 'Polygon'
-    MultiPolygon = 'MultiPolygon'
-
-class OutputFormat(Enum):
-    Geojson = 'geojson'
-    Polygons = 'polygons'
-    GeometryCollection = 'geometrycollection'
-
-
-
-def check_crossing(lon1: float, lon2: float, validate: bool = True, dlon_threshold: float = 180.0):
-    """
-    Assuming a minimum travel distance between two provided longitude coordinates,
-    checks if the 180th meridian (antimeridian) is crossed.
-    """
-    if validate and (any(abs(x) > dlon_threshold) for x in [lon1, lon2]):
-        raise ValueError("longitudes must be in degrees [-180.0, 180.0]")
-    return abs(lon2 - lon1) > dlon_threshold
-
-def remove_interiors(poly):
-    """
-    Close polygon holes by limitation to the exterior ring.
-
-    Arguments
-    ---------
-    poly: shapely.geometry.Polygon
-        Input shapely Polygon
-
-    Returns
-    ---------
-    Polygon without any interior holes
-    """
-    if poly.interiors:
-        return Polygon(list(poly.exterior.coords))
-    else:
-        return poly
-
-
-def translate_polygons(
-    geometry_collection: GeometryCollection,
-    output_format: OutputFormat = OutputFormat.Geojson
-) -> Union[List[dict], List[Polygon], GeometryCollection]:
-
-    geo_polygons = []
-    for polygon in geometry_collection.geoms:
-        (minx, _, maxx, _) = polygon.bounds
-        if minx < -180:
-            geo_polygon = affinity.translate(polygon, xoff = 360)
-        elif maxx > 180:
-            geo_polygon = affinity.translate(polygon, xoff = -360)
-        else:
-            geo_polygon = polygon
-
-        geo_polygons.append(geo_polygon)
-
-    if output_format == OutputFormat.Polygons:
-        result = geo_polygons
-    if output_format == OutputFormat.Geojson:
-        result = [json.dumps(mapping(p)) for p in geo_polygons]
-    elif output_format == OutputFormat.GeometryCollection:
-        result = GeometryCollection(geo_polygons)
-
-    return result
-
-
-def split_coords(src_coords: List[List[List[float]]]) -> GeometryCollection:
-    coords_shift = copy.deepcopy(src_coords)
-    shell_minx = sys.float_info.max
-    shell_maxx = sys.float_info.min
-
-    # it is possible that the shape provided may be defined as more than 360
-    #   degrees in either direction. Under these circumstances the shifted polygon
-    #   would cross both the 180 and the -180 degree representation of the same
-    #   meridian. This is not allowed, but checked for using the len(split_meriditans)
-    split_meridians = set()
-
-    for ring_index, ring in enumerate(coords_shift):
-        if len(ring) < 1:
-            continue
-        else:
-            ring_minx = ring_maxx = ring[0][0]
-            crossings = 0
-
-        for coord_index, (lon, _) in enumerate(ring[1:], start=1):
-            lon_prev = ring[coord_index - 1][0] # [0] corresponds to longitude coordinate
-            if check_crossing(lon, lon_prev, validate=False):
-                direction = math.copysign(1, lon - lon_prev)
-                coords_shift[ring_index][coord_index][0] = lon - (direction * 360.0)
-                crossings += 1
-
-            x_shift = coords_shift[ring_index][coord_index][0]
-            if x_shift < ring_minx: ring_minx = x_shift
-            if x_shift > ring_maxx: ring_maxx = x_shift
-
-        # Ensure that any holes remain contained within the (translated) outer shell
-        if (ring_index == 0): # by GeoJSON definition, first ring is the outer shell
-            shell_minx, shell_maxx = (ring_minx, ring_maxx)
-        elif (ring_minx < shell_minx):
-            ring_shift = [[x + 360, y] for (x, y) in coords_shift[ring_index]]
-            coords_shift[ring_index] = ring_shift
-            ring_minx, ring_maxx = (x + 360 for x in (ring_minx, ring_maxx))
-        elif (ring_maxx > shell_maxx):
-            ring_shift = [[x - 360, y] for (x, y) in coords_shift[ring_index]]
-            coords_shift[ring_index] = ring_shift
-            ring_minx, ring_maxx = (x - 360 for x in (ring_minx, ring_maxx))
-
-        if crossings: # keep track of meridians to split on
-            if ring_minx < -180: split_meridians.add(-180)
-            if ring_maxx > 180: split_meridians.add(180)
-
-    n_splits = len(split_meridians)
-    if n_splits == 0:
-        shell, *holes = src_coords
-        split_polygons = GeometryCollection([Polygon(shell, holes)])
-    elif n_splits == 1:
-        split_lon = split_meridians.pop()
-        meridian = [[split_lon, -90.0], [split_lon, 90.0]]
-        splitter = LineString(meridian)
-
-        shell, *holes = coords_shift
-        split_polygons = split(Polygon(shell, holes), splitter)
-    else:
-        raise NotImplementedError(
-            """Splitting a Polygon by multiple meridians (MultiLineString)
-               not supported by Shapely"""
-        )
-    return split_polygons
-
-
-def split_polygon(geojson: dict, output_format: OutputFormat = OutputFormat.Geojson) -> Union[
-    List[dict], List[Polygon], GeometryCollection
-]:
-    """
-    Given a GeoJSON representation of a Polygon, returns a collection of
-    'antimeridian-safe' constituent polygons split at the 180th meridian,
-    ensuring compliance with GeoJSON standards (https://tools.ietf.org/html/rfc7946#section-3.1.9)
-    Assumptions:
-      - Any two consecutive points with over 180 degrees difference in
-        longitude are assumed to cross the antimeridian
-      - The polygon spans less than 360 degrees in longitude (i.e. does not wrap around the globe)
-      - However, the polygon may cross the antimeridian on multiple occasions
-    Parameters:
-        geojson (dict): GeoJSON of input polygon to be split. For example:
-                {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [179.0, 0.0], [-179.0, 0.0], [-179.0, 1.0],
-                            [179.0, 1.0], [179.0, 0.0]
-                        ]
-                    ]
-                }
-        output_format (str): Available options: "geojson", "polygons", "geometrycollection"
-                             If "geometrycollection" returns a Shapely GeometryCollection.
-                             Otherwise, returns a list of either GeoJSONs or Shapely Polygons
-    Returns:
-        List[dict]/List[Polygon]/GeometryCollection: antimeridian-safe polygon(s)
-    """
-    geotype = AcceptedGeojsonTypes(geojson['type'])
-    if geotype is AcceptedGeojsonTypes.Polygon:
-        split_polygons = split_coords(geojson['coordinates'])
-    elif geotype is AcceptedGeojsonTypes.MultiPolygon:
-        split_polygons = reduce(
-            GeometryCollection.union,
-            (split_coords(coords) for coords in geojson['coordinates'])
-        )
-    return translate_polygons(split_polygons, output_format)
-
 
 
 #For basic authentication
@@ -598,6 +397,10 @@ class MMD4SolR:
 
         # Create OrderedDict which will contain all elements for SolR
         mydict = OrderedDict()
+
+        #Set default parent/child flags. Both defualt to false.
+        mydict['isParent'] = False
+        mydict['isChild'] = False
 
         # SolR Can't use the mmd:metadata_identifier as identifier if it contains :, replace : and other characters like / etc by _ in the id field, let metadata_identifier be the correct one.
 
@@ -1067,14 +870,16 @@ class MMD4SolR:
                         if e['@mmd:relation_type'] == 'parent':
                             if '#text' in dict(e):
                                 mydict['related_dataset'] = e['#text']
+                                mydict['related_dataset_id'] = e['#text']
                                 for e in idrepls:
-                                    mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
+                                    mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
             else:
                 """ Not sure if this is used?? """
                 if '#text' in dict(self.mydoc['mmd:mmd']['mmd:related_dataset']):
                     mydict['related_dataset'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
+                    mydict['related_dataset_id'] = self.mydoc['mmd:mmd']['mmd:related_dataset']['#text']
                     for e in idrepls:
-                        mydict['related_dataset'] = mydict['related_dataset'].replace(e,'-')
+                        mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
 
         """ Storage information """
         if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
@@ -1963,33 +1768,7 @@ def process_feature_type(tmpdoc):
                             tmpdoc.update({'geospatial_bounds': point})
                         else:
                             polygon = transform(flip,polygon_)
-                            # #print(poly)
-                            #ccw = polygon.exterior.is_ccw
-                            #if not ccw:
-                            #    polygon = polygon.reverse()
 
-                            # pp = json.dumps(mapping(polygon))
-                            # poly: dict = json.loads(pp)
-
-                            # res = split_polygon(poly, OutputFormat.Polygons)
-                            # mp = shapely.MultiPolygon(res)
-                            #tmp = reduce(BaseGeometry.union, res)
-                            #print(mp.wkt)
-
-                            #res_poly = json.loads(res) #print(res.wkt)
-                            #print(res.wkt)
-                            #polygon_ = shapely.force_3d(polygon_)
-                            #polygon = polygon_.wkt
-                            #polygon = remove_interiors(polygon)
-                            #polygon = transform(flip,polygon_).wkt
-                            #polygon_geojson = json.dumps(shapely.geometry.mapping(polygon_))
-                            #print(polygon_geojson)
-                            #gj = geojson.GeoJSON()
-                            #gf = geojson.Feature(tmpdoc['id'],polygon_)
-                            #gj.update(gf)
-                            #polygon = polygon.simplify(0.5)
-                            #print(gj)
-                            #tmpdoc.update({'polygon_rpt': polygon.wkt})
                             tmpdoc.update({'geospatial_bounds': polygon.wkt})
                             tmpdoc.update({'polygon_rpt': polygon.wkt})
                             #Check if we have plogon.
@@ -2080,70 +1859,6 @@ def mmd2solr(mmd,status,file):
             return (None, status)
 
     tmpstatus = "OK"
-    #Check geographic extent is ok
-    # try:
-    #     if round(tmpdoc['geographic_extent_rectangle_north'][0]) not in range(-91,91):
-    #         tmpstatus = None
-    #     if round(tmpdoc['geographic_extent_rectangle_south'][0]) not in range(-91,91):
-    #         tmpstatus = None
-    #     if round(tmpdoc['geographic_extent_rectangle_east'][0]) not in range(-181,181):
-    #         tmpstatus = None
-    #     if round(tmpdoc['geographic_extent_rectangle_west'][0]) not in range(-181,181):
-    #         tmpstatus = None
-    # except Exception as e:
-    #     print("Missing information in document %s. Reason %s" % (file,e))
-
-    # if tmpstatus != "OK":
-    #      print('Incomaptible geographic extent for docid:  %s for file %s' % (tmpdoc['id'],file))
-    #      return (None,status)
-    #pp.pprint(tmpdoc)
-    #print(tmpdoc['related_dataset'],type)
-    #Check if we have a child pointing to a parent
-    # if feature_type is None:
-    #     process_feature_type(tmpdoc)
-    # if 'polygon_rpt' in tmpdoc:
-    #     value = tmpdoc['polygon_rpt']
-    #     if 'POLYGON' in value or 'POINT' in value:
-    #         polygon_ = shapely.wkt.loads(value)
-    #         type = polygon_.geom_type
-    #         if type == 'Point':
-    #             point = polygon_.wkt
-    #             tmpdoc.update({'geospatial_bounds': point})
-    #         else:
-    #             #polygon = transform(flip,polygon_)
-    #             pp = json.dumps(mapping(polygon_))
-    #             poly: dict = json.loads(pp)
-    #             #print(poly)
-
-    #             res = split_polygon(poly, OutputFormat.Polygons)
-    #             #tmp = reduce(BaseGeometry.union, res)
-    #             newres = list()
-    #             for p in res:
-    #                 pol = remove_interiors(p)
-    #                 ccw = pol.exterior.is_ccw
-    #                 if not ccw:
-    #                     pol = pol.reverse()
-
-    #                 newres.append(pol)
-
-    #             mp = shapely.MultiPolygon(newres)
-    #             # print(mp)
-    #             # #print(polygon.wkt)
-    #             # res_poly = shape(res.pop())
-    #             # print(res_poly)
-    #             #polygon_ = shapely.force_3d(polygon_)
-    #             #polygon = polygon_.wkt
-
-    #             #polygon = transform(flip,polygon_).wkt
-    #             #polygon_geojson = json.dumps(shapely.geometry.mapping(polygon_))
-    #             #print(polygon_geojson)
-    #             #gj = geojson.GeoJSON()
-    #             #gf = geojson.Feature(tmpdoc['id'],polygon_)
-    #             #gj.update(gf)
-
-    #             #print(gj)
-    #             tmpdoc.update({'geospatial_bounds': mp.wkt})
-    #             tmpdoc.update({'polygon_rpt': mp.wkt})
 
     #Override frature_type if set in config
     if feature_type != "Skip" and feature_type is not None:
@@ -2496,6 +2211,7 @@ def flatten(l):
 
 def rewrap(x):
     return (x + 180) % 360 - 180
+
 def main(argv):
     #Global date regexp to validate solr dates
     global DATETIME_REGEX
