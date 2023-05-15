@@ -1094,7 +1094,7 @@ class IndexMMD:
 
         mmd_records = list()
         norec = len(records2ingest)
-        i = 0
+        i = 1
         for input_record in records2ingest:
             self.logger.info("====>")
             self.logger.info("Processing record %d of %d", i, norec)
@@ -1504,7 +1504,6 @@ def main(argv):
         except Exception as e:
             mylog.error('File: %s is not compliant with MMD specification', myfile)
             continue
-        print('Here I am...')
         fileno += 1
 
         """ 
@@ -1525,7 +1524,7 @@ def main(argv):
 
         """
         Checking datasets to see if they are children.
-        Datasets that are not children are all set to parents.
+        Datasets that are not children are all set to Level-1.
         Make some corrections based on experience for harvested records...
         """
         mylog.info('Parsing parent/child relations.')
@@ -1548,7 +1547,7 @@ def main(argv):
             newdoc.update({"dataset_type": "Level-2"})
             parentids.add(myparentid)
         else:
-            newdoc.update({"isParent": "true"})
+            newdoc.update({"isParent": "false"})
             newdoc.update({"dataset_type": "Level-1"})
 
         # Update list of files to process
@@ -1575,6 +1574,8 @@ def main(argv):
                                 continue
                             else:
                                 files2ingest[i].update({'dataset_type': 'Level-1'})
+                        else:
+                            files2ingest[i].update({'isParent': 'true'})
                     else:
                         files2ingest[i].update({'isParent': 'true'})
                         files2ingest[i].update({'dataset_type': 'Level-1'})
