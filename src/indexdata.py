@@ -518,8 +518,11 @@ class MMD4SolR:
                     self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']),
                 if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
                     if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']!=None:
-                        mydict["temporal_extent_end_date"] = str(
-                            self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+                        try:
+                            dateutil.parser.parse(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'])
+                            mydict["temporal_extent_end_date"] = str(self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date']),
+                        except Exception as e:
+                            self.logger.warning("End date is not provided properly")
 
         """ Geographical extent """
         """ Assumes longitudes positive eastwards and in the are -180:180
