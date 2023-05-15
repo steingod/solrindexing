@@ -1556,7 +1556,7 @@ def main(argv):
         if not any(d['id'] == id for d in files2ingest):
             # Check if already ingested and update if so
             # FIXME, need more robustness...
-            mylog.warn('This part of parent/child relations is yet not tested.')
+            mylog.warning('This part of parent/child relations is yet not tested.')
             continue
             parent = find_parent_in_index(id)
             parent = solr_updateparent(parent)
