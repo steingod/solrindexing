@@ -1029,8 +1029,8 @@ class MMD4SolR:
         
         ## Set default parent child relation. No parent, no child.
         """Set defualt parent/child flags"""
-        mydict['isParent'] = False
-        mydict['isChild'] = False
+        mydict['isParent'] = "false"
+        mydict['isChild'] = "false"
 
 ##        with open(self.mydoc['mmd:mmd']['mmd:metadata_identifier']+'.txt','w') as myfile:
 ##            #pickle.dump(mydict,myfile)
