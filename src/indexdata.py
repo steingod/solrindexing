@@ -1026,6 +1026,11 @@ class MMD4SolR:
         encoded_xml_string = base64.b64encode(xml_string)
         xml_b64 = (encoded_xml_string).decode('utf-8')
         mydict['mmd_xml_file'] = xml_b64
+        
+        ## Set default parent child relation. No parent, no child.
+        """Set defualt parent/child flags"""
+        mydict['isParent'] = False
+        mydict['isChild'] = False
 
 ##        with open(self.mydoc['mmd:mmd']['mmd:metadata_identifier']+'.txt','w') as myfile:
 ##            #pickle.dump(mydict,myfile)
