@@ -45,7 +45,7 @@ from shapely.ops import transform
 import shapely.geos
 import shapely.geometry as shpgeo
 import shapely.wkt
-
+from logging.handlers import TimedRotatingFileHandler
 import time
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
@@ -1883,7 +1883,7 @@ def mmd2solr(mmd,status,file):
                 #Update document with child specific fields
                 tmpdoc.update({'dataset_type':'Level-2'})
                 tmpdoc.update({'isChild': True})
-                tmpdoc.update({'isParent': False})
+                # tmpdoc.update({'isParent': False})
 
                 # Fix special characters that SolR doesn't like
                 idrepls = [':','/','.']
@@ -1892,9 +1892,9 @@ def mmd2solr(mmd,status,file):
                     myparentid = myparentid.replace(e,'-')
 
                 status = myparentid.strip()
-                tmpdoc.update({'related_dataset': myparentid})
-                #pp.pprint(tmpdoc)
-                #print(status)
+                tmpdoc.update({'related_dataset_id': [myparentid.strip()]})
+                # print('status: ' + status)
+                # print('RELID: ' + tmpdoc['related_dataset_id'])
     else:
         #Assume we have level-1 doc that are not parent
         tmpdoc.update({'dataset_type':'Level-1'})
@@ -1920,6 +1920,8 @@ def process_mmd(mmd_list, status_list):
 
 #add documents to solr
 def add2solr(docs,msg_callback):
+    #for doc in docs:
+    #    print(doc)
     try:
         solrcon.add(docs)
     except Exception as e:
