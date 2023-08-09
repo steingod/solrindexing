@@ -984,8 +984,10 @@ class MMD4SolR:
         if 'mmd:dataset_citation' in self.mydoc['mmd:mmd']:
             dataset_citation_elements = self.mydoc['mmd:mmd']['mmd:dataset_citation']
 
-            if isinstance(dataset_citation_elements, dict): #Only one element
-                dataset_citation_elements = [dataset_citation_elements] # make it an iterable list
+            #Only one element
+            if isinstance(dataset_citation_elements, dict): 
+                # make it an iterable list
+                dataset_citation_elements = [dataset_citation_elements] 
 
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
@@ -1267,9 +1269,9 @@ class IndexMMD:
         ##ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
-        fig.set_figwidth(4.5)
-        fig.set_figheight(4.5)
-        fig.set_dpi(100)
+        fig.set_figwidth(400*px)
+        fig.set_figheight(400*px)
+        ##fig.set_dpi(100)
         ##ax.background_patch.set_alpha(1)
 
         ax.add_wms(wms, wms_layer,
