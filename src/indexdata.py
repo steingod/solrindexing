@@ -412,12 +412,13 @@ class MMD4SolR:
             lmu_type = []
             lmu_note = []
             # FIXME check if this works correctly
-            if isinstance(last_metadata_update['mmd:update'], dict): #Only one last_metadata_update element
+            #Only one last_metadata_update element
+            if isinstance(last_metadata_update['mmd:update'], dict): 
                     lmu_datetime.append(str(last_metadata_update['mmd:update']['mmd:datetime']))
                     lmu_type.append(last_metadata_update['mmd:update']['mmd:type'])
                     lmu_note.append(last_metadata_update['mmd:update']['mmd:note'])
-
-            else: # multiple last_metadata_update elements
+            # multiple last_metadata_update elements
+            else: 
                 for i,e in enumerate(last_metadata_update['mmd:update']):
                     lmu_datetime.append(str(e['mmd:datetime']))
                     lmu_type.append(e['mmd:type'])
