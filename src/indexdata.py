@@ -423,6 +423,8 @@ class MMD4SolR:
                     lmu_type.append(e['mmd:type'])
                     if 'mmd:note' in e.keys():
                         lmu_note.append(e['mmd:note'])
+                    else:
+                        lmu_note.append('Not provided')
 
             i = 0
             for myel in lmu_datetime:
