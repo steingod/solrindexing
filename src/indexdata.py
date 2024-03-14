@@ -672,9 +672,11 @@ class MMD4SolR:
                     #mydict['geom'] = geojson.dumps(mapping(p))
                     #print(mydict['geom'])
 
-        self.logger.info('Add location element?')
+        """ Add location element?? """
+        #self.logger.info('Add location element?')
 
         """ Dataset production status """
+        self.logger.info("Processing dataset production status")
         if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:dataset_production_status'],
                     dict):
@@ -683,18 +685,22 @@ class MMD4SolR:
                 mydict['dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
 
         """ Dataset language """
+        self.logger.info("Processing dataset language")
         if 'mmd:dataset_language' in self.mydoc['mmd:mmd']:
             mydict['dataset_language'] = str(self.mydoc['mmd:mmd']['mmd:dataset_language'])
 
         """ Operational status """
+        self.logger.info("Processing dataset operational status")
         if 'mmd:operational_status' in self.mydoc['mmd:mmd']:
             mydict['operational_status'] = str(self.mydoc['mmd:mmd']['mmd:operational_status'])
 
         """ Access constraints """
+        self.logger.info("Processing dataset access constraints")
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
             mydict['access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
 
         """ Use constraint """
+        self.logger.info("Processing dataset use constraints")
         if 'mmd:use_constraint' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:use_constraint'] != None:
             # Need both identifier and resource for use constraint
             if 'mmd:identifier' in self.mydoc['mmd:mmd']['mmd:use_constraint'] and 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
@@ -708,6 +714,7 @@ class MMD4SolR:
                 mydict['use_constraint_license_text'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:license_text'])
 
         """ Personnel """
+        self.logger.info("Processing dataset personnel")
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             personnel_elements = self.mydoc['mmd:mmd']['mmd:personnel']
 
@@ -766,6 +773,7 @@ class MMD4SolR:
                             mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
         """ Data center """
+        self.logger.info("Processing data center")
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
 
             data_center_elements = self.mydoc['mmd:mmd']['mmd:data_center']
@@ -792,6 +800,7 @@ class MMD4SolR:
                             mydict[element_name].append(value)
 
         """ Data access """
+        self.logger.info("Processing data access")
         # NOTE: This is identical to method above. Should in future versions be implified as a method
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             data_access_elements = self.mydoc['mmd:mmd']['mmd:data_access']
@@ -814,6 +823,7 @@ class MMD4SolR:
         """ Only interpreting parent for now since SolR doesn't take more
             Added handling of namespace in identifiers
         """
+        self.logger.info("Processing related dataset")
         self.parent = None
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             idrepls = [':','/','.']
@@ -837,6 +847,7 @@ class MMD4SolR:
                         mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
 
         """ Storage information """
+        self.logger.info("Processing storage information")
         if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
             if 'mmd:file_name' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'] != None:
                 mydict['storage_information_file_name'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'])
@@ -859,6 +870,7 @@ class MMD4SolR:
 
 
         """ Related information """
+        self.logger.info("Processing related information")
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
 
             related_information_elements = self.mydoc['mmd:mmd']['mmd:related_information']
@@ -893,7 +905,11 @@ class MMD4SolR:
                 mydict['iso_topic_category'].append(self.mydoc['mmd:mmd']['mmd:iso_topic_category'])
 
         """ Keywords """
-        # Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR. What is shown in data portal is keywords_keyword.
+        """
+        Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR. 
+        What is shown in data portal is keywords_keyword.
+        """
+        self.logger.info("Processing keywords")
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
             mydict['keywords_vocabulary'] = []
@@ -939,6 +955,7 @@ class MMD4SolR:
                 mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Project """
+        self.logger.info("Processing project")
         mydict['project_short_name'] = []
         mydict['project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
@@ -965,6 +982,7 @@ class MMD4SolR:
 
 
         """ Platform """
+        self.logger.info("Processing platform")
         # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
             platform_elements = self.mydoc['mmd:mmd']['mmd:platform']
@@ -1002,6 +1020,7 @@ class MMD4SolR:
                         mydict['platform_sentinel'] = initial_platform[:-1]
 
         """ Activity type """
+        self.logger.info("Processing activity type")
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
             mydict['activity_type'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'], list):
@@ -1011,6 +1030,7 @@ class MMD4SolR:
                 mydict['activity_type'].append(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
         """ Dataset citation """
+        self.logger.info("Processing dataset citation")
         if 'mmd:dataset_citation' in self.mydoc['mmd:mmd']:
             dataset_citation_elements = self.mydoc['mmd:mmd']['mmd:dataset_citation']
 
@@ -1019,6 +1039,7 @@ class MMD4SolR:
                 # make it an iterable list
                 dataset_citation_elements = [dataset_citation_elements] 
 
+            print('So far so good...')
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
                     element_suffix = k.split(':')[-1]
@@ -1032,27 +1053,28 @@ class MMD4SolR:
                     Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not. Also fix any errors in harvested data...
                     """
                     if element_suffix == 'publication_date':
-                        if "Not Available" in v:
+                        if v is None or "Not Available" in v:
                             continue
-                        if v is not None:
-                            # Check if time format is correct
-                            if re.search("T\d{2}:\d{2}:\d{2}:\d{2}Z", v):
-                                tmpstr = re.sub("T\d{2}:\d{2}:\d{2}:\d{2}Z", "T12:00:00Z", v)
-                                v = tmpstr
-                            elif re.search('T\d{2}:\d{2}:\d{2}', v):
-                                if not re.search('Z$', v):
-                                    v += 'Z'
-                            elif not re.search("T\d{2}:\d{2}:\d{2}Z", v):
-                                v += 'T12:00:00Z'
+                        # Check if time format is correct
+                        if re.search("T\d{2}:\d{2}:\d{2}:\d{2}Z", v):
+                            tmpstr = re.sub("T\d{2}:\d{2}:\d{2}:\d{2}Z", "T12:00:00Z", v)
+                            v = tmpstr
+                        elif re.search('T\d{2}:\d{2}:\d{2}', v):
+                            if not re.search('Z$', v):
+                                v += 'Z'
+                        elif not re.search("T\d{2}:\d{2}:\d{2}Z", v):
+                            v += 'T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
 
         """ 
         Quality control 
         """
+        self.logger.info("Processing quality control information")
         if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
             mydict['quality_control'] = str(self.mydoc['mmd:mmd']['mmd:quality_control'])
 
         """ Adding MMD document as base64 string"""
+        self.logger.info("Packaging MMD XML as base64 string")
         # Check if this can be simplified in the workflow.
         xml_root = ET.parse(str(self.filename))
         xml_string = ET.tostring(xml_root)
@@ -1062,6 +1084,7 @@ class MMD4SolR:
         
         ## Set default parent child relation. No parent, no child.
         """Set defualt parent/child flags"""
+        self.logger.info("Setting default parent/child relations")
         mydict['isParent'] = "false"
         mydict['isChild'] = "false"
 
