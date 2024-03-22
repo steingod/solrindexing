@@ -867,13 +867,19 @@ class MMD4SolR:
                 related_information_elements = [related_information_elements] # make it an iterable list
 
             for related_information in related_information_elements:
-                for key, value in related_information.items():
-                    element_name = 'related_information_{}'.format(key.split(':')[-1])
+                value = related_information['mmd:type']
+                if value in related_information_LUT.keys():
+                    #if list does not exist, create it
+                    if 'related_url_{}'.format(related_information_LUT[value]) not in mydict.keys():
+                        mydict['related_url_{}'.format(related_information_LUT[value])] = []
+                        mydict['related_url_{}_desc'.format(related_information_LUT[value])] = []
 
-                    if value in related_information_LUT.keys():
-                        mydict['related_url_{}'.format(related_information_LUT[value])] = related_information['mmd:resource']
-                        if 'mmd:description' in related_information:
-                            mydict['related_url_{}_desc'.format(related_information_LUT[value])] = related_information['mmd:description']
+                    #append elements to lists
+                    mydict['related_url_{}'.format(related_information_LUT[value])].append(related_information['mmd:resource'])
+                    if 'mmd:description' in related_information and related_information['mmd:description'] is not None:
+                        mydict['related_url_{}_desc'.format(related_information_LUT[value])].append(related_information['mmd:description'])
+                    else:
+                        mydict['related_url_{}_desc'.format(related_information_LUT[value])].append('Not Available')
 
         """
         ISO TopicCategory
