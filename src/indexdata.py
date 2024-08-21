@@ -64,6 +64,7 @@ def parse_arguments():
     parser.add_argument('-d','--directory',help='Directory to ingest')
     parser.add_argument('-t','--thumbnail',help='Create and index thumbnail, do not update the main content.', action='store_true')
     parser.add_argument('-n','--no_thumbnail',help='Do not index thumbnails (normally done automatically if WMS available).', action='store_true')
+    parser.add_argument('-f','--no_feature',help='Do not extract featureType from files', action='store_true')
 
     ### Thumbnail parameters
     parser.add_argument('-m','--map_projection',help='Specify map projection for thumbnail (e.g. Mercator, PlateCarree, PolarStereographic).', required=False)
@@ -144,7 +145,7 @@ class MMD4SolR:
     def __init__(self, filename):
         # Set up logging
         self.logger = logging.getLogger('indexdata.MMD4SolR')
-        self.logger.info('Creating an instance of IndexMMD')
+        self.logger.info('Creating an instance of MMD4SolR')
         """ set variables in class """
         self.filename = filename
         try:
@@ -1100,13 +1101,12 @@ class IndexMMD:
     a list of dictionaries representing MMD as input.
     """
 
-    def __init__(self, mysolrserver, always_commit=False, authentication=None):
+    def __init__(self, mysolrserver, always_commit=False, authentication=None, no_feature=False):
         # Set up logging
         self.logger = logging.getLogger('indexdata.IndexMMD')
         self.logger.info('Creating an instance of IndexMMD')
 
         # level variables
-
         self.level = None
 
         # Thumbnail variables
@@ -1118,6 +1118,9 @@ class IndexMMD:
         self.projection = None
         self.thumbnail_type = None
         self.thumbnail_extent = None
+
+        # Feature extraction
+        self.no_feature = no_feature
 
         # Connecting to core
         try:
@@ -1189,7 +1192,7 @@ class IndexMMD:
                     del input_record['data_access_url_ogc_wms']
                 else:
                     input_record.update({'thumbnail_data':thumbnail_data})
-            elif 'data_access_url_opendap' in input_record:
+            elif (not self.no_feature) and 'data_access_url_opendap' in input_record:
                 # Thumbnail of timeseries to be added
                 # Or better do this as part of get_feature_type?
                 try:
@@ -1495,7 +1498,7 @@ def main(argv):
 
     # Set up connection to SolR server
     mySolRc = SolrServer+myCore
-    mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
+    mysolr = IndexMMD(mySolRc, args.always_commit, authentication, args.no_feature)
 
     # Find files to process
     if args.input_file:
