@@ -1672,9 +1672,10 @@ def main(argv):
     # Report status
     mylog.info("Number of files processed were: %d", len(files2ingest))
 
-    # Add a commit to solr at end of run
-    mylog.info("Committing the input to SolR. This may take some time.")
-    mysolr.commit()
+    # Add a commit to solr at end of run, according to magnarem auto commit is done every 10 minutes
+    if args.always_commit:
+        mylog.info("Committing the input to SolR. This may take some time.")
+        mysolr.commit()
 
 
 if __name__ == "__main__":
