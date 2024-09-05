@@ -1040,7 +1040,6 @@ class MMD4SolR:
                 # make it an iterable list
                 dataset_citation_elements = [dataset_citation_elements] 
 
-            print('So far so good...')
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
                     element_suffix = k.split(':')[-1]
