@@ -24,6 +24,7 @@ import sys
 import os.path
 import argparse
 import re
+import requests
 import subprocess
 import pysolr
 import xmltodict
@@ -1122,6 +1123,8 @@ class IndexMMD:
         self.no_feature = no_feature
 
         # Connecting to core
+        self.authentication = authentication
+        self.mysolrserver = mysolrserver
         try:
             self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020, auth=authentication)
             self.logger.info("Connection established to: %s", str(mysolrserver))
@@ -1410,7 +1413,8 @@ class IndexMMD:
     and have been marked as parent
     """
     def find_parent_in_index(self, id):
-        res = requests.get(mySolRc+'/get?id='+id, auth=authentication)
+        url = str(self.solrc)+'/get?id='+id
+        res = requests.get(str(self.mysolrserver)+'/get?id='+id, auth=self.authentication)
         res.raise_for_status()
         return res.json()
 
