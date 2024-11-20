@@ -1139,7 +1139,9 @@ class IndexMMD:
     """
     Primary function to index records, rewritten to expect list input
     """
-    def index_record(self, records2ingest, addThumbnail, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
+    def index_record(self, records2ingest, addThumbnail, wms_layer=None, wms_style=None, 
+                     wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, 
+                     thumbnail_extent=None,predefined_thumbnail_path=None):
         # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19
         """ Add thumbnail to SolR
             Args:
@@ -1154,6 +1156,7 @@ class IndexMMD:
                 wms_timeout (int): timeout for WMS service
                 thumbnail_extent (list): Spatial extent of the thumbnail in
                                       lat/lon [x0, x1, y0, y1]
+                predefined_thumbnail (str): absolute filepath to thumbnail picture. Default value: None
             Returns:
                 bool
         """
@@ -1174,7 +1177,10 @@ class IndexMMD:
             """
             If OGC WMS is available, no point in looking for featureType in OPeNDAP.
             """
-            if 'data_access_url_ogc_wms' in input_record and addThumbnail:
+            if predefined_thumbnail_path and addThumbnail:
+                thumbnail_data = self.add_thumbnail(url=predefined_thumbnail_path,thumbnail_type='fpath')
+
+            elif 'data_access_url_ogc_wms' in input_record and addThumbnail:
                 self.logger.info("Checking thumbnails...")
                 getCapUrl = input_record['data_access_url_ogc_wms']
                 if not myfeature:
@@ -1228,6 +1234,7 @@ class IndexMMD:
     def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
             Args:
+                url / file: url to getcapabilities document for WMS / file to pregenerated thumbnail (JPEG, PNG, ...)
                 type: Thumbnail type. (wms, ts)
             Returns:
                 thumbnail: base64 string representation of image
@@ -1239,7 +1246,15 @@ class IndexMMD:
                 return thumbnail
             except Exception as e:
                 self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
+
+        if thumbnail_type == 'fpath':
+            try:
+                thumbnail = self.get_base64(url)
+                return thumbnail
+            except Exception as e:
+                self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
                 return None
+            
         elif thumbnail_type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
             return thumbnail
@@ -1314,23 +1329,13 @@ class IndexMMD:
 
         fig, ax = plt.subplots(subplot_kw=subplot_kw)
 
-        #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
-        #                                                scale='50m',
-        #                                                facecolor='#cccccc',
-        #                                                name='land')
-        #ax.add_feature(land_mask, zorder=0, edgecolor='#aaaaaa',
-        #        linewidth=0.5)
 
         # transparent background
         ax.spines['geo'].set_visible(False)
-        #ax.outline_patch.set_visible(False)
-        ##ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
-        fig.set_figwidth(400*px)
-        fig.set_figheight(400*px)
-        ##fig.set_dpi(100)
-        ##ax.background_patch.set_alpha(1)
+        fig.set_figwidth(400)
+        fig.set_figheight(400)
 
         ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
@@ -1347,17 +1352,33 @@ class IndexMMD:
         fig.savefig(thumbnail_fname, format='png', bbox_inches='tight')
         plt.close('all')
 
-        with open(thumbnail_fname, 'rb') as infile:
+        thumbnail_b64 = self.get_base64(thumbnail_fname)
+
+        # Remove thumbnail
+        os.remove(thumbnail_fname)
+        return thumbnail_b64
+
+
+    def get_base64(self, fpath):
+        """ Method converting a file to a base64 encoded string 
+
+            Args:
+                fpath (str): absolute filepath to image
+
+            Returns:
+                thumbnail_b64 (str): base64 string in utf-8
+        """
+        with open(fpath, 'rb') as infile:
             data = infile.read()
             encode_string = base64.b64encode(data)
             del data
 
+        
         thumbnail_b64 = (b'data:image/png;base64,' +
                 encode_string).decode('utf-8')
+        
         del encode_string
 
-        # Remove thumbnail
-        os.remove(thumbnail_fname)
         return thumbnail_b64
 
     def create_ts_thumbnail(self):
