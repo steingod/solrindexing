@@ -1334,8 +1334,9 @@ class IndexMMD:
         ax.spines['geo'].set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
-        fig.set_figwidth(400)
-        fig.set_figheight(400)
+        fig.set_figwidth(4.5)
+        fig.set_figheight(4.5)
+        fig.set_dpi(100)
 
         ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
