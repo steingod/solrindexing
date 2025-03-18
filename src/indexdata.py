@@ -24,6 +24,7 @@ import sys
 import os.path
 import argparse
 import re
+import requests
 import subprocess
 import pysolr
 import xmltodict
@@ -43,7 +44,7 @@ import logging
 import lxml.etree as ET
 from logging.handlers import TimedRotatingFileHandler
 from time import sleep
-#import pickle Not used as of Øystein Godøy, METNO/FOU, 2023-04-10 
+#import pickle Not used as of Øystein Godøy, METNO/FOU, 2023-04-10
 from shapely.geometry import box
 from shapely.wkt import loads
 from shapely.geometry import mapping
@@ -437,12 +438,12 @@ class MMD4SolR:
             lmu_note = []
             # FIXME check if this works correctly
             #Only one last_metadata_update element
-            if isinstance(last_metadata_update['mmd:update'], dict): 
+            if isinstance(last_metadata_update['mmd:update'], dict):
                     lmu_datetime.append(str(last_metadata_update['mmd:update']['mmd:datetime']))
                     lmu_type.append(last_metadata_update['mmd:update']['mmd:type'])
                     lmu_note.append(last_metadata_update['mmd:update']['mmd:note'])
             # multiple last_metadata_update elements
-            else: 
+            else:
                 for i,e in enumerate(last_metadata_update['mmd:update']):
                     lmu_datetime.append(str(e['mmd:datetime']))
                     lmu_type.append(e['mmd:type'])
@@ -932,7 +933,7 @@ class MMD4SolR:
 
         """ Keywords """
         """
-        Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR. 
+        Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR.
         What is shown in data portal is keywords_keyword.
         """
         #self.logger.info("Processing keywords")
@@ -1061,9 +1062,9 @@ class MMD4SolR:
             dataset_citation_elements = self.mydoc['mmd:mmd']['mmd:dataset_citation']
 
             #Only one element
-            if isinstance(dataset_citation_elements, dict): 
+            if isinstance(dataset_citation_elements, dict):
                 # make it an iterable list
-                dataset_citation_elements = [dataset_citation_elements] 
+                dataset_citation_elements = [dataset_citation_elements]
 
             for dataset_citation in dataset_citation_elements:
                 for k, v in dataset_citation.items():
@@ -1091,8 +1092,8 @@ class MMD4SolR:
                             v += 'T12:00:00Z'
                     mydict['dataset_citation_{}'.format(element_suffix)] = v
 
-        """ 
-        Quality control 
+        """
+        Quality control
         """
         #self.logger.info("Processing quality control information")
         if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
@@ -1106,7 +1107,7 @@ class MMD4SolR:
         encoded_xml_string = base64.b64encode(xml_string)
         xml_b64 = (encoded_xml_string).decode('utf-8')
         mydict['mmd_xml_file'] = xml_b64
-        
+
         ## Set default parent child relation. No parent, no child.
         """Set defualt parent/child flags"""
         self.logger.info("Setting default parent/child relations")
@@ -1147,6 +1148,8 @@ class IndexMMD:
         self.no_feature = no_feature
 
         # Connecting to core
+        self.authentication = authentication
+        self.mysolrserver = mysolrserver
         try:
             self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020, auth=authentication)
             self.logger.info("Connection established to: %s", str(mysolrserver))
@@ -1161,8 +1164,10 @@ class IndexMMD:
     """
     Primary function to index records, rewritten to expect list input
     """
-    def index_record(self, records2ingest, addThumbnail, wms_layer=None, wms_style=None, wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, thumbnail_extent=None):
-        # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19 
+    def index_record(self, records2ingest, addThumbnail, wms_layer=None, wms_style=None, 
+                     wms_zoom_level=0, add_coastlines=True, projection=ccrs.PlateCarree(), wms_timeout=120, 
+                     thumbnail_extent=None,predefined_thumbnail_path=None):
+        # FIXME, update the text below Øystein Godøy, METNO/FOU, 2023-03-19
         """ Add thumbnail to SolR
             Args:
                 input_record() : input MMD file to be indexed in SolR
@@ -1176,6 +1181,7 @@ class IndexMMD:
                 wms_timeout (int): timeout for WMS service
                 thumbnail_extent (list): Spatial extent of the thumbnail in
                                       lat/lon [x0, x1, y0, y1]
+                predefined_thumbnail (str): absolute filepath to thumbnail picture. Default value: None
             Returns:
                 bool
         """
@@ -1196,7 +1202,10 @@ class IndexMMD:
             """
             If OGC WMS is available, no point in looking for featureType in OPeNDAP.
             """
-            if 'data_access_url_ogc_wms' in input_record and addThumbnail:
+            if predefined_thumbnail_path and addThumbnail:
+                thumbnail_data = self.add_thumbnail(url=predefined_thumbnail_path,thumbnail_type='fpath')
+
+            elif 'data_access_url_ogc_wms' in input_record and addThumbnail:
                 self.logger.info("Checking thumbnails...")
                 getCapUrl = input_record['data_access_url_ogc_wms']
                 if not myfeature:
@@ -1250,6 +1259,7 @@ class IndexMMD:
     def add_thumbnail(self, url, thumbnail_type='wms'):
         """ Add thumbnail to SolR
             Args:
+                url / file: url to getcapabilities document for WMS / file to pregenerated thumbnail (JPEG, PNG, ...)
                 type: Thumbnail type. (wms, ts)
             Returns:
                 thumbnail: base64 string representation of image
@@ -1261,7 +1271,15 @@ class IndexMMD:
                 return thumbnail
             except Exception as e:
                 self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
+
+        if thumbnail_type == 'fpath':
+            try:
+                thumbnail = self.get_base64(url)
+                return thumbnail
+            except Exception as e:
+                self.logger.error("Thumbnail creation from OGC WMS failed: %s",e)
                 return None
+            
         elif thumbnail_type == 'ts': #time_series
             thumbnail = 'TMP'  # create_ts_thumbnail(...)
             return thumbnail
@@ -1336,23 +1354,14 @@ class IndexMMD:
 
         fig, ax = plt.subplots(subplot_kw=subplot_kw)
 
-        #land_mask = cartopy.feature.NaturalEarthFeature(category='physical',
-        #                                                scale='50m',
-        #                                                facecolor='#cccccc',
-        #                                                name='land')
-        #ax.add_feature(land_mask, zorder=0, edgecolor='#aaaaaa',
-        #        linewidth=0.5)
 
         # transparent background
         ax.spines['geo'].set_visible(False)
-        #ax.outline_patch.set_visible(False)
-        ##ax.background_patch.set_visible(False)
         fig.patch.set_alpha(0)
         fig.set_alpha(0)
-        fig.set_figwidth(400*px)
-        fig.set_figheight(400*px)
-        ##fig.set_dpi(100)
-        ##ax.background_patch.set_alpha(1)
+        fig.set_figwidth(4.5)
+        fig.set_figheight(4.5)
+        fig.set_dpi(100)
 
         ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
@@ -1369,17 +1378,33 @@ class IndexMMD:
         fig.savefig(thumbnail_fname, format='png', bbox_inches='tight')
         plt.close('all')
 
-        with open(thumbnail_fname, 'rb') as infile:
+        thumbnail_b64 = self.get_base64(thumbnail_fname)
+
+        # Remove thumbnail
+        os.remove(thumbnail_fname)
+        return thumbnail_b64
+
+
+    def get_base64(self, fpath):
+        """ Method converting a file to a base64 encoded string 
+
+            Args:
+                fpath (str): absolute filepath to image
+
+            Returns:
+                thumbnail_b64 (str): base64 string in utf-8
+        """
+        with open(fpath, 'rb') as infile:
             data = infile.read()
             encode_string = base64.b64encode(data)
             del data
 
+        
         thumbnail_b64 = (b'data:image/png;base64,' +
                 encode_string).decode('utf-8')
+        
         del encode_string
 
-        # Remove thumbnail
-        os.remove(thumbnail_fname)
         return thumbnail_b64
 
     def create_ts_thumbnail(self):
@@ -1419,7 +1444,7 @@ class IndexMMD:
 
         return(featureType)
 
-    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21 
+    # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21
     # Not sure if this is needed onwards, but keeping for now.
     def search(self):
         """ Require Id as input """
@@ -1434,8 +1459,9 @@ class IndexMMD:
     Use solr real-time get to check if a parent is already indexed,
     and have been marked as parent
     """
-    def find_parent_in_index(id):
-        res = requests.get(mySolRc+'/get?id='+id, auth=authentication)
+    def find_parent_in_index(self, id):
+        url = str(self.solrc)+'/get?id='+id
+        res = requests.get(str(self.mysolrserver)+'/get?id='+id, auth=self.authentication)
         res.raise_for_status()
         return res.json()
 
@@ -1443,7 +1469,7 @@ class IndexMMD:
     Update the parent document we got from solr.
     some fields need to be removed for solr to accept the update.
     """
-    def solr_updateparent(parent):
+    def solr_updateparent(self, parent):
         if 'full_text' in parent:
             parent.pop('full_text')
         if 'bbox__maxX' in parent:
@@ -1594,7 +1620,7 @@ def main(argv):
             continue
         fileno += 1
 
-        """ 
+        """
         Convert to the SolR format needed
         """
         try:
@@ -1647,11 +1673,11 @@ def main(argv):
             # FIXME, need more robustness...
             mylog.warning('This part of parent/child relations is yet not tested.')
             continue
-            parent = find_parent_in_index(id)
-            parent = solr_updateparent(parent)
-            mysolr.add([parent])
+            parent = mysolr.find_parent_in_index(id)
+            parent = mysolr.solr_updateparent(parent)
+            mysolr.solrc.add([parent])
         else:
-            # Assuming found in the current batch of files, then set to parent... Not sure if this is needed onwards, but discussion on how isParent works is needed Øystein Godøy, METNO/FOU, 2023-03-31 
+            # Assuming found in the current batch of files, then set to parent... Not sure if this is needed onwards, but discussion on how isParent works is needed Øystein Godøy, METNO/FOU, 2023-03-31
             i = 0
             for rec in files2ingest:
                 if rec['id'] == id:
