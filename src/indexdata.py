@@ -156,19 +156,23 @@ class MMD4SolR:
             raise
 
     def check_mmd(self):
-        """ Check and correct MMD if needed """
+        """ 
+        Check and correct MMD if needed. If test is not passed, the document is skipped (through exception raised) from the SolR conversion and subsequent ingestion.
+        """
         """ Remember to check that multiple fields of abstract and title
         have set xml:lang= attributes... """
 
         """
         Check for presence of required elements
-        Temporal and spatial extent are not required as of no as it will
+        Temporal and spatial extent are now required
+        This wil break functionality on many datasets, so might just add default bounding boxes for the Arctic where applicable.as of no as it will
         break functionality for some datasets and communities especially
         in the Arctic context.
         """
         # TODO add proper docstring
+        self.logger.info('Checking for MMD minimum requirements')
         mmd_requirements = {
-            'mmd:metadata_version': False,
+            'mmd:metadata_version': False, # Really neeeded?
             'mmd:metadata_identifier': False,
             'mmd:title': False,
             'mmd:abstract': False,
@@ -185,10 +189,10 @@ class MMD4SolR:
         """
         for requirement in mmd_requirements.keys():
             if requirement in self.mydoc['mmd:mmd']:
-                self.logger.info('\n\tChecking for: %s',requirement)
+                #self.logger.info('\n\tChecking for: %s',requirement)
                 if requirement in self.mydoc['mmd:mmd']:
                     if self.mydoc['mmd:mmd'][requirement] != None:
-                        self.logger.info('\n\t%s is present and non empty',requirement)
+                        #self.logger.info('\n\t%s is present and non empty',requirement)
                         mmd_requirements[requirement] = True
                     else:
                         self.logger.warning('\n\tRequired element %s is missing, setting it to unknown',requirement)
@@ -250,7 +254,7 @@ class MMD4SolR:
                                     'Comprehensive quality control'],
         }
         for element in mmd_controlled_elements.keys():
-            self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
+            #self.logger.info('\n\tChecking %s\n\tfor compliance with controlled vocabulary', element)
             if element in self.mydoc['mmd:mmd']:
 
                 if isinstance(self.mydoc['mmd:mmd'][element], list):
@@ -332,14 +336,19 @@ class MMD4SolR:
                     myvalue = self.mydoc['mmd:mmd']['mmd:last_metadata_update']+'Z'
             mydate = dateutil.parser.parse(myvalue)
             #self.mydoc['mmd:mmd']['mmd:last_metadata_update'] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
+        """ 
+        FIXME
+        Noe er galt med tidssjekken, dokumenter kommer gjennom
+        """
         if 'mmd:temporal_extent' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:temporal_extent'], list):
-                #print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
+                # Handling of multiple time periods
                 i=0
                 for item in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
-                    #print(i, item)
                     for mykey in  item:
-                        #print('\t', mykey,item[mykey])
+                        if (item['mmd:start_date'] == None):
+                            # This exception stops further processing of records
+                            raise Exception('Error in temporal specifications for the dataset')
                         if (item[mykey]==None) or (item[mykey]=='--'):
                             mydate = ''
                             self.mydoc['mmd:mmd']['mmd:temporal_extent'][i][mykey] = mydate
@@ -348,13 +357,24 @@ class MMD4SolR:
                             self.mydoc['mmd:mmd']['mmd:temporal_extent'][i][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
                     i += 1
             else:
+                # Handling of datasets with only one period
                 for mykey in self.mydoc['mmd:mmd']['mmd:temporal_extent']:
+                    """
+                    FIXME, skip record if start_date not specified
+                    """
                     if mykey == '@xmlns:gml':
                         continue
-                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] == '--'):
+                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date'] == None):
+                        # This exception stops further processing of records
+                        raise Exception('Error in temporal specifications for the dataset')
+                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == '--'):
                         mydate = ''
                         self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
                     else:
+                        """
+                        If start_date is missing, won't come here...
+                        Skip this step for empty mydate
+                        """
                         try:
                             mydate = dateutil.parser.parse(str(self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey]))
                             self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -367,6 +387,8 @@ class MMD4SolR:
         Method for creating document with SolR representation of MMD according
         to the XSD.
         """
+
+        self.logger.info('Converting to SolR format')
 
         # Defining Look Up Tables
         personnel_role_LUT = {'Investigator':'investigator',
@@ -582,13 +604,13 @@ class MMD4SolR:
                             #print(point.y)
                             mydict['polygon_rpt'] = point.wkt
 
-                            print(mapping(point))
+                            #print(mapping(point))
                             #mydict['geom'] = geojson.dumps(mapping(point))
                     else:
                         bbox = box(min(lonvals), min(latvals), max(lonvals), max(latvals))
 
-                        print("First conditition")
-                        print(bbox)
+                        #print("First conditition")
+                        #print(bbox)
                         polygon = bbox.wkt
                         #p = shapely.geometry.polygon.orient(polygon, sign=1.0)
                         #print(p.exterior.is_ccw)
@@ -655,7 +677,7 @@ class MMD4SolR:
                         #print(point.y)
                         mydict['polygon_rpt'] = point.wkt
 
-                        print(mapping(point))
+                        #print(mapping(point))
 
                         #mydict['geom'] = geojson.dumps(mapping(point))
 
@@ -663,7 +685,7 @@ class MMD4SolR:
                     bbox = box(float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:west']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:south']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:east']), float(self.mydoc['mmd:mmd']['mmd:geographic_extent']['mmd:rectangle']['mmd:north']), ccw=False)
                     #print(bbox)
                     polygon = bbox.wkt
-                    print(polygon)
+                    #print(polygon)
                     #p = shapely.geometry.polygon.orient(shapely.wkt.loads(polygon), sign=1.0)
                     #print(p.exterior.is_ccw)
                     mydict['polygon_rpt'] = polygon
@@ -677,7 +699,7 @@ class MMD4SolR:
         #self.logger.info('Add location element?')
 
         """ Dataset production status """
-        self.logger.info("Processing dataset production status")
+        #self.logger.info("Processing dataset production status")
         if 'mmd:dataset_production_status' in self.mydoc['mmd:mmd']:
             if isinstance(self.mydoc['mmd:mmd']['mmd:dataset_production_status'],
                     dict):
@@ -686,22 +708,22 @@ class MMD4SolR:
                 mydict['dataset_production_status'] = str(self.mydoc['mmd:mmd']['mmd:dataset_production_status'])
 
         """ Dataset language """
-        self.logger.info("Processing dataset language")
+        #self.logger.info("Processing dataset language")
         if 'mmd:dataset_language' in self.mydoc['mmd:mmd']:
             mydict['dataset_language'] = str(self.mydoc['mmd:mmd']['mmd:dataset_language'])
 
         """ Operational status """
-        self.logger.info("Processing dataset operational status")
+        #self.logger.info("Processing dataset operational status")
         if 'mmd:operational_status' in self.mydoc['mmd:mmd']:
             mydict['operational_status'] = str(self.mydoc['mmd:mmd']['mmd:operational_status'])
 
         """ Access constraints """
-        self.logger.info("Processing dataset access constraints")
+        #self.logger.info("Processing dataset access constraints")
         if 'mmd:access_constraint' in self.mydoc['mmd:mmd']:
             mydict['access_constraint'] = str(self.mydoc['mmd:mmd']['mmd:access_constraint'])
 
         """ Use constraint """
-        self.logger.info("Processing dataset use constraints")
+        #self.logger.info("Processing dataset use constraints")
         if 'mmd:use_constraint' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:use_constraint'] != None:
             # Need both identifier and resource for use constraint
             if 'mmd:identifier' in self.mydoc['mmd:mmd']['mmd:use_constraint'] and 'mmd:resource' in self.mydoc['mmd:mmd']['mmd:use_constraint']:
@@ -715,7 +737,7 @@ class MMD4SolR:
                 mydict['use_constraint_license_text'] = str(self.mydoc['mmd:mmd']['mmd:use_constraint']['mmd:license_text'])
 
         """ Personnel """
-        self.logger.info("Processing dataset personnel")
+        #self.logger.info("Processing dataset personnel")
         if 'mmd:personnel' in self.mydoc['mmd:mmd']:
             personnel_elements = self.mydoc['mmd:mmd']['mmd:personnel']
 
@@ -774,7 +796,7 @@ class MMD4SolR:
                             mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
         """ Data center """
-        self.logger.info("Processing data center")
+        #self.logger.info("Processing data center")
         if 'mmd:data_center' in self.mydoc['mmd:mmd']:
 
             data_center_elements = self.mydoc['mmd:mmd']['mmd:data_center']
@@ -799,17 +821,20 @@ class MMD4SolR:
                             mydict[element_name].append(value)
                         else:
                             mydict[element_name].append(value)
+        else:
+            # FIXME remember to handle missing data centre, set NA
+            pass
 
         """ Data access """
-        self.logger.info("Processing data access")
+        #self.logger.info("Processing data access")
         # NOTE: This is identical to method above. Should in future versions be implified as a method
         if 'mmd:data_access' in self.mydoc['mmd:mmd']:
             data_access_elements = self.mydoc['mmd:mmd']['mmd:data_access']
 
             if isinstance(data_access_elements, dict): #Only one element
-                data_access_elements = [data_access_elements] # make it an iterable list
+                data_access_elements = [data_access_elements] # make it an iterable list so it won't fail below
 
-            for data_access in data_access_elements: #iterate over all data_center elements
+            for data_access in data_access_elements: #iterate over all data_access elements
                 data_access_type = data_access['mmd:type'].replace(" ","_").lower()
                 mydict['data_access_url_{}'.format(data_access_type)] = data_access['mmd:resource']
 
@@ -824,7 +849,7 @@ class MMD4SolR:
         """ Only interpreting parent for now since SolR doesn't take more
             Added handling of namespace in identifiers
         """
-        self.logger.info("Processing related dataset")
+        #self.logger.info("Processing related dataset")
         self.parent = None
         if 'mmd:related_dataset' in self.mydoc['mmd:mmd']:
             idrepls = [':','/','.']
@@ -848,7 +873,7 @@ class MMD4SolR:
                         mydict['related_dataset_id'] = mydict['related_dataset_id'].replace(e,'-')
 
         """ Storage information """
-        self.logger.info("Processing storage information")
+        #self.logger.info("Processing storage information")
         if 'mmd:storage_information' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:storage_information'] != None:
             if 'mmd:file_name' in self.mydoc['mmd:mmd']['mmd:storage_information'] and self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'] != None:
                 mydict['storage_information_file_name'] = str(self.mydoc['mmd:mmd']['mmd:storage_information']['mmd:file_name'])
@@ -871,7 +896,7 @@ class MMD4SolR:
 
 
         """ Related information """
-        self.logger.info("Processing related information")
+        #self.logger.info("Processing related information")
         if 'mmd:related_information' in self.mydoc['mmd:mmd']:
 
             related_information_elements = self.mydoc['mmd:mmd']['mmd:related_information']
@@ -910,7 +935,7 @@ class MMD4SolR:
         Added double indexing of GCMD keywords. keywords_gcmd  (and keywords_wigos) are for faceting in SolR. 
         What is shown in data portal is keywords_keyword.
         """
-        self.logger.info("Processing keywords")
+        #self.logger.info("Processing keywords")
         if 'mmd:keywords' in self.mydoc['mmd:mmd']:
             mydict['keywords_keyword'] = []
             mydict['keywords_vocabulary'] = []
@@ -956,7 +981,7 @@ class MMD4SolR:
                 mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
 
         """ Project """
-        self.logger.info("Processing project")
+        #self.logger.info("Processing project")
         mydict['project_short_name'] = []
         mydict['project_long_name'] = []
         if 'mmd:project' in self.mydoc['mmd:mmd']:
@@ -983,7 +1008,7 @@ class MMD4SolR:
 
 
         """ Platform """
-        self.logger.info("Processing platform")
+        #self.logger.info("Processing platform")
         # FIXME add check for empty sub elements...
         if 'mmd:platform' in self.mydoc['mmd:mmd']:
             platform_elements = self.mydoc['mmd:mmd']['mmd:platform']
@@ -1021,7 +1046,7 @@ class MMD4SolR:
                         mydict['platform_sentinel'] = initial_platform[:-1]
 
         """ Activity type """
-        self.logger.info("Processing activity type")
+        #self.logger.info("Processing activity type")
         if 'mmd:activity_type' in self.mydoc['mmd:mmd']:
             mydict['activity_type'] = []
             if isinstance(self.mydoc['mmd:mmd']['mmd:activity_type'], list):
@@ -1031,7 +1056,7 @@ class MMD4SolR:
                 mydict['activity_type'].append(self.mydoc['mmd:mmd']['mmd:activity_type'])
 
         """ Dataset citation """
-        self.logger.info("Processing dataset citation")
+        #self.logger.info("Processing dataset citation")
         if 'mmd:dataset_citation' in self.mydoc['mmd:mmd']:
             dataset_citation_elements = self.mydoc['mmd:mmd']['mmd:dataset_citation']
 
@@ -1069,7 +1094,7 @@ class MMD4SolR:
         """ 
         Quality control 
         """
-        self.logger.info("Processing quality control information")
+        #self.logger.info("Processing quality control information")
         if 'mmd:quality_control' in self.mydoc['mmd:mmd'] and self.mydoc['mmd:mmd']['mmd:quality_control'] != None:
             mydict['quality_control'] = str(self.mydoc['mmd:mmd']['mmd:quality_control'])
 
@@ -1554,25 +1579,24 @@ def main(argv):
         else:
             thumbnail_extent = None
 
-        mylog.info('\n\tProcessing file: %d - %s',fileno, myfile)
+        mylog.info('\n\tProcessing file: %d/%d - %s',fileno, len(myfiles), myfile)
 
         try:
             mydoc = MMD4SolR(myfile)
         except Exception as e:
             mylog.error('Could not handle file: %s %s', myfile, e)
             continue
-        mylog.info('Checking MMD elements.')
         try:
             mydoc.check_mmd()
         except Exception as e:
-            mylog.error('File: %s is not compliant with MMD specification', myfile)
+            mylog.error('File: %s is not compliant with MMD specification, skipping this', myfile)
+            mylog.error(e)
             continue
         fileno += 1
 
         """ 
         Convert to the SolR format needed
         """
-        mylog.info('Converting to SolR format.')
         try:
             newdoc = mydoc.tosolr()
         except Exception as e:
@@ -1592,7 +1616,7 @@ def main(argv):
         """
         mylog.info('Parsing parent/child relations.')
         if 'related_dataset' in newdoc:
-            # Special fix for NPI
+            # Special fix for NPI FIXME check if still necessary
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('https://data.npolar.no/dataset/','')
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://data.npolar.no/dataset/','')
             newdoc['related_dataset'] = newdoc['related_dataset'].replace('http://api.npolar.no/dataset/','')
