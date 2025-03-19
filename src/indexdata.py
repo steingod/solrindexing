@@ -385,6 +385,7 @@ class MMD4SolR:
                               'Data management plan':'data_management_plan',
                               'Other documentation':'other_documentation',
                               'Software': 'software',
+                              'Data server landing page' : 'data_server_landing_page',
                              }
 
         # Create OrderedDict which will contain all elements for SolR
