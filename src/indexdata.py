@@ -926,12 +926,13 @@ class MMD4SolR:
                     mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])
                     mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
                 else:
-                    for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
-                        if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
-                            if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
-                                mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
-                            mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
-                            mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+                    if self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'] is not None:
+                        for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'])):
+                            if isinstance(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i],str):
+                                if self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'] == "GCMDSK":
+                                    mydict['keywords_gcmd'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
+                                mydict['keywords_vocabulary'].append(self.mydoc['mmd:mmd']['mmd:keywords']['@vocabulary'])
+                                mydict['keywords_keyword'].append(self.mydoc['mmd:mmd']['mmd:keywords']['mmd:keyword'][i])
             # If there are multiple keyword lists
             elif isinstance(self.mydoc['mmd:mmd']['mmd:keywords'], list):
                 for i in range(len(self.mydoc['mmd:mmd']['mmd:keywords'])):
@@ -1042,31 +1043,32 @@ class MMD4SolR:
                 # make it an iterable list
                 dataset_citation_elements = [dataset_citation_elements]
 
-            for dataset_citation in dataset_citation_elements:
-                for k, v in dataset_citation.items():
-                    element_suffix = k.split(':')[-1]
-                    """
-                    Fix to handle IMR records
-                    Consider to add to MMD/SolR in the future
-                    """
-                    if element_suffix == "edition":
-                        continue
-                    """
-                    Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not. Also fix any errors in harvested data...
-                    """
-                    if element_suffix == 'publication_date':
-                        if v is None or "Not Available" in v:
+            if dataset_citation_elements is not None:
+                for dataset_citation in dataset_citation_elements:
+                    for k, v in dataset_citation.items():
+                        element_suffix = k.split(':')[-1]
+                        """
+                        Fix to handle IMR records
+                        Consider to add to MMD/SolR in the future
+                        """
+                        if element_suffix == "edition":
                             continue
-                        # Check if time format is correct
-                        if re.search("T\d{2}:\d{2}:\d{2}:\d{2}Z", v):
-                            tmpstr = re.sub("T\d{2}:\d{2}:\d{2}:\d{2}Z", "T12:00:00Z", v)
-                            v = tmpstr
-                        elif re.search('T\d{2}:\d{2}:\d{2}', v):
-                            if not re.search('Z$', v):
-                                v += 'Z'
-                        elif not re.search("T\d{2}:\d{2}:\d{2}Z", v):
-                            v += 'T12:00:00Z'
-                    mydict['dataset_citation_{}'.format(element_suffix)] = v
+                        """
+                        Fix issue between MMD and SolR schema, SolR requires full datetime, MMD not. Also fix any errors in harvested data...
+                        """
+                        if element_suffix == 'publication_date':
+                            if v is None or "Not Available" in v or len(v) < 10:
+                                continue
+                            # Check if time format is correct
+                            if re.search("T\d{2}:\d{2}:\d{2}:\d{2}Z", v):
+                                tmpstr = re.sub("T\d{2}:\d{2}:\d{2}:\d{2}Z", "T12:00:00Z", v)
+                                v = tmpstr
+                            elif re.search('T\d{2}:\d{2}:\d{2}', v):
+                                if not re.search('Z$', v):
+                                    v += 'Z'
+                            elif not re.search("T\d{2}:\d{2}:\d{2}Z", v):
+                                v += 'T12:00:00Z'
+                        mydict['dataset_citation_{}'.format(element_suffix)] = v
 
         """
         Quality control
