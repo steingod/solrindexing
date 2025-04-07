@@ -27,6 +27,7 @@ import yaml
 from collections import OrderedDict
 from owslib.wms import WebMapService
 import base64
+from requests.auth import HTTPBasicAuth
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -57,12 +58,13 @@ def parse_cfg(cfgfile):
 class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
 
-    def __init__(self, mysolrserver, commit):
+    def __init__(self, mysolrserver, commit, authentication):
         """
         Connect to SolR core
         """
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=commit)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=commit, timeout=1020,
+                                     auth=authentication)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrserver))
@@ -103,9 +105,21 @@ def main(argv):
     myCore = cfg['solrcore']
 
     mySolRc = SolrServer+myCore
+    # check for authentication
+    if 'auth-basic-username' in cfg and 'auth-basic-password' in cfg:
+        username = cfg['auth-basic-username']
+        password = cfg['auth-basic-password']
+        if username == '' or password == '':
+            raise Exception('Authentication username and/or password are configured,'
+                            'but have blank strings')
+        else:
+            authentication = HTTPBasicAuth(username, password)
+    else:
+        authentication = None
+
 
     # Search for records
-    mysolr = IndexMMD(mySolRc, args.always_commit)
+    mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
     myresults = mysolr.search(args)
     #print(dir(myresults))
     print('Found %d matches' % myresults.hits)
