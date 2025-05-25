@@ -1,14 +1,16 @@
 # Configuration template file
 # Øystein Godøy, METNO/FOU, 2019-10-23
 
+# Location of log files
 logfile: <YOUR LOGFILE>
+
+# SolR server setup, including credentials
 solrserver: <YOUR SolR Server>
 solrcore: <YOUR SolR Core>
-# Valid map projections include Mercator, PlateCarree, PolarStereographic
-wms-thumbnail-projection: Mercator
-wms-timeout: 480
-
-# Add support for solr basic authentication
 # uncomment and set <USERNAME> & <PASSWORD> to enable Authentication
 #auth-basic-username: <USERNAME>
 #auth-basic-password: <PASSWORD>
+
+# Valid map projections include Mercator, PlateCarree, PolarStereographic
+wms-thumbnail-projection: Mercator
+wms-timeout: 480
