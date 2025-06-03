@@ -1150,15 +1150,23 @@ class IndexMMD:
         # Feature extraction
         self.no_feature = no_feature
 
-        # Connecting to core
+        # Create a client instance
         self.authentication = authentication
         self.mysolrserver = mysolrserver
+        self.logger.info('Creating SolR client')
         try:
             self.solrc = pysolr.Solr(mysolrserver, always_commit=always_commit, timeout=1020, auth=authentication)
             self.logger.info("Connection established to: %s", str(mysolrserver))
         except Exception as e:
             self.logger.error("Something failed in SolR init: %s", str(e))
-            self.logger.info("Add a sys.exit?")
+            raise SystemExit()
+        # Test connection to server
+        self.logger.info('Testing SolR client')
+        try:
+            mypingresult = self.solrc.ping()
+        except Exception as e:
+            self.logger.error('Could not reach the SolR server: %s', e)
+            raise SystemExit()
 
     #Function for sending explicit commit to solr
     def commit(self):
@@ -1247,6 +1255,8 @@ class IndexMMD:
         """
         Send information to SolR
         """
+        print('so far so good...')
+        print(mmd_records)
         self.logger.info("Adding records to SolR core.")
         try:
             self.solrc.add(mmd_records)
@@ -1551,7 +1561,11 @@ def main(argv):
 
     # Set up connection to SolR server
     mySolRc = SolrServer+myCore
-    mysolr = IndexMMD(mySolRc, args.always_commit, authentication, args.no_feature)
+    try:
+        mysolr = IndexMMD(mySolRc, args.always_commit, authentication, args.no_feature)
+    except Exception as e:
+        mylog.error('Something failed in interaction with the SolR server: %s', e)
+        sys.exit(1)
 
     # Find files to process
     if args.input_file:
