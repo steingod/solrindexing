@@ -1255,15 +1255,13 @@ class IndexMMD:
         """
         Send information to SolR
         """
-        print('so far so good...')
-        print(mmd_records)
         self.logger.info("Adding records to SolR core.")
         try:
             self.solrc.add(mmd_records)
         except Exception as e:
             self.logger.error("Something failed in SolR adding document: %s", str(e))
             return False
-        self.logger.info("%d records successfully added...", len(mmd_records))
+        self.logger.info("%d records successfully added to SolR core...", len(mmd_records))
 
         del mmd_records
 
