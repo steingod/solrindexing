@@ -241,6 +241,7 @@ class MMD4SolR:
                                'NMDC',
                                'NSDN',
                                'SIOS',
+                               'SIOSIN',
                                'SESS_2018',
                                'SESS_2019',
                                'SIOS_access_programme',
@@ -365,13 +366,18 @@ class MMD4SolR:
                     """
                     if mykey == '@xmlns:gml':
                         continue
+                    # Start date always have to be present
                     if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date'] == None):
                         # This exception stops further processing of records
                         raise Exception('Error in temporal specifications for the dataset')
-                    if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == '--'):
-                        mydate = ''
-                        self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
-                    else:
+                    print('##### So far so good...')
+                    print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
+                    # Checking end_date that is not mandatory but is sometimes set empty instead of missing
+                    if mykey == 'mmd:end_date':
+                        if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == '--'):
+                            mydate = ''
+                            self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
+                    if mydate != '':
                         """
                         If start_date is missing, won't come here...
                         Skip this step for empty mydate
@@ -1228,7 +1234,7 @@ class IndexMMD:
                 self.projection = projection
                 self.wms_timeout = wms_timeout
                 self.thumbnail_extent = thumbnail_extent
-                thumbnail_data = self.add_thumbnail(url=getCapUrl)
+                thumbnail_data = self.add_thumbnail(url=getCapUrl, thumbnail_type=self.thumbnail_type)
 
                 if not thumbnail_data:
                     self.logger.warning('Could not properly parse WMS GetCapabilities document')
@@ -1374,9 +1380,12 @@ class IndexMMD:
         fig.set_figheight(4.5)
         fig.set_dpi(100)
 
-        ax.add_wms(wms, wms_layer,
+        try:
+            ax.add_wms(wms, wms_layer,
                 wms_kwargs={'transparent': False,
                     'styles':wms_style})
+        except Exception as e:
+            self.logger.error('Could not set up WMS plotting: %s', e)
 
         if add_coastlines:
             ax.coastlines(resolution="50m",linewidth=0.5)
