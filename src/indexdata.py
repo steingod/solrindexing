@@ -241,6 +241,7 @@ class MMD4SolR:
                                'NMDC',
                                'NSDN',
                                'SIOS',
+                               'SIOSCD',
                                'SIOSIN',
                                'SESS_2018',
                                'SESS_2019',

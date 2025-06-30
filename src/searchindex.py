@@ -58,16 +58,26 @@ def parse_cfg(cfgfile):
 class IndexMMD:
     """ requires a list of dictionaries representing MMD as input """
 
-    def __init__(self, mysolrserver, commit, authentication):
+    def __init__(self, mysolrserver, commit=False, authentication=None):
+        # Set up logging
+        self.logger = logging.getLogger('searchindex.IndexMMD')
+        self.logger.info('Creating an instance of IndexMMD')
         """
         Connect to SolR core
         """
         try:
-            self.solrc = pysolr.Solr(mysolrserver, always_commit=commit, timeout=1020,
-                                     auth=authentication)
+            self.solrc = pysolr.Solr(mysolrserver, always_commit=commit, timeout=1020, auth=authentication)
         except Exception as e:
             print("Something failed in SolR init", str(e))
         print("Connection established to: " + str(mysolrserver))
+
+        # Test connection to server
+        self.logger.info('Testing SolR client')
+        try:
+            mypingresult = self.solrc.ping()
+        except Exception as e:
+            self.logger.error('Could not reach the SolR server: %s', e)
+            raise SystemExit()
 
     def delete_item(self, datasetid, commit):
         """ Require ID as input """
