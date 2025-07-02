@@ -1443,6 +1443,7 @@ class IndexMMD:
             ds = netCDF4.Dataset(myopendap)
         except Exception as e:
             self.logger.error("Something failed reading dataset: %s", str(e))
+            raise
 
         # Try to get the global attribute featureType
         try:
