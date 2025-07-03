@@ -371,8 +371,8 @@ class MMD4SolR:
                     if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date'] == None):
                         # This exception stops further processing of records
                         raise Exception('Error in temporal specifications for the dataset')
-                    print('##### So far so good...')
-                    print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
+                    #print('##### So far so good...')
+                    #print(self.mydoc['mmd:mmd']['mmd:temporal_extent'])
                     # Checking end_date that is not mandatory but is sometimes set empty instead of missing
                     if mykey == 'mmd:end_date':
                         if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == '--'):
@@ -1438,9 +1438,14 @@ class IndexMMD:
         """ Set feature type from OPeNDAP """
         self.logger.info("Now in get_feature_type")
 
+        if len(myopendap) > 1:
+            raise Exception('Cannot handle multiple OPeNDAP URLs yet.')
+        else:
+            tmpstr = myopendap[0]
+            myopendap = tmpstr
         # Open as OPeNDAP
         try:
-            ds = netCDF4.Dataset(myopendap)
+            ds = netCDF4.Dataset(myopendap, 'r')
         except Exception as e:
             self.logger.error("Something failed reading dataset: %s", str(e))
             raise
