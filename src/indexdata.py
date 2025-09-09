@@ -1639,6 +1639,7 @@ def main(argv):
         else:
             thumbnail_extent = None
 
+        fileno += 1
         mylog.info('\n\tProcessing file: %d/%d - %s',fileno, len(myfiles), myfile)
 
         try:
@@ -1652,7 +1653,6 @@ def main(argv):
             mylog.error('File: %s is not compliant with MMD specification, skipping this', myfile)
             mylog.error(e)
             continue
-        fileno += 1
 
         """
         Convert to the SolR format needed
