@@ -1458,21 +1458,22 @@ class IndexMMD:
             raise
         ds.close()
 
-        if featureType not in ['point', 'timeSeries', 'trajectory','profile','timeSeriesProfile','trajectoryProfile']:
+        #create dict lower:valid to map current lower value to valid.
+        validfeaturetypes = {'point' : 'point', 'timeseries' : 'timeSeries',
+                             'trajectory' : 'trajectory', 'profile' : 'profile',
+                             'timeseriesprofile' : 'timeSeriesProfile', 'trajectoryprofile' : 'trajectoryProfile'}
+
+        if featureType not in validfeaturetypes.values():
             self.logger.warning("The featureType found - %s - is not valid", featureType)
             self.logger.warning("Fixing this locally")
-            if featureType == "TimeSeries":
-                featureType = 'timeSeries'
-            elif featureType == "timeseries":
-                featureType = 'timeSeries'
-            elif featureType == "timseries":
-                featureType = 'timeSeries'
+            if featureType.lower() in validfeaturetypes.keys():
+                featureType = validfeaturetypes[featureType.lower()]
             else:
-                self.logger.warning("The featureType found is a new typo...")
+                print("The featureType cannot be mapped to any valid value")
+                featureType = None
 
+        return featureType
             #raise
-
-        return(featureType)
 
     # FIXME check if can be deleted, Øystein Godøy, METNO/FOU, 2023-03-21
     # Not sure if this is needed onwards, but keeping for now.
