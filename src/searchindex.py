@@ -24,6 +24,7 @@ import dateutil.parser
 import warnings
 import json
 import yaml
+import logging
 from collections import OrderedDict
 from owslib.wms import WebMapService
 import base64
