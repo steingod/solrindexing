@@ -786,6 +786,8 @@ class MMD4SolR:
                     if entry_type == 'role':
                         mydict['personnel_{}_role'.format(personnel_role_LUT[role])].append(personnel[entry])
                         mydict['personnel_role'].append(personnel[entry])
+                    elif entry_type == 'type':
+                        pass
                     else:
                         # Treat address specifically and handle faceting elements personnel_role, personnel_name, personnel_organisation.
                         if entry_type == 'contact_address':
