@@ -91,12 +91,14 @@ class IndexMMD:
 
         print("Record successfully deleted from core")
 
-    def search(self, myargs):
+    def search(self, searchstring):
         """ Require Id as input """
         try:
-            results = self.solrc.search(myargs.string,**{'wt':'python','rows':100000})
+            #results = self.solrc.search(searchstring,**{'wt':'python','rows':100000})
+            results = self.solrc.search(searchstring,rows=100000)
         except Exception as e:
             print("Something failed: ", str(e))
+            raise Exception("Something failed: ", str(e))
 
         return results
 
@@ -131,8 +133,11 @@ def main(argv):
 
     # Search for records
     mysolr = IndexMMD(mySolRc, args.always_commit, authentication)
-    myresults = mysolr.search(args)
-    #print(dir(myresults))
+    try:
+        myresults = mysolr.search(args.string)
+    except Exception as e:
+        print('Error communicating with SolR', e)
+        sys.exit()
     print('Found %d matches' % myresults.hits)
     print('Looping through matches:')
     i=0
