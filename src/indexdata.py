@@ -219,6 +219,7 @@ class MMD4SolR:
                                        'geoscientificInformation',
                                        'health',
                                        'imageryBaseMapsEarthCover',
+                                       'intelligenceMilitary',
                                        'inlandWaters',
                                        'location',
                                        'oceans',
@@ -233,24 +234,37 @@ class MMD4SolR:
                                'AeN',
                                'APPL',
                                'CC',
+                               'CVL',
                                'DAM',
                                'DOKI',
                                'GCW',
+                               'GEONOR',
+                               'KSS',
+                               'METNCS',
                                'NBS',
                                'NMAP',
                                'NMDC',
                                'NSDN',
+                               'NySMAC',
+                               'POLARIN',
+                               'SESS2018',
+                               'SESS2019',
+                               'SESS2020',
+                               'SESS2022',
+                               'SESS2023',
+                               'SESS2024',
+                               'SESS2025',
                                'SIOS',
+                               'SIOSAP',
                                'SIOSCD',
                                'SIOSIN',
-                               'SESS_2018',
-                               'SESS_2019',
-                               'SIOS_access_programme',
+                               'TONE',
                                'YOPP'],
             'mmd:dataset_production_status': ['Planned',
                                               'In Work',
                                               'Complete',
-                                              'Obsolete'],
+                                              'Obsolete',
+                                              'Not available'],
             'mmd:quality_control': ['No quality control',
                                     'Basic quality control',
                                     'Extended quality control',
@@ -378,7 +392,7 @@ class MMD4SolR:
                         if (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == None) or (self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] == '--'):
                             mydate = ''
                             self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] = mydate
-                    if mydate != '':
+                    if self.mydoc['mmd:mmd']['mmd:temporal_extent'][mykey] != '':
                         """
                         If start_date is missing, won't come here...
                         Skip this step for empty mydate
@@ -389,6 +403,10 @@ class MMD4SolR:
                         except Exception as e:
                             self.logger.error('Date format could not be parsed: %s', e)
                             raise Exception('Error in temporal specifications for the dataset')
+                # if end_date is present, check that it is smaller than start_date using dateobject
+                if 'mmd:end_date' in self.mydoc['mmd:mmd']['mmd:temporal_extent'] and self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] !='':
+                    if self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:end_date'] < self.mydoc['mmd:mmd']['mmd:temporal_extent']['mmd:start_date']:
+                        raise Exception('Start and end dates are in the wrong order')
 
     def tosolr(self):
         """
