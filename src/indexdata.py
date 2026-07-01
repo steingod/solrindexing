@@ -798,6 +798,22 @@ class MMD4SolR:
                 mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
 
+            personnel_data = []
+            # List for keeping track of what entries are present in each personnel
+            for role in personnel_role_LUT:
+                personnel_data.append('personnel_{}_role'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_name'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_email'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_phone'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_fax'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_organisation'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_address'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_address_city'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_address_province_or_state'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_address_postal_code'.format(personnel_role_LUT[role]))
+                personnel_data.append('personnel_{}_address_country'.format(personnel_role_LUT[role]))
+
+
             # Fill lists with information
             for personnel in personnel_elements:
                 role = personnel['mmd:role']
@@ -839,6 +855,25 @@ class MMD4SolR:
                             mydict['personnel_organisation'].append(organisation)
                         else:
                             mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
+
+                # Adding None-values for missing entries in dataset
+                for item in personnel_data_copy:
+                    if item.startswith(f'personnel_{personnel_role_LUT[role]}'):
+                        mydict[item].append(None)
+                        if item.endswith('_role'):
+                            mydict['personnel_role'].append(None)
+                        if item.endswith('_name'):
+                            mydict['personnel_name'].append(None)
+                        if item.endswith('_organisation'):
+                            mydict['personnel_organisation'].append(None)
+
+            # Erasing None-values for roles that are not present in dataset
+            for key, value in mydict.items():
+                if key.startswith("personnel_"): 
+                    if all(item is None for item in value):
+                        value.clear()
+
+
 
         """ Data center """
         #self.logger.info("Processing data center")
