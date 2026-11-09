@@ -798,20 +798,20 @@ class MMD4SolR:
                 mydict['personnel_{}_address_postal_code'.format(personnel_role_LUT[role])] = []
                 mydict['personnel_{}_address_country'.format(personnel_role_LUT[role])] = []
 
-            personnel_data = []
-            # List for keeping track of what entries are present in each personnel
-            for role in personnel_role_LUT:
-                personnel_data.append('personnel_{}_role'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_name'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_email'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_phone'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_fax'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_organisation'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_address'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_address_city'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_address_province_or_state'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_address_postal_code'.format(personnel_role_LUT[role]))
-                personnel_data.append('personnel_{}_address_country'.format(personnel_role_LUT[role]))
+#            personnel_data = []
+#            # List for keeping track of what entries are present in each personnel
+#            for role in personnel_role_LUT:
+#                personnel_data.append('personnel_{}_role'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_name'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_email'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_phone'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_fax'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_organisation'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_address'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_address_city'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_address_province_or_state'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_address_postal_code'.format(personnel_role_LUT[role]))
+#                personnel_data.append('personnel_{}_address_country'.format(personnel_role_LUT[role]))
 
 
             # Fill lists with information
@@ -856,22 +856,22 @@ class MMD4SolR:
                         else:
                             mydict['personnel_{}_{}'.format(personnel_role_LUT[role], entry_type)].append(personnel[entry])
 
-                # Adding None-values for missing entries in dataset
-                for item in personnel_data_copy:
-                    if item.startswith(f'personnel_{personnel_role_LUT[role]}'):
-                        mydict[item].append(None)
-                        if item.endswith('_role'):
-                            mydict['personnel_role'].append(None)
-                        if item.endswith('_name'):
-                            mydict['personnel_name'].append(None)
-                        if item.endswith('_organisation'):
-                            mydict['personnel_organisation'].append(None)
-
-            # Erasing None-values for roles that are not present in dataset
-            for key, value in mydict.items():
-                if key.startswith("personnel_"): 
-                    if all(item is None for item in value):
-                        value.clear()
+#                # Adding None-values for missing entries in dataset
+#                for item in personnel_data_copy:
+#                    if item.startswith(f'personnel_{personnel_role_LUT[role]}'):
+#                        mydict[item].append(None)
+#                        if item.endswith('_role'):
+#                            mydict['personnel_role'].append(None)
+#                        if item.endswith('_name'):
+#                            mydict['personnel_name'].append(None)
+#                        if item.endswith('_organisation'):
+#                            mydict['personnel_organisation'].append(None)
+#
+#            # Erasing None-values for roles that are not present in dataset
+#            for key, value in mydict.items():
+#                if key.startswith("personnel_"):
+#                    if all(item is None for item in value):
+#                        value.clear()
 
 
 
@@ -1321,7 +1321,8 @@ class IndexMMD:
                 # Thumbnail of timeseries to be added
                 # Or better do this as part of get_feature_type?
                 try:
-                    myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+                    #myfeature = self.get_feature_type(input_record['data_access_url_opendap'])
+                    myfeature = self.get_feature_type_delay(input_record['data_access_url_opendap'])
                 except Exception as e:
                     self.logger.warning("Something failed while retrieving feature type: %s", str(e))
                 if myfeature:
@@ -1504,6 +1505,76 @@ class IndexMMD:
 
     def create_ts_thumbnail(self):
         """ Create a base64 encoded thumbnail """
+
+    def get_feature_type_delay(self, myopendap):
+        """ Set feature type from OPeNDAP """
+        self.logger.info("Now in get_feature_type_delay")
+
+        max_retries=5
+        delay_between_retries=2
+
+        if len(myopendap) > 1:
+            raise Exception('Cannot handle multiple OPeNDAP URLs yet.')
+        else:
+            tmpstr = myopendap[0]
+            myopendap = tmpstr
+        # Open as OPeNDAP
+        retries = 0
+        while retries <= max_retries:
+            try:
+                self.logger.info("Attempting to open OPeNDAP URL: %s", myopendap)
+                # Open the dataset as OPeNDAP
+                ds = netCDF4.Dataset(myopendap, 'r')
+                self.logger.info("Successfully opened dataset: %s", myopendap)
+
+                # Try to get the global attribute featureType
+                try:
+                    featureType = ds.getncattr('featureType')
+                    self.logger.info("Extracted featureType: %s", featureType)
+                except Exception as e:
+                    self.logger.error("Something failed extracting featureType: %s", str(e))
+                    raise
+
+                ds.close()
+
+                # Create a mapping of valid feature types
+                validfeaturetypes = {
+                    'point': 'point',
+                    'timeseries': 'timeSeries',
+                    'trajectory': 'trajectory',
+                    'profile': 'profile',
+                    'timeseriesprofile': 'timeSeriesProfile',
+                    'trajectoryprofile': 'trajectoryProfile'
+                }
+
+                # Validate and map featureType
+                if featureType not in validfeaturetypes.values():
+                    self.logger.warning("The featureType found - %s - is not valid", featureType)
+                    self.logger.warning("Attempting to fix this locally")
+                    if featureType.lower() in validfeaturetypes.keys():
+                        featureType = validfeaturetypes[featureType.lower()]
+                    else:
+                        self.logger.error("The featureType cannot be mapped to any valid value")
+                        featureType = None
+
+                return featureType
+
+            except Exception as e:
+                # Handle 429 Too Many Requests
+                if "429 Too Many Requests" in str(e) or "HTTP Error 429" in str(e) or "Access failure" in str(e):
+                #if "Too Many Requests" in str(e) or "HTTP Error 429" in str(e):
+                    retries += 1
+                    wait_time = delay_between_retries * (2 ** (retries - 1))  # Exponential backoff
+                    self.logger.warning("429 Too Many Requests. Retrying in %d seconds... (Attempt %d/%d)", wait_time, retries, max_retries)
+                    sleep(wait_time)
+                else:
+                    # Log non-429 errors and raise them
+                    self.logger.error("Something failed reading dataset: %s", str(e))
+                    raise
+
+        # If max retries are exceeded
+        self.logger.error("Exceeded maximum retries (%d) for OPeNDAP URL: %s", max_retries, myopendap)
+        return None
 
     def get_feature_type(self, myopendap):
         """ Set feature type from OPeNDAP """
