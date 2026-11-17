@@ -1560,15 +1560,17 @@ class IndexMMD:
                 return featureType
 
             except Exception as e:
-                # Handle 429 Too Many Requests
                 if "429 Too Many Requests" in str(e) or "HTTP Error 429" in str(e) or "Access failure" in str(e):
-                #if "Too Many Requests" in str(e) or "HTTP Error 429" in str(e):
                     retries += 1
-                    wait_time = delay_between_retries * (2 ** (retries - 1))  # Exponential backoff
+                    wait_time = delay_between_retries * (2 ** (retries - 1))
                     self.logger.warning("429 Too Many Requests. Retrying in %d seconds... (Attempt %d/%d)", wait_time, retries, max_retries)
                     sleep(wait_time)
+                elif "500" in str(e) or "Internal Server Error" in str(e):
+                    retries += 1
+                    wait_time = delay_between_retries * (2 ** (retries - 1))
+                    self.logger.warning("500 Internal Server Error. Retrying in %d seconds... (Attempt %d/%d)", wait_time, retries, max_retries)
+                    sleep(wait_time)
                 else:
-                    # Log non-429 errors and raise them
                     self.logger.error("Something failed reading dataset: %s", str(e))
                     raise
 
